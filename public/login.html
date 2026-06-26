@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<!-- 
+  ========================================================================
+  🚀 JEMER ACADEMY AUTHENTICATION FRAMEWORK (PRODUCTION GRADE V1.0)
+  ========================================================================
+  Description: Secure access entrance point for Jemer Academy.
+  Design Pattern: Dual-Column Decoupled Responsive Split Workspace.
+  Accessibility: Full WCAG compliance, explicit label mappings, keyboard focus routes.
+  ========================================================================
+-->
+<html lang="en" class="h-full bg-white">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  
+  <!-- Semantic SEO Meta Tags for Portal Entry Points -->
+  <title>Log In to Your Workspace | Jemer Academy Platform</title>
+  <link rel="icon" type="image/png" href="/assets/brand/jemer-logo.png?v=1" />
+  <link rel="apple-touch-icon" href="/assets/brand/jemer-logo.png?v=1" />
+  <meta name="description" content="Access your personalized learning platform dashboard, continue your exam preparation loops, and engage with your smart study analytics engine." />
+  <meta name="robots" content="noindex, nofollow" /> <!-- Protects authentication routes from crawling duplicates -->
+
+  <!-- Application Favicon Setup -->
+  <link rel="icon" type="image/png" href="assets/brand/jemer-logo.png" />
+
+  <!-- Core Tailwind Utility Styling Frame Library -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Typography Optimization Layers (Google Fonts Direct Injection) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Graphical Icons Font Library Mapping -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script>
+    // System configuration mapping parameters for Tailwind JIT compilation engines
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            eduBlue: {
+              primary: '#0B2545', // Premium Deep Educational Navy Anchor Blue
+              hover: '#134074',   // Kinetic interactive states layer hue
+              light: '#EEF4F8'    // High accessibility contrast container surface shade
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            display: ['Outfit', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Decoupled Visual Presentation Configuration Sheet (Reuses signup styles or custom login rules) -->
+  <link rel="stylesheet" href="login-styles.css">
+</head>
+<body class="h-full antialiased font-sans text-slate-900 bg-white selection:bg-blue-900 selection:text-white">
+
+  <!-- ==========================================================================
+       PRIMARY FULL-SCREEN CONTAINER (Edge-to-Edge Grid Architecture)
+       ========================================================================== -->
+  <main class="min-h-screen flex flex-col lg:flex-row overflow-x-hidden">
+
+    <!-- 🖼️ LEFT COLUMN: INTERACTIVE MARKETING GRAPHIC MODAL & SLIDESHOW -->
+    <!-- Synced exactly with signup layout parameters to guarantee brand consistency -->
+    <section class="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-slate-900 to-slate-950 text-white relative flex-col justify-between p-12 overflow-hidden select-none">
+      
+      <!-- Translucent Visual Gradient Overlay Blur Layer -->
+      <div class="absolute inset-0 bg-black/30 z-10 pointer-events-none"></div>
+
+      <!-- STATIC HARDWARE CROSS-FADE CAROUSEL IMAGES SLIDESHOW BASE -->
+      <div class="absolute inset-0 w-full h-full z-0">
+        <!-- Reuses the exact same asset slots to eliminate redundant media downloads -->
+        <div class="slideshow-image absolute inset-0 w-full h-full bg-cover bg-center active-slide" style="background-image: url('assets/images/signup-slide1.jpg');"></div>
+        <div class="slideshow-image absolute inset-0 w-full h-full bg-cover bg-center opacity-0" style="background-image: url('assets/images/signup-slide2.jpg');"></div>
+        <div class="slideshow-image absolute inset-0 w-full h-full bg-cover bg-center opacity-0" style="background-image: url('assets/images/signup-slide3.jpg');"></div>
+      </div>
+
+      <!-- Desktop Floating Header Sub-Layer Components Group -->
+      <div class="relative z-20 flex items-center justify-between w-full">
+        <a href="index.html" class="flex items-center space-x-3 text-white font-display text-xl font-bold tracking-wide">
+          <!-- Official Jemer Academy brand logo image asset with clean containment scaling -->
+          <img src="assets/brand/jemer-logo.png" alt="Jemer Academy Logo" class="w-8 h-8 object-contain" />
+          <span>Jemer Academy</span>
+        </a>
+
+        <!-- Universal Cross-Origin Navigation Route Redirect Action Button Component -->
+        <a href="index.html" class="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/20 hover:bg-white hover:text-slate-900 transition-all duration-300">
+          <i class="fas fa-arrow-left"></i> Back to website
+        </a>
+      </div>
+
+      <!-- Active Content Typography Content Carousel Banner Box -->
+      <div class="relative z-20 max-w-md mb-8">
+        <div class="slideshow-text-container">
+          <div class="slideshow-text block transform transition-all duration-500">
+            <h2 class="text-4xl font-display font-bold leading-tight mb-4 text-white">Welcome Back to Your Tech Empire</h2>
+            <p class="text-slate-300 font-light leading-relaxed">Log in to monitor your customized learning pathways, evaluate recent mock outputs, and access structural study notes.</p>
+          </div>
+        </div>
+
+        <!-- Position Slider Geometric Indicator Array Wrapper Element -->
+        <div class="flex items-center gap-2 mt-8">
+          <span class="slide-dot w-8 h-1.5 rounded-full bg-white transition-all duration-300" data-slide-index="0"></span>
+          <span class="slide-dot w-2 h-1.5 rounded-full bg-white/40 transition-all duration-300" data-slide-index="1"></span>
+          <span class="slide-dot w-2 h-1.5 rounded-full bg-white/40 transition-all duration-300" data-slide-index="2"></span>
+        </div>
+      </div>
+
+      <!-- Corporate Structural Footnote Subtext -->
+      <div class="relative z-20 text-xs text-slate-500 font-mono tracking-wider">
+        SYSTEM SECURITY CLASSIFICATION: ENCRYPTED SECURE ENTRY NODE // 2026
+      </div>
+    </section>
+
+
+    <!-- 📝 RIGHT COLUMN: AUTHENTICATION INTERFACE & CREDENTIAL FORMS -->
+    <section class="w-full lg:w-1/2 flex flex-col justify-between p-6 sm:p-12 md:p-16 bg-white relative">
+      
+      <!-- Mobile Floating Navigation Header Block (Only rendered when desktop frame hides via layout conditions) -->
+      <div class="flex lg:hidden items-center justify-between w-full mb-16">
+        <span class="text-lg font-display font-bold text-slate-900 flex items-center gap-2.5">
+          <img src="assets/brand/jemer-logo.png" alt="Jemer Academy Logo" class="w-6 h-6 object-contain" />
+          <span>Jemer</span>
+        </span>
+        <a href="index.html" class="text-xs font-bold text-eduBlue-primary border border-eduBlue-primary/20 px-3 py-1.5 rounded-full hover:bg-eduBlue-light transition">
+          <i class="fas fa-arrow-left mr-1"></i> Website
+        </a>
+      </div>
+
+      <!-- CORE CREDENTIAL ACCESS FORM WRAPPER -->
+      <div class="w-full max-w-md mx-auto my-auto space-y-8 transition-opacity duration-300">
+        
+        <!-- Explanatory Header Layout Section -->
+        <div>
+          <h1 class="text-3xl font-display font-extrabold tracking-tight text-slate-900 mb-2">Account Login</h1>
+          <p class="text-sm text-slate-500 leading-relaxed">Provide your authorized system credentials below to unprotect your personal learning environments.</p>
+        </div>
+
+        <!-- Master Authentication Interactive Form Canvas -->
+        <form id="master-login-form" novalidate class="space-y-5">
+          
+          <!-- Email Address Input Element Layout Block -->
+          <div class="flex flex-col space-y-1.5">
+            <label for="login-email" class="text-xs font-bold uppercase tracking-wider text-slate-700">Email Address</label>
+            <input type="email" id="login-email" name="email" required autocomplete="email" placeholder="e.g., student@domain.com" class="onboarding-input w-full px-4 py-3.5 rounded-xl border border-slate-200 text-slate-900 font-medium placeholder-slate-400 focus:outline-none focus:border-eduBlue-primary focus:ring-1 focus:ring-eduBlue-primary transition-colors duration-200" />
+            <span class="input-error-msg hidden text-xs font-semibold text-red-500 mt-1"><i class="fas fa-exclamation-circle mr-1"></i> Enter a valid structured account email destination string.</span>
+          </div>
+
+          <!-- Password Input Element Layout Block with Absolute Toggle Button -->
+          <div class="flex flex-col space-y-1.5 relative">
+            <label for="login-password" class="text-xs font-bold uppercase tracking-wider text-slate-700">Password</label>
+            <div class="relative w-full block">
+              <input type="password" id="login-password" name="password" required autocomplete="current-password" placeholder="••••••••••••" class="onboarding-input w-full px-4 py-3.5 pr-10 rounded-xl border border-slate-200 text-slate-900 font-mono focus:outline-none focus:border-eduBlue-primary focus:ring-1 focus:ring-eduBlue-primary transition-colors duration-200" />
+              <!-- Eye Icon Utility Toggle Button Layer -->
+              <button type="button" id="toggle-login-pwd-visibility" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none" aria-label="Reveal or obscure text password character chains">
+                <i class="far fa-eye text-sm" id="login-eye-icon-target"></i>
+              </button>
+            </div>
+            <span class="input-error-msg hidden text-xs font-semibold text-red-500 mt-1"><i class="fas fa-exclamation-circle mr-1"></i> Access password field string cannot be left blank.</span>
+          </div>
+
+          <!-- Practical Identity Persistence & Recovery Utility Row -->
+          <div class="flex items-center justify-between pt-1 select-none text-xs font-medium">
+            <label class="flex items-center gap-2 text-slate-600 cursor-pointer group">
+              <input type="checkbox" id="remember-me-toggle" class="onboarding-checkbox rounded border-slate-300 text-eduBlue-primary focus:ring-eduBlue-primary w-4 h-4 transition" />
+              <span>Keep session open</span>
+            </label>
+            <a href="forgot-password.html" class="text-eduBlue-primary font-bold hover:underline transition-colors">Forgot credential rules?</a>
+          </div>
+
+          <!-- Form Global Execution Error Notice Panel Block -->
+          <div id="login-global-alert-box" class="hidden p-4 rounded-xl bg-red-50 border border-red-100 text-xs font-semibold text-red-600 animate-fade-in">
+            <i class="fas fa-times-circle mr-1.5 text-sm"></i> <span id="global-alert-text-node">Authentication requirements check failed. Please verify input accuracy.</span>
+          </div>
+
+          <!-- Action Submission Layout Component Bar -->
+          <div class="pt-3">
+            <button type="submit" id="execute-login-action" class="w-full px-8 py-3.5 text-sm font-bold text-white bg-eduBlue-primary rounded-xl hover:bg-eduBlue-hover transition transform duration-200 shadow-lg active:scale-95 flex items-center justify-center gap-2">
+              <span>Log In Securely</span> <i class="fas fa-sign-in-alt text-xs"></i>
+            </button>
+          </div>
+
+        </form>
+      </div>
+
+      <!-- ==========================================================================
+           PERSISTENT SCREEN ROUTE ANCHORS LINKS BOTTOM
+           ========================================================================== -->
+      <footer class="text-center text-sm font-medium text-slate-500 pt-8 mt-8 border-t border-slate-100 select-none">
+        New to the Jemer Academy ecosystem? 
+        <a href="signup.html" class="text-eduBlue-primary font-bold underline hover:text-eduBlue-hover transition-colors">Create an account safely</a>
+      </footer>
+
+    </section>
+  </main>
+  <!-- Link external system decoupling authentication interface execution controller -->
+  <script src="auth.js" defer></script>
+  <script src="login-script.js" defer></script>
+</body>
+</html>

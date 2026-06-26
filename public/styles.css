@@ -1,0 +1,218 @@
+/*
+  ========================================================================
+  🎨 JEMER ACADEMY PLATFORM DESIGN ENGINE SPECIFICATION (PRODUCTION V2.0)
+  ========================================================================
+  Description: External cascading style layer for Jemer Academy's core landing engine.
+  Optimization: Hardware accelerated animations via translation layers, explicit 
+                compositing boundaries, fluid typography setups, and foldable support.
+  ========================================================================
+*/
+
+/* ==========================================================================
+   1. CORE HYDRATION & ROOT RESET LAYERS
+   ========================================================================== */
+
+/* Overriding default viewport margins, clamping background color, and establishing structural baseline */
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: #020617; /* Dark slate canvas layout root layer color */
+  color: #F8FAFC; /* Primary text accessibility alpha white shade */
+  overflow-x: hidden; /* Prevent horizontal container spilling on layout tracking loops */
+  position: relative;
+  width: 100%;
+}
+
+/* Explicit heading element typography token optimization assignments */
+h1, h2, h3, h4, .font-display {
+  font-family: 'Outfit', sans-serif; /* Dynamic high-impact geometric branding font family */
+}
+
+/* Optimized scrollbar UI mapping for cleaner display transitions */
+::-webkit-scrollbar {
+  width: 8px; /* Vertical track thickness indicator */
+  height: 8px; /* Horizontal track thickness indicator */
+}
+
+::-webkit-scrollbar-track {
+  background: #020617; /* Matches base layer system background grid */
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1E293B; /* Surface border layer token color code */
+  border-radius: 9999px; /* Absolute edge roundness configuration */
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3B82F6; /* Accent color change flash on tracking cursor hover states */
+}
+
+/* ==========================================================================
+   2. HIGH-FIDELITY GLASSMORPHISM & DEPTH SYSTEMS
+   ========================================================================== */
+
+/* Core structural container token rule for executing pristine background backdrop filtering */
+.glass-panel {
+  background: rgba(30, 41, 59, 0.4); /* Translucent surface mask overlay configuration */
+  backdrop-filter: blur(12px); /* Native system-level vector background distortion filter blur */
+  -webkit-backdrop-filter: blur(12px); /* Safari engine render layer compatibility normalization wrapper */
+  border: 1px solid rgba(255, 255, 255, 0.08); /* Clean sub-pixel outline to define physical container depth */
+}
+
+/* 3D Translation Card Layer Interactions - Transformed to leverage GPU Layer Painting */
+.glass-card-hover {
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), 
+              background-color 0.4s ease, 
+              border-color 0.4s ease, 
+              box-shadow 0.4s ease; /* Fluid timing control mapping curve curves for luxury animation weight */
+  will-change: transform, box-shadow; /* Forces the browser to move the element onto a dedicated GPU compositing layer */
+}
+
+/* Interactive execution state logic configuration on mouse interaction events */
+.glass-card-hover:hover {
+  transform: translate3d(0, -8px, 0); /* Absolute vertical translation using hardware-accelerated 3D transforms */
+  background: rgba(30, 41, 59, 0.6); /* Deepens opacity to heighten physical visual clarity benchmarks */
+  border-color: rgba(59, 130, 246, 0.5); /* Illuminates accent outline frame edge boundaries */
+  box-shadow: 0 20px 40px -5px rgba(59, 130, 246, 0.2); /* Deep focused soft neon shadow emission fields */
+}
+
+/* ==========================================================================
+   3. TYPOGRAPHY GRADIENT LAYER & GLOW CONFIGURATIONS
+   ========================================================================== */
+
+/* Enhanced deep high-contrast linear text vector gradient mapping structure */
+.text-gradient {
+  background: linear-gradient(90deg, #A855F7 0%, #06B6D4 100%); /* Vivid Purple to Electric Cyan split mapping */
+  -webkit-background-clip: text; /* Masks the linear color background boundary directly into the textual geometry font path */
+  -webkit-text-fill-color: transparent; /* Makes baseline text colors translucent to pass the gradient cleanly */
+  background-clip: text;
+  filter: drop-shadow(0 0 12px rgba(168, 85, 247, 0.35)); /* Strategic text aura emission glow layer metrics */
+}
+
+/* ==========================================================================
+   4. ADVANCED HARDWARE-ACCELERATED MOBILE HAMBURGER MENU SYSTEM
+   ========================================================================== */
+
+/* Setup coordinates for the primary menu switch elements inside header tracking modules */
+#mobile-menu-button {
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  display: inline-flex;
+}
+
+/* Layout logic mapping for inner line elements handling vector transformations */
+.hamburger-box {
+  position: relative;
+  width: 24px;
+  height: 20px;
+}
+
+/* Individual state mappings for the internal morphing lines configuration */
+.hamburger-inner {
+  top: 50%;
+  transform: translateY(-50%); /* Centers original baseline alignment node position */
+}
+
+/* Enforcing transitions directly on structural spans via pure CSS animation properties */
+#mobile-menu-button span {
+  transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), 
+              opacity 0.2s ease-out, 
+              background-color 0.3s ease; /* Fluid transition tracking for premium UI feel */
+  transform-origin: center center; /* Sets fixed anchor vectors for clean scaling loops */
+}
+
+/* Active programmatic toggle logic rule executing morph adjustments on click loops */
+#mobile-menu-button[aria-expanded="true"] span:nth-child(1) {
+  transform: translate3d(0, 0, 0) rotate(45deg); /* Morphs the top header row bar line into an elegant closing X wing vector */
+}
+
+#mobile-menu-button[aria-expanded="true"] span:nth-child(2) {
+  opacity: 0; /* Vanishes center core horizontal tracking bar structure down to zero visibility scale values */
+  transform: translate3d(-10px, 0, 0); /* Shifts elements out of focus space to optimize rendering pipelines */
+}
+
+#mobile-menu-button[aria-expanded="true"] span:nth-child(3) {
+  transform: translate3d(0, 0, 0) rotate(-45deg); /* Morphs bottom row line component upward to lock the crossing point */
+}
+
+/* ==========================================================================
+   5. INTERACTIVE COLLAPSIBLE ACCORDION ENGINE MECHANICS (FAQ SYSTEM)
+   ========================================================================== */
+
+/* Pre-activation parameters for internal container panels holding text responses */
+.faq-answer {
+  max-height: 0; /* Absolutely clamps the physical container display footprint down to zero space levels */
+  overflow: hidden; /* Hides internal text blocks from bleeding outside boundary lines */
+  opacity: 0; /* Resets structural transparency elements down to a zero visibility index baseline */
+  padding-top: 0;
+  padding-bottom: 0;
+  transition: max-height 0.4s cubic-bezier(0.25, 1, 0.5, 1), 
+              opacity 0.3s ease, 
+              padding 0.4s ease; /* Clean multi-stage variable interpolation engine loops */
+  will-change: max-height, opacity; /* Informs browser optimization routines to process tracking frames in real time */
+}
+
+/* Programmatic transition injection rule triggered when toggle flags shift element variables */
+.faq-item.open .faq-answer {
+  max-height: 600px; /* Provides ample physical vertical expansion boundaries for extensive data payloads */
+  opacity: 1; /* Smoothly flashes visibility filters forward to 100% capacity marks */
+  padding-top: 1rem; /* Injects geometric spacing separations cleanly between the text items */
+  padding-bottom: 1rem;
+}
+
+/* Multi-directional rotational tracking matrix configurations for indicator arrows */
+.faq-arrow {
+  transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1); /* Keeps system navigation symbols smooth */
+}
+
+/* Direct angular transformation processing rule applied when items change access states */
+.faq-item.open .faq-arrow {
+  transform: rotate(180deg); /* Flips directional point directly upside down to reflect operational view expansion */
+  color: #3B82F6; /* Illuminates icon color mapping indexes forward to active primary states */
+}
+
+/* Custom layout utility configurations to bypass system visibility indicators cleanly */
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Disables scroll track elements entirely from visible web screens */
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none; /* Windows IE system execution engine mapping exclusion layer */
+  scrollbar-width: none; /* Modern browser configuration layer utility adjustments */
+}
+
+/* ==========================================================================
+   6. RESPONSIVE VIEWPORT ADAPTABILITY SYSTEMS (ULTRA-WIDE & FOLDABLES)
+   ========================================================================== */
+
+/* Advanced optimization media rule configuration tailored specifically for luxury wide monitors */
+@media (min-width: 1920px) {
+  html {
+    font-size: 18px; /* Upscales universal typographic font base grids for optimal density display on high-definition targets */
+  }
+  .max-w-7xl {
+    max-width: 1600px; /* Extends physical geometric grid layout maximum widths for premium content spread tracking */
+  }
+}
+
+/* Optimization adjustments for intermediate flexible screens, tablets, and mobile foldables */
+@media (max-width: 1024px) {
+  .perspective-1000 {
+    perspective: none; /* Removes matrix depth distortions on smaller views to maintain stable frame execution metrics */
+  }
+  .glass-panel p-2 {
+    transform: none !important; /* Forces components flat across mobile displays to secure readable typography boundaries */
+  }
+}
+
+/* Layout optimization for compact viewports and narrow smartphone devices */
+@media (max-width: 480px) {
+  h1 {
+    font-size: 2.75rem !important; /* Clamps massive hero display titles to prevent text clipping on small viewports */
+    line-height: 1.2 !important;
+  }
+  .px-6 {
+    padding-left: 1rem !important; /* Streamlines container edge space allocations to optimize core screen reading layouts */
+    padding-right: 1rem !important;
+  }
+}

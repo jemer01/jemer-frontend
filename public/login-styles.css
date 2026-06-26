@@ -1,0 +1,157 @@
+/**
+ * ========================================================================
+ * 🎨 JEMER ACADEMY AUTHENTICATION STYLESHEET (V1.0)
+ * ========================================================================
+ * Description: Presentation layer structural rules for the login system.
+ * Engineering Focus: Hardware-accelerated interactions, tight responsive grid
+ * definitions, and clear interactive state indicators.
+ * Compliance: Clear layout matching across all onboarding views.
+ * ========================================================================
+ */
+
+/* ==========================================================================
+   1. GLOBAL SYSTEM SETUP & DESIGN TOKEN INITIALIZATION
+   ========================================================================== */
+:root {
+  /* Core layout typography tokens maps */
+  --font-inter: 'Inter', sans-serif;
+  --font-outfit: 'Outfit', sans-serif;
+
+  /* Premium branding palette matching the corporate spec master rule */
+  --edu-blue-primary: #0B2545;
+  --edu-blue-hover: #134074;
+  --edu-blue-light: #EEF4F8;
+  
+  /* Form status and dynamic system state alert colors */
+  --alert-error: #EF4444;
+  --alert-success: #22C55E;
+  --text-muted: #64748B;
+}
+
+/* Base application engine canvas preparation rules */
+html {
+  scroll-behavior: smooth;
+  font-family: var(--font-inter);
+}
+
+/* ==========================================================================
+   2. BRANDING CAROUSEL PANEL (SYNCED CORE SLIDESHOW ASSETS)
+   ========================================================================== */
+
+/* Abstract layout system tracking background absolute asset layers */
+.slideshow-image {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  /* Prevent background image distortion across widescreen viewports */
+  background-size: cover;
+  background-position: center;
+  /* Bind structural calculations to GPU layer processing to preserve render clock cycles */
+  will-change: opacity, transform;
+  /* Blend active changes with a smooth ease-in-out translation transform profile curve */
+  transition: opacity 1200ms cubic-bezier(0.4, 0, 0.2, 1), transform 1200ms cubic-bezier(0.4, 0, 0.2, 1);
+  /* Apply safe base transform boundaries to maximize perceived motion depth */
+  transform: scale(1.02);
+}
+
+/* Selector rule determining visibility limits on the current primary active slice */
+.slideshow-image.active-slide {
+  opacity: 1;
+  z-index: 2;
+  transform: scale(1);
+}
+
+/* Force hidden occlusion properties on inactive slide targets */
+.slideshow-image:not(.active-slide) {
+  opacity: 0;
+  z-index: 1;
+  transform: scale(1.05);
+}
+
+/* Visual navigation array dots transition speed rules */
+.slide-dot {
+  will-change: width, background-color;
+  transition: width 300ms ease, background-color 300ms ease;
+}
+
+/* ==========================================================================
+   3. FIELD RECONCILIATION & INTERACTIVE STATE LOGIC HOOKS
+   ========================================================================== */
+
+/* Main system login input block baseline parameters layout */
+.onboarding-input {
+  font-family: var(--font-inter);
+  /* Configure linear interpolation for clean focus outline changes */
+  transition: border-color 200ms ease, box-shadow 200ms ease, background-color 200ms ease;
+}
+
+/* Anchor user focus explicitly to active typing zones */
+.onboarding-input:focus {
+  border-color: var(--edu-blue-primary) !important;
+  /* Emit a crisp 1px blue drop glow surrounding focus perimeters */
+  box-shadow: 0 0 0 1px var(--edu-blue-primary);
+  background-color: #FFFFFF;
+}
+
+/* Adjust presentation styles instantly when fields are flagged invalid */
+.onboarding-input.input-field-error {
+  border-color: var(--alert-error) !important;
+  background-color: #FFF5F5 !important;
+}
+
+/* Secondary toggle checkbox form rules customization */
+.onboarding-checkbox {
+  color: var(--edu-blue-primary) !important;
+  border-radius: 4px;
+  transition: color 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.onboarding-checkbox:focus {
+  border-color: var(--edu-blue-primary);
+  box-shadow: 0 0 0 2px rgba(11, 37, 69, 0.15);
+}
+
+/* ==========================================================================
+   4. PERFORMANCE HARDENED SYSTEM ANIMATION ENGINES
+   ========================================================================== */
+
+/* Direct interpolation class to handle warning popup displays */
+.animate-fade-in {
+  will-change: opacity, transform;
+  animation: loginPanelFadeIn 350ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes loginPanelFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ==========================================================================
+   5. DEVICE OPTIMIZATION BREAKPOINTS (TABLETS, FOLDABLES, HANDSETS)
+   ========================================================================== */
+
+/* Adjust containment structure variables when the landscape width shrinks below desktop grid values */
+@media (max-width: 1023px) {
+  body {
+    background-color: #FFFFFF;
+  }
+}
+
+/* Adjust component padding distributions safely across small physical forms (e.g., Foldable Viewports) */
+@media (min-width: 640px) and (max-width: 1023px) {
+  #master-login-form {
+    padding: 2.5rem;
+    border-radius: 1.5rem;
+    background-color: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+  }
+}

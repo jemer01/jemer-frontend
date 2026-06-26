@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-white">
+<head>
+  <!-- ==========================================================================================
+    ⚙️ METADATA & COMPATIBILITY LAYER
+    ========================================================================================== -->
+  <meta charset="UTF-8" />
+  <!-- Controls responsive zoom scaling on mobile hardware, ensuring tap target optimization -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  
+  <title>Create Your Identity Account | Jemer Academy Platform</title>
+  
+  <!-- Core brand assets, caching-bust configuration queries appended -->
+  <link rel="icon" type="image/png" href="/assets/brand/jemer-logo.png?v=1" />
+  <link rel="apple-touch-icon" href="/assets/brand/jemer-logo.png?v=1" />
+  
+  <!-- SEO, Indexing Restrictions & Discoverability Matrices -->
+  <meta name="description" content="Initialize your personalized learning profile with Jemer Academy. Enroll in premium international curriculum preparation pipelines and activate your automated study engine dashboard." />
+  <meta name="robots" content="noindex, nofollow" /> 
+  <link rel="icon" type="image/png" href="assets/brand/jemer-logo.png" />
+
+  <!-- Tailwind CSS Engine Import -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Typography Optimization: Inter for structural copy, Outfit for brand statement display headers -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;500;600;700&family=Outfit:wght=500;700;800&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icon Repository Pack -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- ==========================================================================================
+    🎨 TAILWIND JIT DESIGN SYSTEM TOKENS CONFIGURATION
+    ========================================================================================== -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            eduBlue: {
+              primary: '#0B2545', // Premium Deep Educational Navy Anchor Blue
+              hover: '#134074',   // Kinetic interactive states layer hue
+              light: '#EEF4F8'    // High accessibility contrast container surface shade
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            display: ['Outfit', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Extraneous Animation keyframes and active slideshow overrides -->
+  <link rel="stylesheet" href="signup-styles.css">
+</head>
+<body class="h-full antialiased font-sans text-slate-900 bg-white selection:bg-blue-900 selection:text-white">
+
+  <!-- Main Multi-Column Outer Wrapper -->
+  <main class="min-h-screen flex flex-col lg:flex-row overflow-x-hidden">
+
+    <!-- ==========================================================================================
+      🖥️ LEFT SCREEN: PREMIUM BRANDING & HARDWARE-ACCELERATED SLIDESHOW (LG SCREENS ONLY)
+      ========================================================================================== -->
+    <section class="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-slate-900 to-slate-950 text-white relative flex-col justify-between p-12 overflow-hidden select-none">
+      
+      <!-- Interactive Veil Layer protecting content contrast integrity -->
+      <div class="absolute inset-0 bg-black/30 z-10 pointer-events-none"></div>
+
+      <!-- Slideshow Frame Matrix -->
+      <div class="absolute inset-0 w-full h-full z-0">
+        <div class="slideshow-image absolute inset-0 w-full h-full bg-cover bg-center active-slide" style="background-image: url('assets/images/signup-slide1.jpg');"></div>
+        <div class="slideshow-image absolute inset-0 w-full h-full bg-cover bg-center opacity-0" style="background-image: url('assets/images/signup-slide2.jpg');"></div>
+        <div class="slideshow-image absolute inset-0 w-full h-full bg-cover bg-center opacity-0" style="background-image: url('assets/images/signup-slide3.jpg');"></div>
+      </div>
+
+      <!-- Header branding and return anchors -->
+      <div class="relative z-20 flex items-center justify-between w-full">
+        <a href="index.html" class="flex items-center space-x-3 text-white font-display text-xl font-bold tracking-wide">
+          <img src="assets/brand/jemer-logo.png" alt="Jemer Academy Logo" class="w-8 h-8 object-contain" />
+          <span>Jemer Academy</span>
+        </a>
+
+        <a href="index.html" class="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/20 hover:bg-white hover:text-slate-900 transition-all duration-300">
+          <i class="fas fa-arrow-left"></i> Back to website
+        </a>
+      </div>
+
+      <!-- Rotating Brand Statements with interactive pagination metrics indicators -->
+      <div class="relative z-20 max-w-md mb-8">
+        <div class="slideshow-text-container">
+          <div class="slideshow-text block transform transition-all duration-500">
+            <h2 class="text-4xl font-display font-bold leading-tight mb-4 text-white">Accelerate Your Academic Capabilities Instantly</h2>
+            <p class="text-slate-300 font-light leading-relaxed">Join millions of modern learners leveraging personalized cognitive systems to pass critical examinations seamlessly.</p>
+          </div>
+        </div>
+
+        <!-- Progress dots aligning with the script runtime slideshow active increments -->
+        <div class="flex items-center gap-2 mt-8">
+          <span class="slide-dot w-8 h-1.5 rounded-full bg-white transition-all duration-300" data-slide-index="0"></span>
+          <span class="slide-dot w-2 h-1.5 rounded-full bg-white/40 transition-all duration-300" data-slide-index="1"></span>
+          <span class="slide-dot w-2 h-1.5 rounded-full bg-white/40 transition-all duration-300" data-slide-index="2"></span>
+        </div>
+      </div>
+
+      <div class="relative z-20 text-xs text-slate-500 font-mono tracking-wider">
+        SYSTEM SECURITY CLASSIFICATION: ENCRYPTED SECURE ENTRY NODE // 2026
+      </div>
+    </section>
+
+
+    <!-- ==========================================================================================
+      📱 RIGHT SCREEN: DYNAMIC INTERACTIVE MULTI-STEP ONBOARDING ENGINE & PIN MODAL
+      ========================================================================================== -->
+    <section class="w-full lg:w-1/2 flex flex-col justify-between p-6 sm:p-12 md:p-16 bg-white relative">
+      
+      <!-- Brand Bar visible strictly on Small and Medium Viewports -->
+      <div class="flex lg:hidden items-center justify-between w-full mb-12">
+        <span class="text-lg font-display font-bold text-slate-900 flex items-center gap-2.5">
+          <img src="assets/brand/jemer-logo.png" alt="Jemer Academy Logo" class="w-6 h-6 object-contain" />
+          <span>Jemer</span>
+        </span>
+        <a href="index.html" class="text-xs font-bold text-eduBlue-primary border border-eduBlue-primary/20 px-3 py-1.5 rounded-full hover:bg-eduBlue-light transition">
+          <i class="fas fa-arrow-left mr-1"></i> Website
+        </a>
+      </div>
+
+      <!-- REGISTRATION FLOW FORM: Captures profile inputs before moving to verify -->
+      <div id="registration-flow-wrapper" class="w-full max-w-xl mx-auto my-auto transition-opacity duration-300">
+        
+        <!-- Interactive Progress Header Panel -->
+        <header class="mb-10 block select-none" aria-label="Account Creation Onboarding Step Progression">
+          <div class="flex items-center justify-between text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">
+            <span id="step-numerical-indicator" class="text-eduBlue-primary font-mono">Step 1 of 4</span>
+            <span id="step-percentage-tracker" class="font-mono">25% Complete</span>
+          </div>
+          <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden relative">
+            <div id="step-progress-fill" class="h-full bg-eduBlue-primary transition-all duration-500 ease-out rounded-full" style="width: 25%;"></div>
+          </div>
+        </header>
+
+        <form id="master-onboarding-form" novalidate class="space-y-6">
+
+          <!-- ── STEP 1: CORE PERSONAL IDENTITY ────────────────────────────────────────────────── -->
+          <fieldset id="onboarding-step-1" class="step-card space-y-6" data-step-active="true">
+            <legend class="sr-only">Step 1: Core Personal Identity Information</legend>
+            <div>
+              <h1 class="text-3xl font-display font-extrabold tracking-tight text-slate-900 mb-2">Let's Establish Your Identity</h1>
+              <p class="text-sm text-slate-500 leading-relaxed">Please state your official legal name strings exactly as configured on national test certificates or academic credentials.</p>
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+              <div class="flex flex-col space-y-1.5">
+                <label for="first-name" class="text-xs font-bold uppercase tracking-wider text-slate-700">First Name</label>
+                <input type="text" id="first-name" name="first_name" required autocomplete="given-name" placeholder="e.g., John" class="onboarding-input w-full px-4 py-3.5 rounded-xl border border-slate-200 text-slate-900 font-medium placeholder-slate-400 focus:outline-none focus:border-eduBlue-primary focus:ring-1 focus:ring-eduBlue-primary transition-colors duration-200" />
+                <span class="input-error-msg hidden text-xs font-semibold text-alert-error mt-1 text-red-500"><i class="fas fa-exclamation-circle mr-1"></i> First name field parameter is mandatory.</span>
+              </div>
+              <div class="flex flex-col space-y-1.5">
+                <label for="last-name" class="text-xs font-bold uppercase tracking-wider text-slate-700">Last Name</label>
+                <input type="text" id="last-name" name="last_name" required autocomplete="family-name" placeholder="e.g., Fletcher" class="onboarding-input w-full px-4 py-3.5 rounded-xl border border-slate-200 text-slate-900 font-medium placeholder-slate-400 focus:outline-none focus:border-eduBlue-primary focus:ring-1 focus:ring-eduBlue-primary transition-colors duration-200" />
+                <span class="input-error-msg hidden text-xs font-semibold text-alert-error mt-1 text-red-500"><i class="fas fa-exclamation-circle mr-1"></i> Last name field parameter is mandatory.</span>
+              </div>
+            </div>
+
+            <div class="flex flex-col space-y-1.5 relative">
+              <label for="date-of-birth" class="text-xs font-bold uppercase tracking-wider text-slate-700">Date of Birth</label>
+              <div class="relative w-full block">
+                <input type="date" id="date-of-birth" name="dob" required autocomplete="bday" class="onboarding-input w-full px-4 py-3.5 rounded-xl border border-slate-200 text-slate-900 font-medium focus:outline-none focus:border-eduBlue-primary focus:ring-1 focus:ring-eduBlue-primary transition-colors duration-200" />
+              </div>
+              <p class="text-[11px] text-slate-400 leading-normal font-medium">This parameters loop helps our custom analytical layers fine-tune metric evaluations to your optimal diagnostic baseline age weights.</p>
+              <span class="input-error-msg hidden text-xs font-semibold text-alert-error mt-1 text-red-500"><i class="fas fa-exclamation-circle mr-1"></i> Valid date configuration required.</span>
+            </div>
+          </fieldset>
+
+          <!-- ── STEP 2: EDUCATIONAL BACKGROUND ────────────────────────────────────────────────── -->
+          <fieldset id="onboarding-step-2" class="step-card space-y-6 hidden" data-step-active="false">
+            <legend class="sr-only">Step 2: Educational Level and Institution Mapping Parameters</legend>
+            <div>
+              <h2 class="text-3xl font-display font-extrabold tracking-tight text-slate-900 mb-2">Your Academic Profile</h2>
+              <p class="text-sm text-slate-500 leading-relaxed">Map your active deployment framework parameters. This maps the structure of our localized database arrays to align with your current assignments.</p>
+            </div>
+
+            <div class="flex flex-col space-y-1.5">
+              <label for="academic-institution" class="text-xs font-bold uppercase tracking-wider text-slate-700">University / College / School Name</label>
+              <input type="text" id="academic-institution" name="institution" required placeholder="e.g., University of Lagos or Hussey College" class="onboarding-input w-full px-4 py-3.5 rounded-xl border border-slate-200 text-slate-900 font-medium placeholder-slate-400 focus:outline-none focus:border-eduBlue-primary focus:ring-1 focus:ring-eduBlue-primary transition-colors duration-200" />
+              <span class="input-error-msg hidden text-xs font-semibold text-alert-error mt-1 text-red-500"><i class="fas fa-exclamation-circle mr-1"></i> Please enter your primary active institutional name.</span>
+            </div>
+
+            <div class="flex flex-col space-y-1.5">
+              <div class="flex items-center justify-between w-full">
+                <label for="academic-degree" class="text-xs font-bold uppercase tracking-wider text-slate-700">Degree / Program Concentration</label>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded-md select-none">Optional</span>
+              </div>
+              <input type="text" id="academic-degree" name="degree" placeholder="e.g., Bachelor of Science in Computing Technology or High School Science" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 text-slate-900 font-medium placeholder-slate-400 focus:outline-none focus:border-eduBlue-primary focus:ring-1 focus:ring-eduBlue-primary transition-colors duration-200" />
+              <p class="text-[11px] text-slate-400 font-medium leading-normal">Leave empty if you are building secondary school preparation layers (WAEC, JAMB, IGCSE).</p>
+            </div>
+          </fieldset>
+
+          <!-- ── STEP 3: GEOGRAPHIC CONFIGURATION ──────────────────────────────────────────────── -->
+          <fieldset id="onboarding-step-3" class="step-card space-y-6 hidden" data-step-active="false">
+            <legend class="sr-only">Step 3: Geographic Parameters Configuration</legend>
+            <div>
+              <h2 class="text-3xl font-display font-extrabold tracking-tight text-slate-900 mb-2">Geographic Configuration</h2>
+              <p class="text-sm text-slate-500 leading-relaxed">Confirm your target geographic location context parameters. This locks your frontal interfaces to expected regional examinations.</p>
+            </div>
+
+            <div class="flex flex-col space-y-1.5">
+             <label for="user-country" class="text-xs font-bold uppercase tracking-wider text-slate-700">Country of Residence</label>
+              <select id="user-country" name="country" required class="onboarding-input w-full px-4 py-3.5 rounded-xl border border-slate-200 bg-white text-slate-900 font-medium focus:outline-none focus:border-eduBlue-primary focus:ring-1 focus:ring-eduBlue-primary transition-colors duration-200">
+                <option value="" disabled selected>Select your country...</option>
+                <option value="AF">🇦🇫 Afghanistan</option>
+                <option value="AL">🇦🇱 Albania</option>
+                <option value="DZ">🇩🇿 Algeria</option>
+                <option value="AD">🇦🇩 Andorra</option>
+                <option value="AO">🇦🇴 Angola</option>
+                <option value="AG">🇦🇬 Antigua and Barbuda</option>
+                <option value="AR">🇦🇷 Argentina</option>
+                <option value="AM">🇦🇲 Armenia</option>
+                <option value="AU">🇦🇺 Australia</option>
+                <option value="AT">🇦🇹 Austria</option>
+                <option value="AZ">🇦🇿 Azerbaijan</option>
+                <option value="BS">🇧🇸 Bahamas</option>
+                <option value="BH">🇧🇭 Bahrain</option>
+                <option value="BD">🇧🇩 Bangladesh</option>
+                <option value="BB">🇧🇧 Barbados</option>
+                <option value="BY">🇧🇾 Belarus</option>
+                <option value="BE">🇧🇪 Belgium</option>
+                <option value="BZ">🇧🇿 Belize</option>
+                <option value="BJ">🇧🇯 Benin</option>
+                <option value="BT">🇧🇹 Bhutan</option>
+                <option value="BO">🇧🇴 Bolivia</option>
+                <option value="BA">🇧🇦 Bosnia and Herzegovina</option>
+                <option value="BW">🇧🇼 Botswana</option>
+                <option value="BR">🇧🇷 Brazil</option>
+                <option value="BN">🇧🇳 Brunei</option>
+                <option value="BG">🇧🇬 Bulgaria</option>
+                <option value="BF">🇧🇫 Burkina Faso</option>
+                <option value="BI">🇧🇮 Burundi</option>
+                <option value="KH">🇰🇭 Cambodia</option>
+                <option value="CM">🇨🇲 Cameroon</option>
+                <option value="CA">🇨🇦 Canada</option>
+                <option value="CV">🇨🇻 Cape Verde</option>
+                <option value="CF">🇨🇫 Central African Republic</option>
+                <option value="TD">🇹🇩 Chad</option>
+                <option value="CL">🇨🇱 Chile</option>
+                <option value="CN">🇨🇳 China</option>
+                <option value="CO">🇨🇴 Colombia</option>
+                <option value="KM">🇰🇲 Comoros</option>
+                <option value="CG">🇨🇬 Congo</option>
+                <option value="CR">🇨🇷 Costa Rica</option>
+                <option value="HR">🇭🇷 Croatia</option>
+                <option value="CU">🇨🇺 Cuba</option>
+                <option value="CY">🇨🇾 Cyprus</option>
+                <option value="CZ">🇨🇿 Czech Republic</option>
+                <option value="DK">🇩🇰 Denmark</option>
+                <option value="DJ">🇩🇯 Djibouti</option>
+                <option value="DM">🇩🇲 Dominica</option>
+                <option value="DO">🇩🇴 Dominican Republic</option>
+                <option value="EC">🇪🇨 Ecuador</option>
+                <option value="EG">🇪🇬 Egypt</option>
+                <option value="SV">🇸🇻 El Salvador</option>
+                <option value="GQ">🇬🇶 Equatorial Guinea</option>
+                <option value="ER">🇪🇷 Eritrea</option>
+                <option value="EE">🇪🇪 Estonia</option>
+                <option value="SZ">🇸🇿 Eswatini</option>
+                <option value="ET">🇪🇹 Ethiopia</option>
+                <option value="FJ">🇫🇯 Fiji</option>
+                <option value="FI">🇫🇮 Finland</option>
+                <option value="FR">🇫🇷 France</option>
+                <option value="GA">🇬🇦 Gabon</option>
+                <option value="GM">🇬🇲 Gambia</option>
+                <option value="GE">🇬🇪 Georgia</option>
+                <option value="DE">🇩🇪 Germany</option>
+                <option value="GH">🇬🇭 Ghana</option>
+                <option value="GR">🇬🇷 Greece</option>
+                <option value="GD">🇬🇩 Grenada</option>
+                <option value="GT">🇬🇹 Guatemala</option>
+                <option value="GN">🇬🇺 Guinea</option>
+                <option value="GY">🇬🇾 Guyana</option>
+                <option value="HT">🇭🇹 Haiti</option>
+                <option value="HN">🇭🇳 Honduras</option>
+                <option value="HU">🇭🇺 Hungary</option>
+                <option value="IS">🇮🇸 Iceland</option>
+                <option value="IN">🇮🇳 India</option>
+                <option value="ID">🇮🇩 Indonesia</option>
+                <option value="IR">🇮🇷 Iran</option>
+                <option value="IQ">🇮🇶 Iraq</option>
+                <option value="IE">🇮🇪 Ireland</option>
+                <option value="IL">🇮🇱 Israel</option>
+                <option value="IT">🇮🇹 Italy</option>
+                <option value="JM">🇯🇲 Jamaica</option>
+                <option value="JP">🇯🇵 Japan</option>
+                <option value="JO">🇯🇴 Jordan</option>
+                <option value="KZ">🇰🇿 Kazakhstan</option>
+                <option value="KE">🇰🇪 Kenya</option>
+                <option value="KW">🇰🇼 Kuwait</option>
+                <option value="KG">🇰🇬 Kyrgyzstan</option>
+                <option value="LA">🇱🇦 Laos</option>
+                <option value="LV">🇱🇻 Latvia</option>
+                <option value="LB">🇱🇧 Lebanon</option>
+                <option value="LS">🇱🇸 Lesotho</option>
+                <option value="LR">🇱🇷 Liberia</option>
+                <option value="LY">🇱🇾 Libya</option>
+                <option value="LT">🇱🇹 Lithuania</option>
+                <option value="LU">🇱🇺 Luxembourg</option>
+                <option value="MG">🇲🇬 Madagascar</option>
+                <option value="MW">🇲🇼 Malawi</option>
+                <option value="MY">🇲🇾 Malaysia</option>
+                <option value="MV">🇲🇻 Maldives</option>
+                <option value="ML">🇲🇱 Mali</option>
+                <option value="MT">🇲🇹 Malta</option>
+                <option value="MR">🇲🇷 Mauritania</option>
+                <option value="MU">🇲🇺 Mauritius</option>
+                <option value="MX">🇲🇽 Mexico</option>
+                <option value="MD">🇲🇩 Moldova</option>
+                <option value="MC">🇲🇨 Monaco</option>
+                <option value="MN">🇲🇳 Mongolia</option>
+                <option value="ME">🇲🇪 Montenegro</option>
+                <option value="MA">🇲🇦 Morocco</option>
+                <option value="MZ">🇲🇿 Mozambique</option>
+                <option value="MM">🇲🇲 Myanmar</option>
+                <option value="NA">🇳🇦 Namibia</option>
+                <option value="NP">🇳🇵 Nepal</option>
+                <option value="NL">🇳🇱 Netherlands</option>
+                <option value="NZ">🇳🇿 New Zealand</option>
+                <option value="NI">🇳🇮 Nicaragua</option>
+                <option value="NE">🇳🇪 Niger</option>
+                <option value="NG">🇳🇬 Nigeria</option>
+                <option value="KP">🇰🇵 North Korea</option>
+                <option value="MK">🇲🇰 North Macedonia</option>
+                <option value="NO">🇳🇴 Norway</option>
+                <option value="OM">🇴🇲 Oman</option>
+                <option value="PK">🇵🇰 Pakistan</option>
+                <option value="PS">🇵🇸 Palestine</option>
+                <option value="PA">🇵🇦 Panama</option>
+                <option value="PG">🇵🇬 Papua New Guinea</option>
+                <option value="PY">🇵🇾 Paraguay</option>
+                <option value="PE">🇵🇪 Peru</option>
+                <option value="PH">🇵🇭 Philippines</option>
+                <option value="PL">🇵🇱 Poland</option>
+                <option value="PT">🇵🇹 Portugal</option>
+                <option value="QA">🇶🇦 Qatar</option>
+                <option value="RO">🇷🇴 Romania</option>
+                <option value="RU">🇷🇺 Russia</option>
+                <option value="RW">🇷🇼 Rwanda</option>
+                <option value="KN">🇰🇳 Saint Kitts and Nevis</option>
+                <option value="LC">🇱🇨 Saint Lucia</option>
+                <option value="VC">🇻🇨 Saint Vincent and the Grenadines</option>
+                <option value="WS">🇼🇸 Samoa</option>
+                <option value="SM">🇸🇲 San Marino</option>
+                <option value="ST">🇸🇹 Sao Tome and Principe</option>
+                <option value="SA">🇸🇦 Saudi Arabia</option>
+                <option value="SN">🇸🇳 Senegal</option>
+                <option value="RS">🇷🇸 Serbia</option>
+                <option value="SC">🇸🇨 Seychelles</option>
+                <option value="SL">🇸🇱 Sierra Leone</option>
+                <option value="SG">🇸🇬 Singapore</option>
+                <option value="SK">🇸🇰 Slovakia</option>
+                <option value="SI">🇸🇮 Slovenia</option>
+                <option value="SO">🇸🇴 Somalia</option>
+                <option value="ZA">🇿🇦 South Africa</option>
+                <option value="KR">🇰🇷 South Korea</option>
+                <option value="SS">🇸🇸 South Sudan</option>
+                <option value="ES">🇪🇸 Spain</option>
+                <option value="LK">🇱🇰 Sri Lanka</option>
+                <option value="SD">🇸🇩 Sudan</option>
+                <option value="SR">🇸🇷 Suriname</option>
+                <option value="SE">🇸🇪 Sweden</option>
+                <option value="CH">🇨🇭 Switzerland</option>
+                <option value="SY">🇸🇾 Syria</option>
+                <option value="TW">🇹🇼 Taiwan</option>
+                <option value="TJ">🇹🇯 Tajikistan</option>
+                <option value="TZ">🇹🇿 Tanzania</option>
+                <option value="TH">🇹🇭 Thailand</option>
+                <option value="TG">🇹🇬 Togo</option>
+                <option value="TT">🇹🇹 Trinidad and Tobago</option>
+                <option value="TN">🇹🇳 Tunisia</option>
+                <option value="TR">🇹🇷 Turkey</option>
+                <option value="TM">🇹🇲 Turkmenistan</option>
+                <option value="UG">🇺🇬 Uganda</option>
+                <option value="UA">🇺🇦 Ukraine</option>
+                <option value="AE">🇦🇪 United Arab Emirates</option>
+                <option value="GB">🇬🇧 United Kingdom</option>
+                <option value="US">🇺🇸 United States of America</option>
+                <option value="UY">🇺🇾 Uruguay</option>
+                <option value="UZ">🇺🇿 Uzbekistan</option>
+                <option value="VE">🇻🇪 Venezuela</option>
+                <option value="VN">🇻🇳 Vietnam</option>
+                <option value="YE">🇾🇪 Yemen</option>
+                <option value="ZM">🇿🇲 Zambia</option>
+                <option value="ZW">🇿🇼 Zimbabwe</option>
+              </select>
+              <span class="input-error-msg hidden text-xs font-semibold text-alert-error mt-1 text-red-500"><i class="fas fa-exclamation-circle mr-1"></i> Country classification selection is mandatory.</span>
+            </div>
+
+            <div class="flex flex-col space-y-1.5">
+             <label for="user-language" class="text-xs font-bold uppercase tracking-wider text-slate-700">Primary System Interface Language</label>
+              <select id="user-language" name="language" required class="onboarding-input w-full px-4 py-3.5 rounded-xl border border-slate-200 bg-white text-slate-900 font-medium focus:outline-none focus:border-eduBlue-primary focus:ring-1 focus:ring-eduBlue-primary transition-colors duration-200">
+                <option value="" disabled selected>Select your language...</option>
+                <option value="en">English</option>
+                <option value="ar">العربية (Arabic)</option>
+                <option value="bn">বাংলা (Bengali)</option>
+                <option value="de">Deutsch (German)</option>
+                <option value="es">Español (Spanish)</option>
+                <option value="fr">Français (French)</option>
+                <option value="ha">Hausa</option>
+                <option value="hi">हिन्दी (Hindi)</option>
+                <option value="ig">Igbo</option>
+                <option value="id">Bahasa Indonesia (Indonesian)</option>
+                <option value="it">Italiano (Italian)</option>
+                <option value="ja">日本語 (Japanese)</option>
+                <option value="ko">한국어 (Korean)</option>
+                <option value="ms">Bahasa Melayu (Malay)</option>
+                <option value="pt">Português (Portuguese)</option>
+                <option value="ru">Русский (Russian)</option>
+                <option value="sw">Kiswahili (Swahili)</option>
+                <option value="tr">Türkçe (Turkish)</option>
+                <option value="ur">اُrdُو (Urdu)</option>
+                <option value="vi">Tiếng Việt (Vietnamese)</option>
+                <option value="yo">Yorùbá</option>
+                <option value="zh">中文 (Mandarin Chinese)</option>
+              </select>
+              <span class="input-error-msg hidden text-xs font-semibold text-alert-error mt-1 text-red-500"><i class="fas fa-exclamation-circle mr-1"></i> Language localization map designation required.</span>
+            </div>
+          </fieldset>
+
+          <!-- ── STEP 4: ACCESS SECURITY CREDENTIALS ───────────────────────────────────────────── -->
+          <fieldset id="onboarding-step-4" class="step-card space-y-6 hidden" data-step-active="false">
+            <legend class="sr-only">Step 4: System Access Credentials Validation Layer Setup</legend>
+            <div>
+              <h2 class="text-3xl font-display font-extrabold tracking-tight text-slate-900 mb-2">Secure Access Credentials</h2>
+              <p class="text-sm text-slate-500 leading-relaxed">Establish your workspace access criteria. Passwords must pass strict validation thresholds to avoid structural account vulnerabilities.</p>
+            </div>
+
+            <div class="flex flex-col space-y-1.5">
+              <label for="user-email" class="text-xs font-bold uppercase tracking-wider text-slate-700">Email Address</label>
+              <input type="email" id="user-email" name="email" required autocomplete="email" placeholder="e.g., student@domain.com" class="onboarding-input w-full px-4 py-3.5 rounded-xl border border-slate-200 text-slate-900 font-medium placeholder-slate-400 focus:outline-none focus:border-eduBlue-primary focus:ring-1 focus:ring-eduBlue-primary transition-colors duration-200" />
+              <span class="input-error-msg hidden text-xs font-semibold text-alert-error mt-1 text-red-500"><i class="fas fa-exclamation-circle mr-1"></i> A valid structured email destination string is required.</span>
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+              <div class="flex flex-col space-y-1.5 relative">
+                <label for="user-password" class="text-xs font-bold uppercase tracking-wider text-slate-700">Password</label>
+                <div class="relative w-full block">
+                  <input type="password" id="user-password" name="password" required autocomplete="new-password" placeholder="••••••••••••" class="onboarding-input w-full px-4 py-3.5 pr-10 rounded-xl border border-slate-200 text-slate-900 font-mono focus:outline-none focus:border-eduBlue-primary focus:ring-1 focus:ring-eduBlue-primary transition-colors duration-200" />
+                  <button type="button" id="toggle-pwd-visibility" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none" aria-label="Reveal or hide structured text password character characters">
+                    <i class="far fa-eye text-sm" id="eye-icon-target"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="flex flex-col space-y-1.5">
+                <label for="confirm-password" class="text-xs font-bold uppercase tracking-wider text-slate-700">Confirm Password</label>
+                <input type="password" id="confirm-password" name="confirm_password" required autocomplete="new-password" placeholder="••••••••••••" class="onboarding-input w-full px-4 py-3.5 rounded-xl border border-slate-200 text-slate-900 font-mono focus:outline-none focus:border-eduBlue-primary focus:ring-1 focus:ring-eduBlue-primary transition-colors duration-200" />
+              </div>
+            </div>
+
+            <!-- Complex Security Validators Checklist Matrix -->
+            <div class="p-4 rounded-xl bg-slate-50 border border-slate-100 block space-y-2 select-none" id="password-validation-checklist">
+              <p class="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">Access Security Validation Matrices:</p>
+              <div class="grid grid-cols-2 gap-2 text-xs">
+                <div id="chk-len" class="flex items-center gap-2 text-slate-400 transition-colors font-medium"><i class="fas fa-circle-notch text-[10px]"></i> Min 8 Character Tokens</div>
+                <div id="chk-alpha" class="flex items-center gap-2 text-slate-400 transition-colors font-medium"><i class="fas fa-circle-notch text-[10px]"></i> Alphabetic Alphabet String</div>
+                <div id="chk-num" class="flex items-center gap-2 text-slate-400 transition-colors font-medium"><i class="fas fa-circle-notch text-[10px]"></i> Numeric Value (0-9)</div>
+                <div id="chk-sym" class="flex items-center gap-2 text-slate-400 transition-colors font-medium"><i class="fas fa-circle-notch text-[10px]"></i> Special Character Symbol</div>
+              </div>
+              <span id="password-mismatch-alert" class="hidden text-xs font-bold text-red-500 block pt-1"><i class="fas fa-times-circle mr-1"></i> Target password parameters do not match yet.</span>
+            </div>
+
+            <!-- Platform Data Governance Agreements -->
+            <div class="space-y-3 pt-2">
+              <label class="flex items-start gap-3 text-xs text-slate-500 cursor-pointer group">
+                <input type="checkbox" id="accept-terms" required class="onboarding-checkbox mt-0.5 rounded border-slate-300 text-eduBlue-primary focus:ring-eduBlue-primary w-4 h-4 transition" />
+                <span class="leading-normal font-medium">I explicitly verify compliance and declare consensus with Jemer Academy's official <a href="#" class="text-eduBlue-primary font-bold underline hover:text-eduBlue-hover">Terms & Conditions Agreement</a>.</span>
+              </label>
+              <label class="flex items-start gap-3 text-xs text-slate-500 cursor-pointer group">
+                <input type="checkbox" id="accept-privacy" required class="onboarding-checkbox mt-0.5 rounded border-slate-300 text-eduBlue-primary focus:ring-eduBlue-primary w-4 h-4 transition" />
+                <span class="leading-normal font-medium">Authorize configuration parameters according to the standardized <a href="#" class="text-eduBlue-primary font-bold underline hover:text-eduBlue-hover">Platform Privacy Policy</a> framework guidelines.</span>
+              </label>
+              <label class="flex items-start gap-3 text-xs text-slate-500 cursor-pointer group">
+                <input type="checkbox" id="accept-cookies" required class="onboarding-checkbox mt-0.5 rounded border-slate-300 text-eduBlue-primary focus:ring-eduBlue-primary w-4 h-4 transition" />
+                <span class="leading-normal font-medium">Approve caching local tracking variables mapping configurations under the terms of the <a href="#" class="text-eduBlue-primary font-bold underline hover:text-eduBlue-hover">Cookie Tracking Policy</a>.</span>
+              </label>
+              <span id="checkbox-compliance-alert" class="hidden text-xs font-semibold text-red-500 block"><i class="fas fa-exclamation-triangle mr-1"></i> All data governance policy check boxes are mandatory for registration.</span>
+            </div>
+          </fieldset>
+
+          <!-- Interactive Stepping Navigation Controls -->
+          <footer class="flex items-center justify-between gap-4 pt-4 border-t border-slate-100 select-none">
+            <button type="button" id="prev-step-action" disabled class="px-6 py-3.5 text-sm font-bold text-slate-400 bg-slate-50 border border-slate-100 rounded-xl hover:bg-slate-100 hover:text-slate-700 transition transform duration-200 active:scale-95 disabled:opacity-0 disabled:pointer-events-none">
+              <i class="fas fa-chevron-left mr-1"></i> Back
+            </button>
+            
+            <button type="button" id="next-step-action" class="w-full sm:w-auto px-8 py-3.5 text-sm font-bold text-white bg-eduBlue-primary rounded-xl hover:bg-eduBlue-hover transition transform duration-200 shadow-lg active:scale-95 ml-auto flex items-center justify-center gap-2">
+              <span>Continue</span> <i class="fas fa-chevron-right text-xs" id="action-btn-arrow"></i>
+            </button>
+          </footer>
+        </form>
+      </div>
+
+
+      <!-- ==========================================================================
+        📬 UPGRADED: SECURE 6-DIGIT EMAIL VERIFICATION PANEL WITH MOTION GRAPHICS
+        ========================================================================== -->
+      <!-- Smooth transitional opacity constraints, paired with translation metrics for cinematic rising animations -->
+      <div id="email-verification-panel" class="hidden opacity-0 translate-y-4 w-full max-w-xl mx-auto my-auto text-center space-y-6 transition-all duration-500 ease-out select-none">
+        
+        <!-- Graphical Onboarding Security Badge -->
+        <div class="w-20 h-20 bg-blue-50 text-eduBlue-primary border border-blue-100 rounded-full flex items-center justify-center text-3xl mx-auto shadow-inner animate-pulse">
+          <i class="fas fa-envelope-open-text"></i>
+        </div>
+        
+        <!-- Header Messaging -->
+        <div>
+          <h2 class="text-3xl font-display font-extrabold tracking-tight text-slate-900 mb-2">Check Your Email Inbox</h2>
+          <p class="text-sm text-slate-500 leading-relaxed max-w-sm mx-auto">An encryption configuration onboarding code pin has been securely transmitted down to your target address destination loop.</p>
+        </div>
+
+        <!-- 
+          ⚡ UPGRADE FOCUS: 6-DIGIT SECURE CODE INPUT MATRIX
+          Responsive width (`w-10 h-12 sm:w-14 sm:h-16`) and margins ensure it shrinks on narrow screens,
+          avoiding horizontal overflow and rendering an elegant, ultra-premium interface on both mobile and desktop.
+        -->
+        <div class="flex items-center justify-center gap-2 sm:gap-3 py-4" id="pin-input-matrix" aria-label="Six digit database encryption authentication configuration pins inputs">
+          <input type="text" maxlength="1" pattern="[0-9]*" inputmode="numeric" class="pin-box w-10 h-12 sm:w-14 sm:h-16 text-center text-xl sm:text-2xl font-bold border-2 border-slate-200 rounded-xl sm:rounded-2xl focus:outline-none focus:border-eduBlue-primary focus:ring-1 focus:ring-eduBlue-primary transition-all font-mono shadow-sm bg-slate-50" />
+          <input type="text" maxlength="1" pattern="[0-9]*" inputmode="numeric" class="pin-box w-10 h-12 sm:w-14 sm:h-16 text-center text-xl sm:text-2xl font-bold border-2 border-slate-200 rounded-xl sm:rounded-2xl focus:outline-none focus:border-eduBlue-primary focus:ring-1 focus:ring-eduBlue-primary transition-all font-mono shadow-sm bg-slate-50" />
+          <input type="text" maxlength="1" pattern="[0-9]*" inputmode="numeric" class="pin-box w-10 h-12 sm:w-14 sm:h-16 text-center text-xl sm:text-2xl font-bold border-2 border-slate-200 rounded-xl sm:rounded-2xl focus:outline-none focus:border-eduBlue-primary focus:ring-1 focus:ring-eduBlue-primary transition-all font-mono shadow-sm bg-slate-50" />
+          <input type="text" maxlength="1" pattern="[0-9]*" inputmode="numeric" class="pin-box w-10 h-12 sm:w-14 sm:h-16 text-center text-xl sm:text-2xl font-bold border-2 border-slate-200 rounded-xl sm:rounded-2xl focus:outline-none focus:border-eduBlue-primary focus:ring-1 focus:ring-eduBlue-primary transition-all font-mono shadow-sm bg-slate-50" />
+          <input type="text" maxlength="1" pattern="[0-9]*" inputmode="numeric" class="pin-box w-10 h-12 sm:w-14 sm:h-16 text-center text-xl sm:text-2xl font-bold border-2 border-slate-200 rounded-xl sm:rounded-2xl focus:outline-none focus:border-eduBlue-primary focus:ring-1 focus:ring-eduBlue-primary transition-all font-mono shadow-sm bg-slate-50" />
+          <input type="text" maxlength="1" pattern="[0-9]*" inputmode="numeric" class="pin-box w-10 h-12 sm:w-14 sm:h-16 text-center text-xl sm:text-2xl font-bold border-2 border-slate-200 rounded-xl sm:rounded-2xl focus:outline-none focus:border-eduBlue-primary focus:ring-1 focus:ring-eduBlue-primary transition-all font-mono shadow-sm bg-slate-50" />
+        </div>
+
+        <!-- Token Resend Control -->
+        <div class="text-xs font-semibold text-slate-400">
+          Didn't receive the authentication token? <button type="button" id="resend-verification-token" class="text-eduBlue-primary underline font-bold hover:text-eduBlue-hover">Re-execute transmission pipeline</button>
+        </div>
+
+        <!-- System Routing Escape Anchor Bridge -->
+        <div class="pt-4 block">
+          <a href="login.html" id="confirm-verification-bridge" class="inline-flex w-full sm:w-auto px-8 py-3.5 bg-eduBlue-primary text-white font-bold text-sm rounded-xl hover:bg-eduBlue-hover shadow-lg transition-all transform active:scale-95 items-center justify-center gap-2">
+            Proceed to Login Securely <i class="fas fa-sign-in-alt text-xs"></i>
+          </a>
+        </div>
+      </div>
+
+
+      <!-- Globalized Page Footer Section -->
+      <footer id="onboarding-global-footer" class="text-center text-sm font-medium text-slate-500 pt-8 mt-8 border-t border-slate-100 select-none">
+        Already possess an active profile instance framework? 
+        <a href="login.html" class="text-eduBlue-primary font-bold underline hover:text-eduBlue-hover transition-colors">Log in securely</a>
+      </footer>
+
+    </section>
+  </main>
+
+  <!-- ==========================================================================
+    🛰 *SCRIPT MODULES LOADING PIPELINE*
+    ========================================================================== -->
+  <!-- Loads the universal identity mapping runtime client engine -->
+  <script src="auth.js" defer></script>
+  <!-- Triggers frontend wizard transitions, slideshow loops, validation checks, and automatic verification redirects -->
+  <script src="signup-script.js" defer></script>
+</body>
+</html>

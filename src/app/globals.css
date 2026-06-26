@@ -1,0 +1,33 @@
+/**
+ * ================================================================================================
+ * 🎨 JEMER ACADEMY GLOBAL CSS CORE — TAILWIND V4 STYLESHEET CONFIGURATIONS
+ * ================================================================================================
+ */
+
+/* Cascades the entire core Tailwind v4 design utility framework layers */
+@import "tailwindcss";
+
+/* ── STEP 1.1: TAILWIND V4 CSS-FIRST MANUAL SELECTOR DEFINITION ────────────────────────────────── */
+/**
+ * By default, Tailwind v4 relies entirely on system media queries (@media prefers-color-scheme).
+ * To empower users to manually toggle themes via a button, we override the dark variant behavior.
+ * This instructs the JIT engine to fire 'dark:' modifiers whenever a parent class of '.dark' is found.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Forces the JIT engine to inspect all pages and sub-layouts inside the Next.js app directory */
+@source "./src/app/**/*.{js,ts,jsx,tsx,mdx}";
+/* Forces the JIT engine to inspect all reusable layout widgets, sidebars, and navbars inside components */
+@source "./src/jemer-components/**/*.{js,ts,jsx,tsx,mdx}";
+
+/* High-performance fade-in entry layout transition utility rule */
+@utility animate-fade-in {
+  will-change: opacity, transform;
+  animation: dashboardElementEntrance 400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Keyframes controlling layout element entrance glide transitions */
+@keyframes dashboardElementEntrance {
+  0% { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}

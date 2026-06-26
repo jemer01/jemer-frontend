@@ -1,0 +1,214 @@
+/**
+ * ========================================================================
+ * 🎨 JEMER ACADEMY REGISTRATION ARCHITECTURE STYLESHEET (V1.0)
+ * ========================================================================
+ * Description: Presentation layer structural rules for multi-step signup.
+ * Engineering Focus: Fluid transition loops, component hardware-acceleration.
+ * Compliance: Clear interface separation and high-visibility accessibility.
+ * ========================================================================
+ */
+
+/* ==========================================================================
+   1. GLOBAL SYSTEM SETUP & TYPOGRAPHY ROOT INITIALIZATION
+   ========================================================================== */
+   :root {
+    /* Main layout typography token parameters linked from the HTML document header */
+    --font-inter: 'Inter', sans-serif;
+    --font-outfit: 'Outfit', sans-serif;
+  
+    /* Core branding colors matching the design spec matrix */
+    --edu-blue-primary: #0B2545;
+    --edu-blue-hover: #134074;
+    --edu-blue-light: #EEF4F8;
+    
+    /* Validation and warning notification alert indicators */
+    --alert-error: #EF4444;
+    --alert-success: #22C55E;
+    --text-muted: #64748B;
+  }
+  
+  /* Apply smooth kinetic rendering behavior to the HTML element document root */
+  html {
+    scroll-behavior: smooth;
+    font-family: var(--font-inter);
+  }
+  
+  /* ==========================================================================
+     2. LEFT PANEL CORE HARDWARE-ACCELERATED SLIDESHOW CAROUSEL
+     ========================================================================== */
+  
+  /* Base structural wrapper layout class for background presentation carousel elements */
+  .slideshow-image {
+    /* Ensure the absolute container layout scales fully across its structural parent block boundaries */
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    /* Prevent geometric stretching by keeping asset aspect-ratio scaling cleanly centered */
+    background-size: cover;
+    background-position: center;
+    /* Move transitions onto GPU hardware layers to ensure continuous high frame-rate performance locks */
+    will-change: opacity, transform;
+    /* Configure a clean 1.2s ease interpolation to blend the active element transparency layers */
+    transition: opacity 1200ms cubic-bezier(0.4, 0, 0.2, 1), transform 1200ms cubic-bezier(0.4, 0, 0.2, 1);
+    /* Apply a slight scaling transform coefficient matrix to provide subtle motion effects */
+    transform: scale(1.02);
+  }
+  
+  /* Sub-property targeting the current active foreground visibility slide image instance */
+  .slideshow-image.active-slide {
+    opacity: 1;
+    z-index: 2;
+    transform: scale(1);
+  }
+  
+  /* Background structural masking property for absolute occlusion state layers */
+  .slideshow-image:not(.active-slide) {
+    opacity: 0;
+    z-index: 1;
+    transform: scale(1.05);
+  }
+  
+  /* Active layout configuration rules for geometric presentation navigation dots */
+  .slide-dot {
+    /* Enable GPU hardware monitoring for prompt state transitions on standard elements */
+    will-change: width, background-color;
+    transition: width 300ms ease, background-color 300ms ease;
+  }
+  
+  /* ==========================================================================
+     3. ONBOARDING MULTI-STEP CARD INTERFACES & SWEEP ANIMATIONS
+     ========================================================================== */
+  
+  /* Base card container block mapping validation and rendering layouts */
+  .step-card {
+    will-change: opacity, transform;
+    /* Intercept view entry swaps with a custom bezier translation profile curve */
+    animation: stepSlideIn 450ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+  
+  /* Animation keyframe logic for handling horizontal slide swaps and opacity transformations */
+  @keyframes stepSlideIn {
+    0% {
+      opacity: 0;
+      /* Shift layout element along the horizontal axis to provide clear step transition indicators */
+      transform: translateX(16px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  
+  /* Structural visibility overrides managed by the functional JavaScript core application script */
+  .step-card.hidden {
+    display: none !important;
+  }
+  
+  /* ==========================================================================
+     4. DATA FIELD INPUT CONTROLS & INTERACTIVE COMPONENT BEHAVIORS
+     ========================================================================== */
+  
+  /* Standard input text parameters configuration loop layouts */
+  .onboarding-input {
+    font-family: var(--font-inter);
+    /* Transition border outlines and internal shadow layers cleanly during user click triggers */
+    transition: border-color 200ms ease, box-shadow 200ms ease;
+  }
+  
+  /* Enforce clear visual orientation updates when fields receive focus */
+  .onboarding-input:focus {
+    border-color: var(--edu-blue-primary) !important;
+    /* Cast a translucent structural blue glow block mapping the target focus fields path */
+    box-shadow: 0 0 0 1px var(--edu-blue-primary);
+  }
+  
+  /* Target invalid field formatting patterns dynamically flagged by form rules */
+  .onboarding-input.input-field-error {
+    border-color: var(--alert-error) !important;
+    background-color: #FFF5F5 !important;
+  }
+  
+  /* ==========================================================================
+     5. DYNAMIC PASSWORD COMPLEXITY METRICS CHECKLIST TRACKS
+     ========================================================================== */
+  
+  /* Target item element properties representing passing password complexity states */
+  .matrix-requirement-valid {
+    color: var(--alert-success) !important;
+    font-weight: 600;
+  }
+  
+  /* Target item element properties representing failing password complexity parameters */
+  .matrix-requirement-invalid {
+    color: var(--alert-error) !important;
+  }
+  
+  /* Custom interactive adjustments for compliance checkbox interfaces */
+  .onboarding-checkbox {
+    color: var(--edu-blue-primary) !important;
+    border-radius: 4px;
+    transition: color 200ms ease, border-color 200ms ease;
+  }
+  
+  .onboarding-checkbox:focus {
+    border-color: var(--edu-blue-primary);
+    box-shadow: 0 0 0 2px rgba(11, 37, 69, 0.15);
+  }
+  
+  /* ==========================================================================
+     6. INTERCEPT INBOX ACCREDITATION CODE COMPONENT (PIN MATRIX INPUT)
+     ========================================================================== */
+  
+  /* Individual configuration wrappers for manual verification digits input boxes */
+  .pin-box {
+    will-change: transform, border-color;
+    transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  /* Apply prominent structural transformations when users focus code input blocks */
+  .pin-box:focus {
+    border-color: var(--edu-blue-primary) !important;
+    background-color: #FFFFFF !important;
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(11, 37, 69, 0.08);
+  }
+  
+  /* ==========================================================================
+     7. ULTRA-RESPONSIVE VIEWPORT TRANSFORMATION MATRICES (TABLETS & FOLDABLES)
+     ========================================================================== */
+  
+  /* Tailor specific display optimizations targeting mid-tier screen sizes and tablet spaces */
+  @media (max-width: 1023px) {
+    body {
+      background-color: #FFFFFF;
+    }
+    
+    /* Ensure the step card layouts maintain robust structural alignment on mobile form factors */
+    .step-card {
+      animation: mobileStepFadeIn 400ms ease-out forwards;
+    }
+  }
+  
+  /* Simplified animation loop tailored to conserve processing performance on mobile engines */
+  @keyframes mobileStepFadeIn {
+    0% {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* Support display configuration overrides for fine-tuned device aspect ratios (e.g., Foldable Viewports) */
+  @media (min-width: 640px) and (max-width: 1023px) {
+    #master-onboarding-form {
+      padding: 2rem;
+      border-radius: 1.5rem;
+      background-color: #F8FAFC;
+      border: 1px solid #E2E8F0;
+    }
+  }

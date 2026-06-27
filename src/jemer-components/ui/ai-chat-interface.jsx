@@ -1,25 +1,26 @@
 /**
  * ================================================================================================
- * 💬 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR CHAT ARENA COMPONENT (v1.0)
+ * 💬 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR CHAT ARENA COMPONENT (v1.1 LOGIC UPGRADE)
  * ================================================================================================
  * Description: Viewport-aligned, theme-adaptive interactive streaming chat interface module.
- * Sizing Tier: 100% matched to prompt box constraints (max-w-4xl) across modern devices.
- * Interaction Layer: Equips students with in-line text edits, data copying, and model feedback vectors.
- * Compliance: 100% complete line-by-line developer code documentation for maximum transparency.
+ * Sizing Tier: 100% matched to prompt box constraints (max-w-4xl) across modern devices[cite: 1].
+ * Logic Upgrade Layer: Integrates direct handling for real-time background reasoning content, 
+ * asynchronous stream isolation buffers, and component interactive state locks during streaming[cite: 1, 6].
+ * Compliance: 100% complete line-by-line developer code documentation for maximum transparency[cite: 1].
  * ================================================================================================
  */
 
-"use client"; // Directs the Next.js framework engine to treat this module as an interactive client component running within browser DOM scopes
+"use client"; // Directs the Next.js framework engine to treat this module as an interactive client component running within browser DOM scopes[cite: 1]
 
-import React, { useState } from "react"; // Injects standard state and lifecycle parameters from React core
-import { useTheme } from "@/jemer-components/context/ThemeContext.jsx"; // Imports our global theme hook pipeline router to safely track display profiles
+import React, { useState } from "react"; // Injects standard state and lifecycle parameters from React core[cite: 1]
+import { useTheme } from "@/jemer-components/context/ThemeContext.jsx"; // Imports our global theme hook pipeline router to safely track display profiles[cite: 1]
 
 /**
  * Universal AI Tutor Chat Interface Component Terminal
- * @param {Object} props - Structural property configurations assigned by parent layout managers.
- * @param {Array} props.activeChatLog - Array containing real conversational message schemas traveling down the layout tree.
- * @param {function} props.onInterruptedEdit - Callback hook fired when a student stops active generations to edit an outbound message string.
- * @param {function} props.onRegenerateResponse - Callback hook fired when a student commands the backend engine to restart an AI response block.
+ * @param {Object} props - Structural property configurations assigned by parent layout managers[cite: 1].
+ * @param {Array} props.activeChatLog - Array containing real conversational message schemas traveling down the layout tree[cite: 1].
+ * @param {function} props.onInterruptedEdit - Callback hook fired when a student stops active generations to edit an outbound message string[cite: 1].
+ * @param {function} props.onRegenerateResponse - Callback hook fired when a student commands the backend engine to restart an AI response block[cite: 1].
  */
 export default function AIChatInterface({ 
   activeChatLog, 
@@ -27,22 +28,22 @@ export default function AIChatInterface({
   onRegenerateResponse 
 }) {
   // ── LAYER 1: DESIGN SYSTEM THEME INTERACTION HOOKS ──────────────────────────────────────────
-  // Extract custom active theme parameters directly out of the context pipeline to handle text layers safely
+  // Extract custom active theme parameters directly out of the context pipeline to handle text layers safely[cite: 1]
   const { theme } = useTheme();
 
   // ── LAYER 2: INTERACTIVE ACTION SELECTION STATES ──────────────────────────────────────────────
-  // Tracks the ID string of the specific user bubble currently receiving cursor hover or tap focuses
+  // Tracks the ID string of the specific user bubble currently receiving cursor hover or tap focuses[cite: 1]
   const [hoveredMessageId, setHoveredMessageId] = useState(null);
   
-  // Tracks message keys mapped to string status indicators ("copied-user" / "copied-ai") to render brief verification icon checks
+  // Tracks message keys mapped to string status indicators ("copied-user" / "copied-ai") to render brief verification icon checks[cite: 1]
   const [copyStatusTracker, setCopyStatusTracker] = useState({});
   
-  // Local object mapping dictionaries tracking like/dislike state flags across message items
+  // Local object mapping dictionaries tracking like/dislike state flags across message items[cite: 1]
   const [likedMessages, setLikedMessages] = useState({});
   const [dislikedMessages, setDislikedMessages] = useState({});
 
   // 📑 ACADEMY SMART EDUCATIONAL DUMMY PHRASINGS MATRIX
-  // Highly structured, realistic academic definitions designed to provide a cohesive playground before final API wiring
+  // Highly structured, realistic academic definitions designed to provide a cohesive playground before final API wiring[cite: 1]
   const educationalFallbacks = {
     userDefault: "Explain how structural parameters dictate thermodynamics and system entropy boundaries.",
     aiDefault: `### Understanding System Entropy & Thermodynamic Boundaries
@@ -55,27 +56,27 @@ In structural physics and chemistry, **Entropy** serves as the mathematical metr
 > *Core Takeaway:* To suppress system entropy escalations, thermal input weights must cross matching structural threshold resistances.`
   };
 
-  // Static fallback array utilized strictly if parent layout engines pass down un-hydrated or empty chat records
+  // Static fallback array utilized strictly if parent layout engines pass down un-hydrated or empty chat records[cite: 1]
   const fallbackChatData = [
-    { id: "mock-msg-1", sender: "user", text: educationalFallbacks.userDefault },
-    { id: "mock-msg-2", sender: "ai", text: educationalFallbacks.aiDefault }
+    { id: "mock-msg-1", sender: "user", text: educationalFallbacks.userDefault, isThinking: false, reasoning: "" },
+    { id: "mock-msg-2", sender: "ai", text: educationalFallbacks.aiDefault, isThinking: false, reasoning: "" }
   ];
 
-  // Compile our working target message matrix by evaluating properties input availability
+  // Compile our working target message matrix by evaluating properties input availability[cite: 1]
   const visibleMessages = (activeChatLog && activeChatLog.length > 0) ? activeChatLog : fallbackChatData;
 
   // ── LAYER 3: CORE UTILITY TRANSACTION HANDLERS ────────────────────────────────────────────────
   /**
-   * Safely captures plain text or structured markdown and pipes it directly into the client computer clipboard
-   * @param {string} textToCapture - Raw textual message string or code block payload.
-   * @param {string} messageId - Unique key tracking the target message card row layout.
+   * Safely captures plain text or structured markdown and pipes it directly into the client computer clipboard[cite: 1]
+   * @param {string} textToCapture - Raw textual message string or code block payload[cite: 1].
+   * @param {string} messageId - Unique key tracking the target message card row layout[cite: 1].
    */
   const executeSystemTextCopy = (textToCapture, messageId) => {
     navigator.clipboard.writeText(textToCapture).then(() => {
-      // Affix a transient verification status flag to highlight checkmark icons visually
+      // Affix a transient verification status flag to highlight checkmark icons visually[cite: 1]
       setCopyStatusTracker((prev) => ({ ...prev, [messageId]: true }));
       
-      // Clear out checking state hooks after exactly 2000 milliseconds have elapsed
+      // Clear out checking state hooks after exactly 2000 milliseconds have elapsed[cite: 1]
       setTimeout(() => {
         setCopyStatusTracker((prev) => ({ ...prev, [messageId]: false }));
       }, 2000);
@@ -85,52 +86,52 @@ In structural physics and chemistry, **Entropy** serves as the mathematical metr
   };
 
   /**
-   * Intercepts student edit clicks to halt background responses and cycle prompts back to inputs
-   * @param {Object} messageItem - The detailed user prompt message record chosen for modifications.
+   * Intercepts student edit clicks to halt background responses and cycle prompts back to inputs[cite: 1]
+   * @param {Object} messageItem - The detailed user prompt message record chosen for modifications[cite: 1].
    */
   const handleInitiatePromptEditSequence = (messageItem) => {
     console.log("[CHAT INTERFACE TRACE] Halting streaming workflows to execute prompt revision override:", messageItem);
-    // Forward the specific prompt text back to the parent component context to hydrate the prompt box text state
+    // Forward the specific prompt text back to the parent component context to hydrate the prompt box text state[cite: 1]
     if (onInterruptedEdit) {
       onInterruptedEdit(messageItem.text);
     }
   };
 
   /**
-   * Signals parent controllers to wipe subsequent rows and re-trigger model processing pipelines
-   * @param {Object} targetUserPromptRecord - The initial query block referencing the requested subject track.
+   * Signals parent controllers to wipe subsequent rows and re-trigger model processing pipelines[cite: 1]
+   * @param {Object} targetUserPromptRecord - The initial query block referencing the requested subject track[cite: 1].
    */
   const handleTriggerModelRegeneration = (targetUserPromptRecord) => {
     console.log("[CHAT INTERFACE TRACE] Issuing restart token sequence for prompt ID:", targetUserPromptRecord.id);
-    // Dispatches target instructions upstream to clear buffers and trigger fresh streaming typewriter iterations
+    // Dispatches target instructions upstream to clear buffers and trigger fresh streaming typewriter iterations[cite: 1]
     if (onRegenerateResponse) {
       onRegenerateResponse(targetUserPromptRecord);
     }
   };
 
   /**
-   * Registers a student's positive valuation and automatically counter-clears dislike marks
-   * @param {string} messageId - Tracking target reference key string.
+   * Registers a student's positive valuation and automatically counter-clears dislike marks[cite: 1]
+   * @param {string} messageId - Tracking target reference key string[cite: 1].
    */
   const handleToggleLikeSentiment = (messageId) => {
     setLikedMessages((prev) => ({ ...prev, [messageId]: !prev[messageId] }));
-    setDislikedMessages((prev) => ({ ...prev, [messageId]: false })); // Enforce clean mutual exclusivity
+    setDislikedMessages((prev) => ({ ...prev, [messageId]: false })); // Enforce clean mutual exclusivity[cite: 1]
   };
 
   /**
-   * Registers a student's negative valuation and automatically counter-clears like marks
-   * @param {string} messageId - Tracking target reference key string.
+   * Registers a student's negative valuation and automatically counter-clears like marks[cite: 1]
+   * @param {string} messageId - Tracking target reference key string[cite: 1].
    */
   const handleToggleDislikeSentiment = (messageId) => {
     setDislikedMessages((prev) => ({ ...prev, [messageId]: !prev[messageId] }));
-    setLikedMessages((prev) => ({ ...prev, [messageId]: false })); // Enforce clean mutual exclusivity
+    setLikedMessages((prev) => ({ ...prev, [messageId]: false })); // Enforce clean mutual exclusivity[cite: 1]
   };
 
   return (
-    // 🏢 MASTER CONVERSATIONAL ARENA RUNWAY: Vertically stacks messages with fluid adaptive padding layouts
+    // 🏢 MASTER CONVERSATIONAL ARENA RUNWAY: Vertically stacks messages with fluid adaptive padding layouts[cite: 1]
     <div className="w-full flex flex-col gap-6 sm:gap-8 py-6 select-none animate-fade-in">
       {visibleMessages.map((msg, index) => {
-        const isUserMessage = msg.sender === "user";
+        const isUserMessage = msg.sender === "user"; // Boolean flag confirming string source origins[cite: 1]
 
         // ── USER MESSAGE INTERACTIVE ROW CONTAINER ──────────────────────────────────────────────
         if (isUserMessage) {
@@ -139,29 +140,29 @@ In structural physics and chemistry, **Entropy** serves as the mathematical metr
               key={msg.id}
               onMouseEnter={() => setHoveredMessageId(msg.id)}
               onMouseLeave={() => setHoveredMessageId(null)}
-              onClick={() => setHoveredMessageId(hoveredMessageId === msg.id ? null : msg.id)} // Dual-tap mobile support
+              onClick={() => setHoveredMessageId(hoveredMessageId === msg.id ? null : msg.id)} // Dual-tap mobile support[cite: 1]
               className="w-full max-w-4xl mx-auto px-4 flex flex-col items-end relative group transition-all duration-150"
             >
-              {/* UTILITY ACTIONS OVERLAY CONTAINER: Fades into view smoothly during cursor hovers or element clicks */}
+              {/* UTILITY ACTIONS OVERLAY CONTAINER: Fades into view smoothly during cursor hovers or element clicks[cite: 1] */}
               <div 
                 className={`absolute -top-7 right-6 flex items-center gap-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-1.5 py-1 rounded-xl shadow-sm z-20 transition-all duration-200 ${
                   hoveredMessageId === msg.id ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-1 scale-95 pointer-events-none"
                 }`}
               >
-                {/* 📝 Prompt Editing Command Trigger Icon */}
+                {/* 📝 Prompt Editing Command Trigger Icon[cite: 1] */}
                 <button
                   type="button"
                   onClick={(e) => {
-                    e.stopPropagation(); // Restrict event tracking actions to button scope boundaries
+                    e.stopPropagation(); // Restrict event tracking actions to button scope boundaries[cite: 1]
                     handleInitiatePromptEditSequence(msg);
                   }}
                   className="w-6 h-6 rounded-md text-slate-500 hover:text-blue-900 dark:text-slate-400 dark:hover:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-900 flex items-center justify-center text-[11px] font-bold transition-all cursor-pointer focus:outline-none"
                   title="Halt tutor processing and revise this prompt text"
                 >
-                  <i class="fas fa-pen" />
+                  <i className="fas fa-pen" />
                 </button>
 
-                {/* 📋 Outbound User Message Copy Action Button */}
+                {/* 📋 Outbound User Message Copy Action Button[cite: 1] */}
                 <button
                   type="button"
                   onClick={(e) => {
@@ -175,7 +176,7 @@ In structural physics and chemistry, **Entropy** serves as the mathematical metr
                 </button>
               </div>
 
-              {/* 🎯 USER BUBBLE WRAPPER ENVELOPE: Enforces total structural rounding properties as requested */}
+              {/* 🎯 USER BUBBLE WRAPPER ENVELOPE: Enforces total structural rounding properties as requested[cite: 1] */}
               <div className="max-w-[85%] sm:max-w-[75%] bg-slate-100 dark:bg-slate-800 border border-slate-200/40 dark:border-slate-700/40 rounded-3xl rounded-tr-sm px-4 py-3 text-left shadow-2xs group-hover:shadow-xs transition-shadow duration-200">
                 <p className="text-sm sm:text-base font-sans font-medium text-slate-900 dark:text-slate-100 leading-relaxed break-words">
                   {msg.text}
@@ -186,29 +187,58 @@ In structural physics and chemistry, **Entropy** serves as the mathematical metr
         }
 
         // ── AI MODEL RESPONSE VIEWPORT CONTAINER ────────────────────────────────────────────────
-        // FIXED SIZING: Clamped exactly to matching prompt box width rules (max-w-4xl) across modern display breakpoints
-        const associatedUserPrompt = visibleMessages[index - 1] || visibleMessages[0];
+        // FIXED SIZING: Clamped exactly to matching prompt box width rules (max-w-4xl) across modern display breakpoints[cite: 1]
+        const associatedUserPrompt = visibleMessages[index - 1] || visibleMessages[0]; // Reference back-turn prompt link[cite: 1]
         
+        // Extract real-time stream data tracking flags passed from Go back-end architectures[cite: 6]
+        const isCurrentlyStreaming = msg.isThinking === true; 
+        const internalReasoningText = msg.reasoning || "";
+
         return (
           <div
             key={msg.id}
             className="w-full max-w-4xl mx-auto px-4 flex flex-col items-start text-left border-b border-slate-100/60 dark:border-slate-800/20 pb-6 animate-fade-in"
           >
-            {/* Model Identity Brand Row Label Header */}
+            {/* Model Identity Brand Row Label Header[cite: 1] */}
             <div className="flex items-center gap-2 mb-2.5 select-none pl-1">
               <div className="w-5 h-5 rounded-md bg-gradient-to-br from-blue-900 to-purple-900 dark:from-blue-600 dark:to-purple-600 text-white flex items-center justify-center font-black text-[9px] shadow-inner">
                 J
               </div>
               <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
-                Jemer Academy AI Tutor Pipeline
+                Jemer Academy AI Tutor Pipeline {isCurrentlyStreaming && "• STREAMING"}
               </span>
             </div>
 
-            {/* 🛡️ THEME-ADAPTIVE AI TYPOGRAPHY FRAME CORE */}
-            {/* Formatted cleanly to parse dummy textbook strings using structured contrast styles natively */}
+            {/* 🧠 THE CORE LOGIC UPGRADE: PROGRAMMATIC CHAIN-OF-THOUGHT / REASONING CONTAINER 
+                Filters internal background execution logic strings completely out of the textbook view fields[cite: 6] */}
+            {internalReasoningText.trim() !== "" && (
+              <div className="w-full mb-3 pl-3 border-l-2 border-slate-300 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 font-mono space-y-1 bg-slate-50/50 dark:bg-slate-900/20 p-2.5 rounded-r-xl">
+                <div className="font-bold uppercase tracking-wider text-[9px] text-slate-400 select-none">
+                  Tutor Thinking Process:
+                </div>
+                <p className="whitespace-pre-line leading-relaxed break-words font-medium">
+                  {internalReasoningText}
+                </p>
+              </div>
+            )}
+
+            {/* ⏳ STREAM TIMEOUT RECOVERY SAFE GATING LAYER
+                If Go routing layers acknowledge connection but haven't dispatched core text strings yet, emit safe loader tokens[cite: 6] */}
+            {isCurrentlyStreaming && !msg.text.trim() && !internalReasoningText.trim() && (
+              <div className="text-xs font-mono text-slate-400 dark:text-slate-500 pl-1 py-2 flex items-center gap-2 select-none">
+                <i className="fas fa-circle-notch fa-spin text-blue-600" />
+                <span>Formulating academic approach...</span>
+              </div>
+            )}
+
+            {/* 🛡️ THEME-ADAPTIVE AI TYPOGRAPHY FRAME CORE[cite: 1] */}
+            {/* Formatted cleanly to parse dummy textbook strings using structured contrast styles natively[cite: 1] */}
             <div className="w-full text-slate-800 dark:text-slate-200 text-sm sm:text-base leading-relaxed font-sans font-medium space-y-3 pl-1 break-words">
-              {/* Simple internal markdown mapping loop rendering sub-elements nicely without complex package structures */}
+              {/* Simple internal markdown mapping loop rendering sub-elements nicely without complex package structures[cite: 1] */}
               {msg.text.split("\n\n").map((paragraphBlock, pIdx) => {
+                // Preprocessing Logic: Guard layout arrays against un-hydrated hanging symbols cut mid-stream
+                if (!paragraphBlock.trim()) return null;
+
                 if (paragraphBlock.startsWith("###")) {
                   return (
                     <h3 key={pIdx} className="text-base sm:text-lg font-display font-extrabold text-slate-900 dark:text-white tracking-tight pt-2">
@@ -244,57 +274,62 @@ In structural physics and chemistry, **Entropy** serves as the mathematical metr
               })}
             </div>
 
-            {/* ── BASELINE UTILITY COMPONENT ACTION BAR STRIP ── */}
-            {/* Equips students with copy controls, evaluation sentiment triggers, and iteration resets */}
-            <div className="flex items-center gap-1 mt-4 pl-0.5 select-none animate-fade-in">
+            {/* ── BASELINE UTILITY COMPONENT ACTION BAR STRIP ──[cite: 1] */}
+            {/* Equips students with copy controls, evaluation sentiment triggers, and iteration resets[cite: 1] */}
+            {/* LOGIC REFACTOR: Elements are disabled programmatically if isCurrentlyStreaming equates to true, avoiding collision race conditions[cite: 6] */}
+            <div className={`flex items-center gap-1 mt-4 pl-0.5 select-none animate-fade-in transition-opacity duration-200 ${isCurrentlyStreaming ? "opacity-40" : "opacity-100"}`}>
               
-              {/* Option 1: Complete Markdown Structural Copy Trigger */}
+              {/* Option 1: Complete Markdown Structural Copy Trigger[cite: 1] */}
               <button
                 type="button"
+                disabled={isCurrentlyStreaming}
                 onClick={() => executeSystemTextCopy(msg.text, msg.id)}
-                className="h-7 px-2.5 rounded-lg border border-slate-200/60 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5 text-[10px] font-bold transition-all cursor-pointer focus:outline-none shadow-2xs"
-                title="Copy structural tutor text markup parameters down to note apps"
+                className="h-7 px-2.5 rounded-lg border border-slate-200/60 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5 text-[10px] font-bold transition-all disabled:pointer-events-none focus:outline-none shadow-2xs"
+                title={isCurrentlyStreaming ? "Copy disabled during generation" : "Copy structural tutor text markup parameters down to note apps"}
               >
                 <i className={`fas ${copyStatusTracker[msg.id] ? "fa-check text-emerald-500" : "fa-copy"}`} />
                 <span>{copyStatusTracker[msg.id] ? "Copied Structure" : "Copy Response"}</span>
               </button>
 
-              {/* Option 2: Positive Assessment sentiment click vector toggle */}
+              {/* Option 2: Positive Assessment sentiment click vector toggle[cite: 1] */}
               <button
                 type="button"
+                disabled={isCurrentlyStreaming}
                 onClick={() => handleToggleLikeSentiment(msg.id)}
-                className={`w-7 h-7 rounded-lg border flex items-center justify-center text-[11px] transition-all cursor-pointer focus:outline-none shadow-2xs ${
+                className={`w-7 h-7 rounded-lg border flex items-center justify-center text-[11px] transition-all disabled:pointer-events-none focus:outline-none shadow-2xs ${
                   likedMessages[msg.id]
                     ? "bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-950/40 dark:border-emerald-900/40 dark:text-emerald-400"
                     : "border-slate-200/60 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-900/60 text-slate-400 hover:text-emerald-600 dark:text-slate-500 dark:hover:text-emerald-400"
                 }`}
                 title="Verify accuracy by liking tutor text block"
               >
-                <i class="fas fa-thumbs-up" />
+                <i className="fas fa-thumbs-up" />
               </button>
 
-              {/* Option 3: Negative Assessment sentiment click vector toggle */}
+              {/* Option 3: Negative Assessment sentiment click vector toggle[cite: 1] */}
               <button
                 type="button"
+                disabled={isCurrentlyStreaming}
                 onClick={() => handleToggleDislikeSentiment(msg.id)}
-                className={`w-7 h-7 rounded-lg border flex items-center justify-center text-[11px] transition-all cursor-pointer focus:outline-none shadow-2xs ${
+                className={`w-7 h-7 rounded-lg border flex items-center justify-center text-[11px] transition-all disabled:pointer-events-none focus:outline-none shadow-2xs ${
                   dislikedMessages[msg.id]
                     ? "bg-red-50 border-red-200 text-red-600 dark:bg-red-950/40 dark:border-red-900/40 dark:text-red-400"
                     : "border-slate-200/60 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-900/60 text-slate-400 hover:text-red-600 dark:text-slate-500 dark:hover:text-red-400"
                 }`}
                 title="Flag structural anomalies by disliking tutor text block"
               >
-                <i class="fas fa-thumbs-down" />
+                <i className="fas fa-thumbs-down" />
               </button>
 
-              {/* Option 4: Response Matrix Restart Processing Token */}
+              {/* Option 4: Response Matrix Restart Processing Token[cite: 1] */}
               <button
                 type="button"
+                disabled={isCurrentlyStreaming}
                 onClick={() => handleTriggerModelRegeneration(associatedUserPrompt)}
-                className="h-7 px-2.5 rounded-lg border border-slate-200/60 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-900/60 text-slate-400 hover:text-blue-900 dark:text-slate-500 dark:hover:text-blue-400 flex items-center gap-1.5 text-[10px] font-bold transition-all cursor-pointer focus:outline-none shadow-2xs"
+                className="h-7 px-2.5 rounded-lg border border-slate-200/60 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-900/60 text-slate-400 hover:text-blue-900 dark:text-slate-500 dark:hover:text-blue-400 flex items-center gap-1.5 text-[10px] font-bold transition-all disabled:pointer-events-none focus:outline-none shadow-2xs"
                 title="Restart token generation queries loops for this prompt block"
               >
-                <i class="fas fa-sync-alt text-[9px]" />
+                <i className="fas fa-sync-alt text-[9px]" />
                 <span>Restart Response</span>
               </button>
 

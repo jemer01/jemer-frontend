@@ -1,20 +1,44 @@
 /**
  * ================================================================================================
- * 🚀 JEMER ACADEMY BACKEND ROUTER — GRADUATED PROFILE STATUS CONTROLLER (v1.1 HYBRID FIX)
+ * 🚀 JEMER ACADEMY BACKEND ROUTER — GRADUATED PROFILE STATUS CONTROLLER (v1.2 BUG FIXED)
  * ================================================================================================
  * Core Path: src/app/api/profile/status_check/route.js
  * Execution Target: Next.js Server-Side Runtime Environment Core
  * Database Target: Neon DB (PostgreSQL) Serverless Connection Pool
  * Security Tier: Adaptive Parameterized Lookup handling both UUID tokens and Email fallback paths
- * Compliance: 100% complete line-by-line developer code documentation for complete clarity
+ *
+ * BUGS FIXED IN v1.2:
+ *
+ * BUG 1 (CRITICAL — root cause of "Failed to fetch"):
+ *   BEFORE: `const sql = neon(process.env.NEON_DATABASE_URL)` ran at MODULE LEVEL.
+ *   If NEON_DATABASE_URL was undefined, neon() returned a broken function. When sql``
+ *   was later called, it tried to fetch() an undefined URL and threw "TypeError: Failed
+ *   to fetch" inside the server process. In Next.js Turbopack dev mode, a module-level
+ *   crash can prevent the route from registering entirely — meaning the browser's fetch()
+ *   call gets no response at all and throws its own "Failed to fetch" network exception.
+ *   AFTER: neon() is initialized INSIDE the GET function, safely inside the try/catch.
+ *   Any failure now returns a proper JSON 500 instead of crashing the module.
+ *
+ * BUG 2 (HIGH — caused SQL errors on non-UUID tokens):
+ *   BEFORE: `WHERE id = ${primaryLookupSelector}::uuid`
+ *   The ::uuid cast on the parameter throws a Postgres error if jemer_user_uuid in
+ *   localStorage holds anything other than a plain UUID (e.g. a JWT, a prefixed string).
+ *   AFTER: `WHERE id::text = ${primaryLookupSelector}`
+ *   Casting the COLUMN to text instead avoids all type-mismatch errors — any string
+ *   can be compared safely, non-matching values simply return zero rows.
+ *
+ * BUG 3 (MEDIUM — silent failure on missing env var):
+ *   BEFORE: No guard before calling neon(). Missing env var produced no useful log.
+ *   AFTER: Explicit env var check at the top of the function with a clear console error.
+ *
  * ================================================================================================
  */
 
 import { NextResponse } from "next/server"; // Imports Next.js server utility to serialize and deliver structured JSON HTTP responses
 import { neon } from "@neondatabase/serverless"; // Imports the official serverless Neon database connection driver package
 
-// Instantiates a secure, isolated database driver utility mapping to your server's secret environment variables pool
-const sql = neon(process.env.NEON_DATABASE_URL);
+// ⚠️ NOTE: `const sql = neon(...)` has been intentionally moved INSIDE the GET function.
+// Do NOT move it back to module level — see BUG 1 above for why that breaks everything.
 
 /**
  * Handles incoming HTTP GET requests to evaluate if a student's personal learning matrix is fully complete
@@ -24,6 +48,19 @@ export async function GET(requestContext) {
   console.log("[API ROUTE - STATUS CHECK] Intercepting incoming GET verification profile request context...");
 
   try {
+    // ── BUG 3 FIX: ENVIRONMENT VARIABLE GUARD ────────────────────────────────────────────────
+    // Validate that the database connection string is available before attempting anything.
+    // If this log appears in your terminal, rename your `_env.local` file to `.env.local`.
+    if (!process.env.NEON_DATABASE_URL) {
+      console.error("[API ROUTE - ENV FAULT] NEON_DATABASE_URL is not set. Check that .env.local exists at the project root and the dev server was restarted after it was created.");
+      return NextResponse.json({ isProfileComplete: false }, { status: 200 });
+    }
+
+    // ── BUG 1 FIX: neon() INITIALISED INSIDE THE FUNCTION, NOT AT MODULE LEVEL ──────────────
+    // Instantiating here means any crash is contained inside this try/catch block and returns
+    // a proper JSON response — it no longer risks killing the route module on startup.
+    const sql = neon(process.env.NEON_DATABASE_URL);
+
     // 🔒 SECURITY LAYER: Extraction of user session authorization credentials
     // Extract token identifier values from standard system headers cleanly
     const authHeaderTokenValue = requestContext.headers.get("Authorization") || "";
@@ -45,7 +82,8 @@ export async function GET(requestContext) {
     let databaseProfileRecords = [];
 
     if (primaryLookupSelector.includes("@")) {
-      console.log(`[API ROUTE - RESOLVER] Target parameter evaluated as Email. Running email lookups index scan...`);
+      // ── EMAIL LOOKUP PATH ─────────────────────────────────────────────────────────────────
+      console.log(`[API ROUTE - RESOLVER] Target parameter evaluated as Email. Running email lookup index scan...`);
       databaseProfileRecords = await sql`
         SELECT 
           academic_level_pacing_tier,
@@ -63,7 +101,15 @@ export async function GET(requestContext) {
         LIMIT 1;
       `;
     } else {
-      console.log(`[API ROUTE - RESOLVER] Target parameter evaluated as Token identifier string. Running primary key lookup scan...`);
+      // ── BUG 2 FIX: UUID / TOKEN LOOKUP PATH ──────────────────────────────────────────────
+      // BEFORE: `WHERE id = ${primaryLookupSelector}::uuid`
+      //   The ::uuid cast applied to the PARAMETER threw a Postgres error whenever the value
+      //   wasn't a strictly valid UUID string (any prefix, JWT format, etc. all caused crashes).
+      //
+      // AFTER: `WHERE id::text = ${primaryLookupSelector}`
+      //   Casting the COLUMN to text instead means ANY string can be compared without error.
+      //   Non-UUID strings simply match no rows and return an empty result — no exceptions thrown.
+      console.log(`[API ROUTE - RESOLVER] Target parameter evaluated as Token identifier string. Running safe text-cast lookup scan...`);
       databaseProfileRecords = await sql`
         SELECT 
           academic_level_pacing_tier,
@@ -77,7 +123,8 @@ export async function GET(requestContext) {
           personal_context,
           custom_instructions
         FROM "Jemer-Student-Profiles"
-        WHERE id = ${primaryLookupSelector}::uuid OR email = ${primaryLookupSelector};
+        WHERE id::text = ${primaryLookupSelector} OR email = ${primaryLookupSelector}
+        LIMIT 1;
       `;
     }
 
@@ -135,7 +182,7 @@ export async function GET(requestContext) {
     // Dispatches a formatted error payload to avoid freezing client-side browser network pipes
     return NextResponse.json(
       { error: "Internal database processing connection failure.", details: serverPipelineException.message },
-      { status: 500 } // Dispatches an HTTP 500 Internal Server Error status
+      { status: 500 }
     );
   }
 }

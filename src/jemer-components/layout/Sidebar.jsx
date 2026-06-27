@@ -16,7 +16,10 @@
 import React, { useState, useEffect } from "react"; // Injects standard state and lifecycle parameters from React
 import Link from "next/link"; // Injects optimized client-side routing bridges to achieve instant page swaps
 import { usePathname } from "next/navigation"; // Pulls the URL parser to dynamically highlight the student's active tab
-import { client } from "@/lib/neon.js"; // References your browser-safe client instance configurator to process active database sessions
+// NOTE: The browser-side Neon client is intentionally NOT imported here.
+// Direct browser → Neon Auth requests (*.neonauth.eu-west-2.aws.neon.tech) are blocked by
+// CORS when the app is served from a *.cloudshell.dev domain. All Neon communication
+// is now routed through the server-side /api/profile/me bridge route instead.
 
 /**
  * Universal Fixed Side Navigation Panel Component
@@ -61,41 +64,57 @@ export default function Sidebar({ isOpen, onClose }) {
           return; // Terminate execution early to save database transaction computing thresholds
         }
 
-        console.log("[CACHE MISS] Profile values empty or expired. Dispatching query to Neon Auth SDK...");
-        
-        // Retrieve the current authenticated login session details from the active Neon Auth pool
-        const { data: sessionContainer } = await client.auth.getSession();
+        // ── 🛡️ SERVER-SIDE BRIDGE UPGRADE ──────────────────────────────────────────────────────
+        // REPLACED: client.auth.getSession() — that call was a browser → Neon Auth cross-origin
+        // request (*.cloudshell.dev → *.neonauth.eu-west-2.aws.neon.tech). The browser's CORS
+        // policy refused it before a single byte arrived, throwing "TypeError: Failed to fetch".
+        //
+        // FIX: We now call our own /api/profile/me route instead. That route runs server-side in
+        // Node.js, which is entirely invisible to the browser's CORS policy. It talks to Neon
+        // directly, then returns just the name strings we need. No CORS. No proxy blockade.
 
-        // Evaluate if a secure valid user sub-object payload was returned inside the session container packet
-        if (sessionContainer?.user) {
-          const authenticatedUserId = sessionContainer.user.id; // Isolate the unique authenticated primary key user UUID string
-          console.log(`[NEON DB QUEUE] Handshake confirmed for User ID: ${authenticatedUserId}. Issuing table select...`);
+        // Pull the stored user UUID that page.js deposits into localStorage after login.
+        const storedUserId = localStorage.getItem("jemer_user_uuid");
 
-          // Query your customized student profiles database table inside your Neon instance
-          const { data: profileRowData, error: databaseError } = await client
-            .from("Jemer-Student-Profiles") // Target your explicit project records table location
-            .select("first_name, last_name") // Minimize network payload by selecting only required string names
-            .eq("id", authenticatedUserId) // Match table records strictly against the session ID
-            .single(); // Optimize database execution threads by pulling a single dictionary row
-
-          // Intercept and throw database transaction exceptions downstream to the fallback catch block if triggered
-          if (databaseError) throw databaseError;
-
-          // If the query returns a valid profile row, populate client memory spaces with the attributes safely
-          if (profileRowData) {
-            console.log(`[NEON DB HYDRATION SUCCESS] Retrieved: ${profileRowData.first_name} ${profileRowData.last_name}`);
-            
-            // Write the retrieved database strings directly into local browser memory for all future page loads
-            localStorage.setItem("jemer_user_first_name", profileRowData.first_name || "Jemer");
-            localStorage.setItem("jemer_user_last_name", profileRowData.last_name || "Innovator");
-
-            // Update the live application view state model instantly to trigger re-renders
-            setStudentProfile({
-              firstName: profileRowData.first_name || "Jemer",
-              lastName: profileRowData.last_name || "Innovator"
-            });
-          }
+        if (!storedUserId) {
+          // No UUID in storage means the user is not authenticated — silently bail out.
+          // The login redirect in page.js already handles unauthenticated access.
+          console.warn("[CACHE MISS] No jemer_user_uuid found in localStorage. Skipping server profile fetch.");
+          return;
         }
+
+        console.log(`[CACHE MISS] Profile values empty or expired. Dispatching to /api/profile/me bridge...`);
+
+        // Call the server-side bridge route with credentials forwarded for the Cloud Shell proxy.
+        const profileBridgeResponse = await fetch("/api/profile/me", {
+          method: "GET",
+          credentials: "include", // Forwards session cookies through the Cloud Shell HTTPS proxy
+          headers: {
+            "Authorization": storedUserId,    // User UUID read from localStorage
+            "Content-Type": "application/json"
+          }
+        });
+
+        // Guard: if the server bridge responds with a non-success status, bail silently.
+        // The sidebar will stay on its default "Student Workspace" placeholder values.
+        if (!profileBridgeResponse.ok) {
+          console.warn(`[PROFILE BRIDGE] Server returned status ${profileBridgeResponse.status}. Keeping default display values.`);
+          return;
+        }
+
+        // De-serialize the name payload returned by /api/profile/me
+        const resolvedProfile = await profileBridgeResponse.json();
+        const fetchedFirst = resolvedProfile.firstName || "Jemer";
+        const fetchedLast  = resolvedProfile.lastName  || "Innovator";
+
+        console.log(`[PROFILE BRIDGE SUCCESS] Hydrating sidebar with: ${fetchedFirst} ${fetchedLast}`);
+
+        // Write the retrieved name strings back to localStorage to skip this fetch next time.
+        localStorage.setItem("jemer_user_first_name", fetchedFirst);
+        localStorage.setItem("jemer_user_last_name", fetchedLast);
+
+        // Update the live React state to re-render the profile card at the sidebar bottom.
+        setStudentProfile({ firstName: fetchedFirst, lastName: fetchedLast });
       } catch (neonSyncException) {
         // Captures and reports background data loading anomalies safely without interrupting main interface render loops
         console.error("[NEON PROFILE RESOLUTION FAILURE] Handshake collapsed:", neonSyncException.message);

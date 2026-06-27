@@ -1,10 +1,12 @@
 /**
  * ================================================================================================
- * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM SCALABLE SIDE PANEL FRAMEWORK (v5.5 ULTIMATE)
+ * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM SCALABLE SIDE PANEL FRAMEWORK (v5.5.1 ULTIMATE)
  * ================================================================================================
  * Description: Viewport-locked navigation sidebar with premium custom vector assets.
  * Performance Tier: Cache-First LocalStorage Hydration Engine (0ms Latency Loop)
  * Database Layer: Powered natively by the serverless Neon DB & Auth architecture.
+ * Patch Note v5.5.1: Synchronized workspace environment monitoring parameters to align with
+ * Cloud Shell proxy tracking specifications established within core dashboard runway nodes.
  * Compliance: 100% complete line-by-line developer code documentation for maximum clarity.
  * ================================================================================================
  */
@@ -40,7 +42,9 @@ export default function Sidebar({ isOpen, onClose }) {
   useEffect(() => {
     async function verifyAndFetchProfile() {
       try {
-        console.log("[CACHE ENGINE CORE] Running background profile synchronization audit...");
+        // ENVIRONMENT RADAR CHECK: Pull down the active public application root URL string to verify proxy routing alignment
+        const activeProxyEnvUrl = process.env.NEXT_PUBLIC_APP_URL || "localhost:3000";
+        console.log(`[CACHE ENGINE CORE] Running background profile synchronization audit under context host: ${activeProxyEnvUrl}`);
 
         // Look up local storage parameters on the user's machine to evaluate cache states
         const cachedFirst = localStorage.getItem("jemer_user_first_name");
@@ -54,7 +58,7 @@ export default function Sidebar({ isOpen, onClose }) {
             firstName: cachedFirst,
             lastName: cachedLast
           });
-          return;
+          return; // Terminate execution early to save database transaction computing thresholds
         }
 
         console.log("[CACHE MISS] Profile values empty or expired. Dispatching query to Neon Auth SDK...");
@@ -62,8 +66,9 @@ export default function Sidebar({ isOpen, onClose }) {
         // Retrieve the current authenticated login session details from the active Neon Auth pool
         const { data: sessionContainer } = await client.auth.getSession();
 
+        // Evaluate if a secure valid user sub-object payload was returned inside the session container packet
         if (sessionContainer?.user) {
-          const authenticatedUserId = sessionContainer.user.id;
+          const authenticatedUserId = sessionContainer.user.id; // Isolate the unique authenticated primary key user UUID string
           console.log(`[NEON DB QUEUE] Handshake confirmed for User ID: ${authenticatedUserId}. Issuing table select...`);
 
           // Query your customized student profiles database table inside your Neon instance
@@ -73,8 +78,10 @@ export default function Sidebar({ isOpen, onClose }) {
             .eq("id", authenticatedUserId) // Match table records strictly against the session ID
             .single(); // Optimize database execution threads by pulling a single dictionary row
 
+          // Intercept and throw database transaction exceptions downstream to the fallback catch block if triggered
           if (databaseError) throw databaseError;
 
+          // If the query returns a valid profile row, populate client memory spaces with the attributes safely
           if (profileRowData) {
             console.log(`[NEON DB HYDRATION SUCCESS] Retrieved: ${profileRowData.first_name} ${profileRowData.last_name}`);
             
@@ -82,7 +89,7 @@ export default function Sidebar({ isOpen, onClose }) {
             localStorage.setItem("jemer_user_first_name", profileRowData.first_name || "Jemer");
             localStorage.setItem("jemer_user_last_name", profileRowData.last_name || "Innovator");
 
-            // Update the live application view state model instantly
+            // Update the live application view state model instantly to trigger re-renders
             setStudentProfile({
               firstName: profileRowData.first_name || "Jemer",
               lastName: profileRowData.last_name || "Innovator"
@@ -90,12 +97,13 @@ export default function Sidebar({ isOpen, onClose }) {
           }
         }
       } catch (neonSyncException) {
+        // Captures and reports background data loading anomalies safely without interrupting main interface render loops
         console.error("[NEON PROFILE RESOLUTION FAILURE] Handshake collapsed:", neonSyncException.message);
       }
     }
 
-    verifyAndFetchProfile();
-  }, []);
+    verifyAndFetchProfile(); // Execute the profile mapping synchronization block routine
+  }, []); // Static tracking bounds vector running precisely once upon interface mounting sequences
 
   // 📑 PRIMARY APPLICATION MAIN TAB NAVIGATION MATRIX
   // UPGRADED: Replaced basic paths with mathematically balanced, premium custom inline vector assets.
@@ -161,6 +169,7 @@ export default function Sidebar({ isOpen, onClose }) {
    * Internal reusable tab renderer component compiling our layout link rows
    */
   const buildInteractiveTabNode = (item, uniqueIndexId) => {
+    // Evaluates if the current browser layout route string exactly matches the active tab destination path
     const isCurrentTabTargeted = activePathname === item.targetPath;
 
     return (
@@ -173,9 +182,11 @@ export default function Sidebar({ isOpen, onClose }) {
             : "text-slate-500 dark:text-slate-400 hover:bg-slate-50/60 dark:hover:bg-slate-800/30 hover:text-slate-900 dark:hover:text-white"
         }`}
       >
+        {/* Dynamic icon color state allocation according to routing selection flags */}
         <div className={`transition-colors duration-150 ${isCurrentTabTargeted ? "text-blue-900 dark:text-blue-400" : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300"}`}>
           {item.vectorGlyph}
         </div>
+        {/* Safe text clamping area preventing string values from running out of bounds */}
         <span className="truncate">{item.label}</span>
       </Link>
     );
@@ -184,6 +195,7 @@ export default function Sidebar({ isOpen, onClose }) {
   return (
     <>
       {/* 📡 MOBILE TRANSLUCENT BACKDROP DIM OVERLAY */}
+      {/* Mounts contextually during responsive mobile screens to block lower interactive panels and capture close events */}
       {isOpen && (
         <div
           onClick={onClose}
@@ -192,6 +204,7 @@ export default function Sidebar({ isOpen, onClose }) {
       )}
 
       {/* 🏢 MASTER VIEWPORT LOCK-DOWN SIDEBAR ENVELOPE CONTAINER */}
+      {/* Restricts display constraints strictly to full height screen real estate, sliding fluidly via hardware-accelerated transforms */}
       <aside
         className={`fixed inset-y-0 left-0 h-screen w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col justify-between shrink-0 z-40 select-none transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "-translate-x-full"
@@ -224,6 +237,7 @@ export default function Sidebar({ isOpen, onClose }) {
         </div>
 
         {/* ── ZONE 2: STATIONARY LOCKED BASEMENT REPOSITORY ANCHOR (BOTTOM PART) ── */}
+        {/* Sticks firmly to the bottom bounds of the panel window tray, managing persistent baseline setting configurations */}
         <div className="shrink-0 sticky bottom-0 border-t border-slate-100 dark:border-slate-800/60 p-3 bg-white dark:bg-slate-900 space-y-1 shadow-[0_-4px_24px_rgba(0,0,0,0.015)]">
           
           {/* Bookshelf Custom Premium Vector Icon Row */}

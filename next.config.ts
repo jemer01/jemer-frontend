@@ -2,11 +2,11 @@ import type { NextConfig } from "next";
 
 /**
  * ========================================================================
- * 🧠 JEMER ACADEMY CORE ROUTING AND COMPILER CONFIGURATION (V2.1 - RAM FIXED)
+ * 🧠 JEMER ACADEMY CORE ROUTING AND COMPILER CONFIGURATION (V4.2 - PROXY LOCK)
  * ========================================================================
- * Description: Main routing architecture module for Next.js compilation loops.
- * Fixes applied: Disabled worker threads, minimized caching, and stripped 
- * dev sourcemaps to drastically lower memory consumption on 4GB RAM PCs.
+ * Description: High-performance Next.js engine with direct proxy locks.
+ * Fixes applied: Hardcoded exact terminal-provided Cloud Shell hostname strings
+ * to satisfy Next.js security headers and clear active WebSocket errors.
  * ========================================================================
  */
 const nextConfig: NextConfig = {
@@ -14,23 +14,22 @@ const nextConfig: NextConfig = {
   // ⚛️ NATIVE REACT COMPILER ACTIVATION
   reactCompiler: true,
 
-  // 📉 4GB RAM LOW-MEMORY STACK OPTIMISATIONS
-  productionBrowserSourceMaps: false, // Prevents giant source map strings from flooding RAM
-  
-  experimental: {
-    cpus: 1,            // Prevents Next.js from spawning multiple CPU threads
-    workerThreads: false, // Forces Webpack to bundle everything on a single low-memory thread
-  },
+  // 🛡️ DEV SERVER PROXY WHITELIST (Hardcoded absolute domains derived from your error log)
+  allowedDevOrigins: [
+    "3000-cs-9c6bf60b-3314-4394-80ef-ef6f4089d8e1.cs-europe-west1-haha.cloudshell.dev"
+  ],
 
-  // 🧹 AGGRESSIVE WEBPACK GARBAGE COLLECTION
-  webpack: (config, { dev }) => {
-    if (dev) {
-      config.cache = {
-        type: 'memory',
-        maxGenerations: 1, // Quickly flushes deleted code chunks out of your RAM
-      };
+  experimental: {
+    // 💾 TURBOPACK CACHING MECHANISMS
+    turbopackFileSystemCacheForDev: true,
+
+    // 🛡️ SECURITY PATCH: Whitelist Google Cloud Shell Web Preview proxy origins
+    serverActions: {
+      allowedOrigins: [
+        "3000-cs-9c6bf60b-3314-4394-80ef-ef6f4089d8e1.cs-europe-west1-haha.cloudshell.dev",
+        "localhost:3000"         
+      ]
     }
-    return config;
   },
 
   // 🌐 APERIODIC ROUTING REWRITE INTERACTION MATRIX

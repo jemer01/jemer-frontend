@@ -1,13 +1,13 @@
-/**-
+/**
  * ================================================================================================
- * 🧠 JEMER ACADEMY DASHBOARD FEATURE ENGINE — MASTER AI TUTOR PAGE RUNWAY (v2.3.0 LIVE GO STREAM)
+ * 🧠 JEMER ACADEMY DASHBOARD FEATURE ENGINE — MASTER AI TUTOR PAGE RUNWAY (v2.3.4 LIVE GO STREAM)
  * ================================================================================================
  * Description: Viewport-locked, fixed screen layout coordinator organizing workspace view streams.
  * Fixed Strategy: Re-engineered with flex-col constraints to eliminate page scrolling completely.
  * Optimization Tier: Cache-first validation layers checking localStorage before querying Neon DB resource pools.
  * Sizing Tier: Enforces a symmetric vertical layout matching prompt box parameters (max-w-4xl).
- * Patch Note v2.3.0: Integrated high-performance SSE streaming loops processing real-time binary data chunks.
- * Injects partial text fragments directly into specified chat array structures dynamically.
+ * Patch Note v2.3.4: Upgraded the relative fetch operation to explicitly pass browser credentials
+ * through the request parameters, allowing the transaction to pass Google Cloud Shell's auth proxy.
  * Compliance: 100% complete line-by-line developer code documentation for maximum clarity.
  * ================================================================================================
  */
@@ -77,13 +77,16 @@ export default function TutorPage() {
 
         console.log("[TUTOR GATING CACHE MISS] Local token missing. Pulling profile database metrics via API handler... Same method sync verification.");
 
-        // Fire a fast background HTTP GET query sequence down to our status checker endpoint
-        // UPGRADED LINE: Injected headers parameter mapping passing the user's authentic UUID token down the authorization channel
+        // ── 🛡️ PURE RELATIVE ORIGIN PROXY TUNNEL PASSTHROUGH UPGRADE ──
+        // Fires a fast background HTTP GET query sequence down to our status checker endpoint.
+        // Injected credentials: "include" configuration parameter to ensure that your active browser sessions
+        // pass through Google Cloud Shell's proxy domain restrictions without collapsing into a "Failed to fetch" block.
         const remoteServerHandshakeResponse = await fetch("/api/profile/status_check", {
-          method: "GET",
+          method: "GET", // High-efficiency resource query action verb configuration
+          credentials: "include", // 🔑 CRITICAL PROXY TUNNEL UPGRADE: Forces the browser to forward Google session identification cookies past the proxy fence
           headers: {
             "Authorization": activeUserUuidToken, // Inject UUID directly into standard header fields to guide backend table lookups
-            "Content-Type": "application/json"
+            "Content-Type": "application/json"   // Declares JSON structure compliance to the backend API receiver layout
           }
         });
 
@@ -99,7 +102,6 @@ export default function TutorPage() {
 
         // DEVELOPER RESILIENCY OVERRIDE BOUNDARY: If route handler responds with 404/500 errors during local development,
         // intercept exception states and gracefully force the onboarding form modal to launch instead of throwing unhandled crashes.
-        // Corrected to use the single server-response variable token context cleanly
         if (!remoteServerHandshakeResponse || !remoteServerHandshakeResponse.ok) {
           console.warn(`[TUTOR GATING API WARNING] Server endpoint returned un-hydrated configuration. Defaulting to uncalibrated profile mapping rules.`);
           setShowGateModal(true); // Open calibration warning popover layout dialog box
@@ -198,7 +200,6 @@ export default function TutorPage() {
     setInjectedText("");
 
     // ── GO CLOUD RUN ROUTER CONFIGURATION CHANNEL ──
-    // SPACE LEFT HERE: Paste your live production Google Cloud Run endpoint URL string inside the empty fallback quotes when deployed
     const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
     const ENDPOINT_PATH = `${BACKEND_URL}/api/v1/tutor/stream`;
 

@@ -1,12 +1,11 @@
 /**
  * ================================================================================================
- * 📜 JEMER ACADEMY DESIGN SYSTEM — PREMIUM AUXILIARY TUTOR MANAGEMENT SIDEBAR (v2.5.1)
+ * 📜 JEMER ACADEMY DESIGN SYSTEM — PREMIUM AUXILIARY TUTOR MANAGEMENT SIDEBAR (v2.5)
  * ================================================================================================
  * Description: High-end human-centric auxiliary layout manager tracking local learning histories.
  * Design Reference: Crafted to match the pristine minimalism of Screenshot 2026-06-21 204439.png.
- * Upgrades Implemented: Shielded all interactive control parameters against hydration anomalies.
- * Fixes Applied: Appended suppressHydrationWarning attributes to all buttons and input vectors
- * to neutralize autofill and extension engine fdprocessedid signature injection crashes.
+ * Upgrades Implemented: Added custom inline vector icons for all tabs, integrated official brand logo,
+ * and added cache-first local storage profile card sync to match the general app sidebar.
  * Compliance: 100% complete line-by-line developer documentation for absolute system clarity.
  * ================================================================================================
  */
@@ -90,7 +89,6 @@ export default function TutorSidebar({ isOpen, onClose }) {
       const cachedFirst = localStorage.getItem("jemer_user_first_name");
       const cachedLast = localStorage.getItem("jemer_user_last_name");
 
-      // Verify that both core names exist in local cache arrays before parsing values to application states
       if (cachedFirst && cachedLast) {
         console.log(`[TUTOR SIDEBAR CACHE HIT] Hydrating card parameters for: ${cachedFirst} ${cachedLast}`);
         setStudentProfile({
@@ -99,10 +97,9 @@ export default function TutorSidebar({ isOpen, onClose }) {
         });
       }
     } catch (cacheException) {
-      // Gracefully capture storage faults without freezing background compiler workflows
       console.error("[TUTOR SIDEBAR PROFILE FAULT] Failed to safely parse client context tokens:", cacheException.message);
     }
-  }, []); // Static media tracking bounds vector running precisely once upon path instantiation execution loops
+  }, []);
 
   // ── LAYER 4: TRANSACTION PIPELINE HANDLERS ──────────────────────────────────────────────────
   /**
@@ -132,7 +129,6 @@ export default function TutorSidebar({ isOpen, onClose }) {
   return (
     <>
       {/* 📡 MOBILE TRANSLUCENT DIM TIMELINE LAYER BACKGROUND */}
-      {/* Renders text overlays tracking user sidebar states and hooks close event routines */}
       {isOpen && (
         <div
           onClick={onClose}
@@ -169,7 +165,6 @@ export default function TutorSidebar({ isOpen, onClose }) {
             <button
               type="button"
               onClick={onClose}
-              suppressHydrationWarning={true} // 🛡️ SHIELD UPGRADE: Suppresses client validation loops on the mobile close button element
               className="w-6 h-6 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-slate-900 dark:hover:text-white lg:hidden cursor-pointer focus:outline-none"
               title="Close tutor panel"
             >
@@ -184,7 +179,6 @@ export default function TutorSidebar({ isOpen, onClose }) {
             <button
               type="button"
               onClick={handleTriggerNewChatSession}
-              suppressHydrationWarning={true} // 🛡️ SHIELD UPGRADE: Ignores programmatic attribute tracking loops for the new chat initiator
               className="w-full flex items-center gap-3.5 px-3 py-2.5 rounded-xl text-[13px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100/60 dark:hover:bg-slate-800/40 hover:text-slate-950 dark:hover:text-white transition-all duration-150 active:scale-98 cursor-pointer focus:outline-none group"
             >
               <svg className="w-4 h-4 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -202,7 +196,6 @@ export default function TutorSidebar({ isOpen, onClose }) {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                suppressHydrationWarning={true} // 🛡️ SHIELD UPGRADE: Protects text search matrix inputs from browser autofill mismatches
                 placeholder="Search chats"
                 className="bg-transparent text-slate-800 dark:text-slate-200 text-[13px] font-medium placeholder-slate-400 focus:outline-none w-full leading-none"
               />
@@ -212,7 +205,6 @@ export default function TutorSidebar({ isOpen, onClose }) {
             <button
               type="button"
               onClick={() => alert("Image Portfolio Context: This references your future generated images workspace.")}
-              suppressHydrationWarning={true} // 🛡️ SHIELD UPGRADE: Neutralizes fdprocessedid token tags injected on the image vault item trigger
               className="w-full flex items-center gap-3.5 px-3 py-2.5 rounded-xl text-[13px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100/60 dark:hover:bg-slate-800/40 hover:text-slate-950 dark:hover:text-white transition-all duration-150 active:scale-98 cursor-pointer focus:outline-none group"
             >
               <svg className="w-4 h-4 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -225,7 +217,6 @@ export default function TutorSidebar({ isOpen, onClose }) {
             <button
               type="button"
               onClick={() => alert("Archive Context: This references your future custom class archive vault panel.")}
-              suppressHydrationWarning={true} // 🛡️ SHIELD UPGRADE: Bypasses tree mismatch errors on the archival repository button module
               className="w-full flex items-center gap-3.5 px-3 py-2.5 rounded-xl text-[13px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100/60 dark:hover:bg-slate-800/40 hover:text-slate-950 dark:hover:text-white transition-all duration-150 active:scale-98 cursor-pointer focus:outline-none group"
             >
               <svg className="w-4 h-4 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -254,7 +245,6 @@ export default function TutorSidebar({ isOpen, onClose }) {
                       key={session.id}
                       type="button"
                       onClick={() => handleSelectActiveHistoryRow(session.id)}
-                      suppressHydrationWarning={true} // 🛡️ SHIELD UPGRADE: Instructs compiler loops to ignore injected attributes across all dynamic row elements
                       className={`w-full text-left px-3 py-2.5 rounded-xl transition-all duration-150 cursor-pointer flex items-center gap-3 border border-transparent focus:outline-none relative ${
                         isCurrentlyFocused
                           ? "bg-slate-100 dark:bg-slate-800/80 text-slate-900 dark:text-white shadow-2xs font-semibold"

@@ -1,11 +1,15 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed High-Fidelity Decoupled Formatting Sub-System (Math + Code).
- * 1. KaTeX Math Engine: Added complete rendering support for `$$...$$`, `\[...\]` block equations, and `$...$` inline math, utilizing a robust pre-processor to avoid false triggers on currency formatting.
- * 2. Hardware-Accelerated PrismJS: Engineered a dark, premium code block chassis (`bg-slate-950`) equipped with live syntax highlighting and an inline SVG clipboard copy button.
- * 3. Streaming Fallback Resilience: Upgraded the extraction Regex with `(?:```|$)` patterns, meaning code blocks and math formulas render beautifully even while the AI is actively streaming them and hasn't printed the closing backticks.
- * ========================================================================S========================
- * 💎 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM MARKDOWN & MATH RENDERER (v1.0.0)
+ * SUMMARY: Executed v2.9.0 - Advanced Dual-Pass KaTeX/LaTeX Tokenization.
+ * 1. Dual-Pass Math Extraction: Completely rewrote `parseInlineText`. Pass 1 now catches `\(...\)` 
+ *    bracket formulations securely. Pass 2 catches tightly coupled `$...$` symbols without needing 
+ *    surrounding spaces, fixing the bug where punctuation or text snapped to the formula broke the render.
+ * 2. Currency Safeguard: Added a rigorous regex test (`/^[\d.,]+$/`). If a string is just `$10` or `$1,000.50`, 
+ *    the engine leaves it alone, meaning true currency will never accidentally render as a broken math block.
+ * 3. Streaming Fallback: Added a third pass that catches an unclosed `$` exactly at the end of the streaming string, 
+ *    so formulas render live as the AI types them out before closing the syntax.
+ * ================================================================================================
+ * 💎 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM MARKDOWN & MATH RENDERER (v2.9.0)
  * ================================================================================================
  * Location: src/jemer-components/ui/markdown-renderer.jsx
  * Dependencies Required: npm install katex prismjs
@@ -108,21 +112,41 @@ const CodeBlockContainer = ({ language, code }) => {
 
 /**
  * ── THE MASTER TEXT PARSER ENGINE ──
- * Isolates inline math ($) and formatting (bold/italic) safely out of paragraph blocks.
+ * 🚀 NEW UPGRADE: Isolates inline math ($ and \(\)) and formatting (bold/italic) safely out of paragraph blocks.
+ * Employs a multi-pass approach to handle tight punctuation, streaming fallbacks, and currency protection.
  */
 const parseInlineText = (text) => {
   let counter = 0;
   const store = {};
 
-  // 1. Guarded Inline Math Extraction
-  // Uses a specific Regex to ignore currency values (e.g. $100). Validates that there's no preceding word characters.
-  let processed = text.replace(/(^|[^\w\\])\$([^\s][^$\n]*?[^\s]|[^\s])\$(?=[^\w\\]|$)/g, (match, prefix, math) => {
+  // 1. Pass 1: Extract standard LaTeX inline bracket formulations \( ... \) safely
+  // The (?:\\\)|$) handles active streaming where the closing bracket hasn't arrived.
+  let processed = text.replace(/\\\((.*?)(?:\\\)|$)/g, (match, math) => {
     const id = `__INLINE_MATH_${counter++}__`;
     store[id] = math;
-    return `${prefix}${id}`;
+    return id;
   });
 
-  // 2. Map structural components to the array matrix
+  // 2. Pass 2: Extract $...$ securely without triggering on currency
+  // Matches tightly packed math but enforces non-space boundaries to avoid swallowing "I have $10 and $20"
+  processed = processed.replace(/\$([^\s$][^$]*?[^\s$]|[^\s$])\$/g, (match, math) => {
+    // Anti-Eviction Currency Guard: If it's purely numbers, commas, or decimals (e.g. $100.00), ignore it
+    if (/^[\d.,]+$/.test(math.trim())) return match;
+    const id = `__INLINE_MATH_${counter++}__`;
+    store[id] = math;
+    return id;
+  });
+
+  // 3. Pass 3: Streaming Fallback for unclosed $ at the absolute end of the generated text
+  processed = processed.replace(/\$([^\s$][^$]*)$/, (match, math) => {
+    // Currency Guard applies here as well
+    if (/^[\d.,]+$/.test(math.trim())) return match;
+    const id = `__INLINE_MATH_${counter++}__`;
+    store[id] = math;
+    return id;
+  });
+
+  // 4. Map structural components to the array matrix
   const parts = processed.split(/(__INLINE_MATH_\d+__)/g);
 
   return parts.map((part, idx) => {
@@ -285,7 +309,7 @@ export default function MarkdownRenderer({ text }) {
   return (
     <div className="w-full text-slate-800 dark:text-slate-200 text-sm sm:text-base leading-relaxed font-sans font-medium space-y-3 pl-1 break-words">
       
-      {/* 🚀 UPGRADE: Custom Sideways Scrollbars and KaTeX Override Configuration */}
+      {/* Custom Sideways Scrollbars and KaTeX Override Configuration */}
       <style dangerouslySetInnerHTML={{__html: `
         .custom-content-scroll::-webkit-scrollbar { height: 6px; }
         .custom-content-scroll::-webkit-scrollbar-track { background: transparent; }

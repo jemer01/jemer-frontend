@@ -1,14 +1,13 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v2.7.0 Bug Fixes - Advanced Tokenization & Theming.
- * 1. Multi-Table Tokenization Engine: Replaced the primitive double-line break parser with a robust `tokenizeBlocks` 
- *    pre-processor. It scans the raw AI response line-by-line, perfectly isolating an infinite number of Markdown 
- *    tables into dedicated CSS grids without breaking surrounding text blocks.
- * 2. Absolute Theme Harmonization: Completely eradicated hardcoded dark hex codes. Tables, inline editors, and 
- *    user bubbles now use pure Tailwind `slate` tokens (`bg-slate-900`, `border-slate-800`, etc.) ensuring 
- *    a flawless, gorgeous aesthetic in both Light Mode and Dark Mode.
+ * SUMMARY: Executed v4.0.0 - Premium UI Feedback Modal & AI Context Capture.
+ * 1. AI Context Tracking: Upgraded `handleToggleLikeSentiment` & `handleToggleDislikeSentiment` to capture the 
+ *    full `msg` object. Added `activeMessageText` state. The API payload now includes `ai_response_text` so 
+ *    the engineering team knows exactly what triggered the user.
+ * 2. Premium Modal UI Redesign: Transformed the basic modal into a high-end glassmorphic component. Added a 
+ *    mobile "drag pill", a sleek AI context preview block quote, softer focus rings, and professional typography hierarchy.
  * ================================================================================================
- * 💬 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR CHAT ARENA COMPONENT (v2.7.0)
+ * 💬 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR CHAT ARENA COMPONENT (v4.0.0)
  * ================================================================================================
  */
 
@@ -16,49 +15,47 @@
 
 import React, { useState, useEffect, useRef } from "react"; 
 import { useTheme } from "@/jemer-components/context/ThemeContext.jsx"; 
+import MarkdownRenderer from "@/jemer-components/ui/markdown-renderer.jsx"; 
 
 /**
- * 🚀 UPGRADE: Advanced Markdown Pre-Processor
- * Scans the raw AI text line-by-line to isolate tables from standard paragraphs.
- * This guarantees that multiple tables generated close together render perfectly.
+ * Advanced Markdown Pre-Processor
+ * Scans the raw AI text line-by-line to perfectly isolate tables from standard paragraphs.
  */
 const tokenizeBlocks = (text) => {
-  if (!text) return [];
-  const lines = text.split('\n');
-  const tokens = [];
-  let currentText = [];
-  let currentTable = [];
-  let inTable = false;
+  if (!text) return []; 
+  const lines = text.split('\n'); 
+  const tokens = []; 
+  let currentText = []; 
+  let currentTable = []; 
+  let inTable = false; 
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    // Detects standard Markdown table rows (e.g., "| Header |" or "|---|---|")
     const isTableLine = line.trim().startsWith('|') && line.indexOf('|', 1) !== -1;
 
     if (isTableLine) {
       if (!inTable) {
-        inTable = true;
+        inTable = true; 
         if (currentText.length > 0) {
           tokens.push({ type: 'text', content: currentText.join('\n') });
-          currentText = [];
+          currentText = []; 
         }
       }
-      currentTable.push(line);
+      currentTable.push(line); 
     } else {
       if (inTable) {
-        inTable = false;
+        inTable = false; 
         tokens.push({ type: 'table', content: currentTable.join('\n') });
-        currentTable = [];
+        currentTable = []; 
       }
-      currentText.push(line);
+      currentText.push(line); 
     }
   }
 
-  // Flush remaining buffers
   if (currentText.length > 0) tokens.push({ type: 'text', content: currentText.join('\n') });
   if (currentTable.length > 0) tokens.push({ type: 'table', content: currentTable.join('\n') });
 
-  return tokens;
+  return tokens; 
 };
 
 export default function AIChatInterface({ 
@@ -67,7 +64,7 @@ export default function AIChatInterface({
   onRegenerateResponse,
   isStreaming 
 }) {
-  const { theme } = useTheme();
+  const { theme } = useTheme(); 
 
   const [hoveredMessageId, setHoveredMessageId] = useState(null);
   const [copyStatusTracker, setCopyStatusTracker] = useState({});
@@ -79,13 +76,20 @@ export default function AIChatInterface({
   const [expandedPrompts, setExpandedPrompts] = useState({});
   const [expandedReasoning, setExpandedReasoning] = useState({});
 
+  // 🚀 NEW UPGRADE: FEEDBACK ENGINE STATE VARIABLES WITH AI CONTEXT
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false); 
+  const [activeFeedbackType, setActiveFeedbackType] = useState(null); 
+  const [activeMessageId, setActiveMessageId] = useState(null); 
+  const [activeMessageText, setActiveMessageText] = useState(""); // Captures the exact AI string for DB logs and UI preview
+  const [feedbackText, setFeedbackText] = useState(""); 
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false); 
+
   const messagesEndRef = useRef(null);
   const [autoScroll, setAutoScroll] = useState(true);
 
-  // Monitor user interaction to cancel auto-scroll if they try to read up
   useEffect(() => {
     const handleUserInteraction = () => {
-      if (isStreaming) setAutoScroll(false);
+      if (isStreaming) setAutoScroll(false); 
     };
     window.addEventListener('wheel', handleUserInteraction);
     window.addEventListener('touchmove', handleUserInteraction);
@@ -95,12 +99,10 @@ export default function AIChatInterface({
     };
   }, [isStreaming]);
 
-  // Re-enable auto-scroll automatically when a new stream starts
   useEffect(() => {
     if (isStreaming) setAutoScroll(true);
   }, [isStreaming]);
 
-  // Execute the smooth scroll
   useEffect(() => {
     if (isStreaming && autoScroll) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -125,14 +127,21 @@ export default function AIChatInterface({
     });
   };
 
-  const handleToggleLikeSentiment = (messageId) => {
-    setLikedMessages((prev) => ({ ...prev, [messageId]: !prev[messageId] }));
-    setDislikedMessages((prev) => ({ ...prev, [messageId]: false })); 
+  // 🚀 NEW UPGRADE: Re-engineered to capture full `msg` object to extract AI text payload
+  const handleToggleLikeSentiment = (msg) => {
+    setActiveMessageId(msg.id);
+    setActiveMessageText(msg.text); // Lock the AI response context
+    setActiveFeedbackType("like");
+    setFeedbackText(""); 
+    setIsFeedbackModalOpen(true); 
   };
 
-  const handleToggleDislikeSentiment = (messageId) => {
-    setDislikedMessages((prev) => ({ ...prev, [messageId]: !prev[messageId] }));
-    setLikedMessages((prev) => ({ ...prev, [messageId]: false })); 
+  const handleToggleDislikeSentiment = (msg) => {
+    setActiveMessageId(msg.id);
+    setActiveMessageText(msg.text); // Lock the AI response context
+    setActiveFeedbackType("dislike");
+    setFeedbackText(""); 
+    setIsFeedbackModalOpen(true); 
   };
 
   const togglePromptExpansion = (id) => {
@@ -154,15 +163,67 @@ export default function AIChatInterface({
   };
 
   const saveInlineEdit = (msg) => {
-    if (!editDraftText.trim()) return;
-    setEditingMessageId(null);
+    if (!editDraftText.trim()) return; 
+    setEditingMessageId(null); 
     if (onRegenerateResponse) {
       onRegenerateResponse({ ...msg, text: editDraftText.trim() });
     }
   };
 
+  // 🚀 NEW UPGRADE: Includes `ai_response_text` into the Neon DB payload
+  const handleSubmitFeedbackPayload = async (formEventContext) => {
+    formEventContext.preventDefault(); 
+    setIsSubmittingFeedback(true); 
+
+    try {
+      const activeJwtToken = localStorage.getItem("jemer_session_jwt"); 
+      const userUuid = localStorage.getItem("jemer_user_uuid"); 
+
+      if (!activeJwtToken || !userUuid) {
+        throw new Error("Missing active session credentials tags. Please authenticate to lock records.");
+      }
+
+      const feedbackApiEndpoint = `https://ep-wandering-bird-abdexk6a.apirest.eu-west-2.aws.neon.tech/neondb/rest/v1/ai-tutors-response-feedback`;
+
+      const endpointNetworkResponse = await fetch(feedbackApiEndpoint, {
+        method: "POST", 
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${activeJwtToken}`, 
+          "Prefer": "return=minimal" 
+        },
+        body: JSON.stringify({
+          user_id: userUuid, 
+          message_id: activeMessageId, 
+          ai_response_text: activeMessageText, // Extracted contextual AI text block
+          sentiment: activeFeedbackType, 
+          feedback_text: feedbackText.trim() 
+        })
+      });
+
+      if (!endpointNetworkResponse || !endpointNetworkResponse.ok) {
+        throw new Error(`Neon table interface rejected recording. Code status parameter: ${endpointNetworkResponse?.status || 'Null'}`);
+      }
+
+      if (activeFeedbackType === "like") {
+        setLikedMessages((prev) => ({ ...prev, [activeMessageId]: true }));
+        setDislikedMessages((prev) => ({ ...prev, [activeMessageId]: false }));
+      } else {
+        setDislikedMessages((prev) => ({ ...prev, [activeMessageId]: true }));
+        setLikedMessages((prev) => ({ ...prev, [activeMessageId]: false }));
+      }
+
+      setIsFeedbackModalOpen(false); 
+    } catch (criticalSyncFault) {
+      console.error("[TELEMETRY DIRECT WRITE FAULT] Pipeline execution failed:", criticalSyncFault.message);
+      alert(`Feedback Recording Drop Alert: ${criticalSyncFault.message}`);
+    } finally {
+      setIsSubmittingFeedback(false); 
+    }
+  };
+
   return (
-    <div className="w-full flex flex-col gap-6 sm:gap-8 py-6 select-none animate-fade-in">
+    <div className="w-full flex flex-col gap-6 sm:gap-8 py-6 select-none animate-fade-in relative">
       
       <style dangerouslySetInnerHTML={{__html: `
         .custom-table-scroll::-webkit-scrollbar { height: 6px; }
@@ -174,7 +235,6 @@ export default function AIChatInterface({
       {visibleMessages.map((msg, index) => {
         const isUserMessage = msg.sender === "user"; 
 
-        // ── USER MESSAGE INTERACTIVE ROW CONTAINER ──────────────────────────────────────────────
         if (isUserMessage) {
           const isEditing = editingMessageId === msg.id;
           const isExpanded = expandedPrompts[msg.id];
@@ -269,7 +329,6 @@ export default function AIChatInterface({
           );
         }
 
-        // ── AI MODEL RESPONSE VIEWPORT CONTAINER ────────────────────────────────────────────────
         const associatedUserPrompt = visibleMessages[index - 1] || visibleMessages[0]; 
         const isCurrentlyStreaming = msg.isThinking === true; 
         const internalReasoningText = msg.reasoning || "";
@@ -282,7 +341,6 @@ export default function AIChatInterface({
           else stageWord = "Replying...";
         }
 
-        // 🚀 UPGRADE: Engage the advanced pre-processor to perfectly isolate tables from text
         const responseTokens = tokenizeBlocks(msg.text);
 
         return (
@@ -336,14 +394,12 @@ export default function AIChatInterface({
             <div className="w-full text-slate-800 dark:text-slate-200 text-sm sm:text-base leading-relaxed font-sans font-medium space-y-3 pl-1 break-words">
               {responseTokens.map((token, tIdx) => {
                 
-                // 🚀 UPGRADE: Safe Table Render Engine
                 if (token.type === "table") {
                   const tableLines = token.content.split('\n').map(l => l.trim()).filter(Boolean);
                   if (tableLines.length < 2) return null; 
 
                   const headers = tableLines[0].split('|').filter(Boolean).map(h => h.trim());
                   
-                  // Intelligently skip the markdown separator row (e.g. |---|---|)
                   let dataStartIndex = 1;
                   if (tableLines[1] && tableLines[1].replace(/[-:| ]/g, '') === '') {
                     dataStartIndex = 2;
@@ -381,71 +437,25 @@ export default function AIChatInterface({
                   );
                 }
 
-                // Standard Text Parser
                 if (token.type === "text") {
-                  return token.content.split("\n\n").map((paragraphBlock, pIdx) => {
-                    if (!paragraphBlock.trim()) return null;
-
-                    const headerMatch = paragraphBlock.match(/^(#{1,4})\s(.*)/);
-                    if (headerMatch) {
-                      const level = headerMatch[1].length;
-                      const content = headerMatch[2];
-                      const Tag = `h${level}`;
-                      const sizes = { 1: "text-2xl", 2: "text-xl", 3: "text-lg", 4: "text-base" };
-                      return (
-                        <Tag key={`text-${tIdx}-p-${pIdx}`} className={`${sizes[level]} font-display font-extrabold text-slate-900 dark:text-white tracking-tight pt-3 pb-1`}>
-                          {content.replace(/\*\*(.*?)\*\*/g, '$1')}
-                        </Tag>
-                      );
-                    }
-
-                    if (paragraphBlock.startsWith(">")) {
-                      return (
-                        <blockquote key={`text-${tIdx}-p-${pIdx}`} className="border-l-4 border-purple-500/60 bg-purple-50/40 dark:bg-purple-900/20 px-4 py-3 rounded-r-xl text-sm italic font-medium text-purple-900 dark:text-purple-300 my-2 shadow-inner">
-                          {paragraphBlock.replace(/^>\s*/gm, "").trim()}
-                        </blockquote>
-                      );
-                    }
-
-                    if (paragraphBlock.match(/^[-*]\s/m) || paragraphBlock.match(/^\d+\.\s/m)) {
-                      return (
-                        <div key={`text-${tIdx}-p-${pIdx}`} className="space-y-2 pl-2 my-2">
-                          {paragraphBlock.split("\n").map((listItem, lIdx) => {
-                            const isOrdered = listItem.match(/^\d+\.\s/);
-                            const bullet = isOrdered ? listItem.match(/^\d+\./)[0] : "•";
-                            return (
-                              <p key={lIdx} className="pl-5 relative before:content-[attr(data-bullet)] before:absolute before:left-0 before:font-bold before:text-blue-600 dark:before:text-blue-400" data-bullet={bullet}>
-                                <span dangerouslySetInnerHTML={{
-                                  __html: listItem.replace(/^[-*]\s|^\d+\.\s/, "")
-                                    .replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-900 dark:text-white font-extrabold">$1</strong>')
-                                    .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
-                                }} />
-                              </p>
-                            );
-                          })}
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <p key={`text-${tIdx}-p-${pIdx}`} dangerouslySetInnerHTML={{
-                        __html: paragraphBlock
-                          .replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-900 dark:text-white font-extrabold">$1</strong>')
-                          .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
-                      }} />
-                    );
-                  });
+                  return (
+                    <div key={`text-${tIdx}`} className="w-full animate-fade-in transition-all duration-200">
+                      <MarkdownRenderer text={token.content} />
+                    </div>
+                  );
                 }
               })}
             </div>
 
             <div className={`flex items-center gap-2 mt-5 pl-1 select-none animate-fade-in transition-opacity duration-200 ${isCurrentlyStreaming ? "opacity-30 pointer-events-none" : "opacity-100"}`}>
+              
+              {/* 🚀 UPGRADE: Pass 'msg' object instead of 'msg.id' to lock AI context text */}
               <button
                 type="button"
-                onClick={() => handleToggleLikeSentiment(msg.id)}
+                onClick={() => handleToggleLikeSentiment(msg)}
                 className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer focus:outline-none ${
                   likedMessages[msg.id]
-                    ? "bg-slate-200 text-slate-900 dark:bg-slate-100 dark:text-slate-900 shadow-sm"
+                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 shadow-xs border border-emerald-200/40"
                     : "bg-slate-100 hover:bg-slate-200 text-slate-500 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200 border border-transparent dark:border-slate-700/60"
                 }`}
                 title="Good response"
@@ -455,10 +465,10 @@ export default function AIChatInterface({
 
               <button
                 type="button"
-                onClick={() => handleToggleDislikeSentiment(msg.id)}
+                onClick={() => handleToggleDislikeSentiment(msg)}
                 className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer focus:outline-none ${
                   dislikedMessages[msg.id]
-                    ? "bg-slate-200 text-slate-900 dark:bg-slate-100 dark:text-slate-900 shadow-sm"
+                    ? "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400 shadow-xs border border-rose-200/40"
                     : "bg-slate-100 hover:bg-slate-200 text-slate-500 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200 border border-transparent dark:border-slate-700/60"
                 }`}
                 title="Bad response"
@@ -494,7 +504,125 @@ export default function AIChatInterface({
           </div>
         );
       })}
+      
       <div ref={messagesEndRef} className="h-1 w-full" />
+
+      {/* 🚀 NEW UPGRADE: GLASSMORPHIC PREMIUM FEEDBACK OVERLAY CONTAINER */}
+      {/* Implements centered modal layout logic for laptops and fluid 75vh bottom sheet drawers for smartphones */}
+      {isFeedbackModalOpen && (
+        <div className="fixed inset-0 z-[150] bg-slate-900/30 dark:bg-black/60 backdrop-blur-md flex items-end md:items-center justify-center transition-all duration-300 p-0 md:p-6">
+          
+          {/* Transparent click dismiss background tint path */}
+          <div 
+            onClick={() => setIsFeedbackModalOpen(false)} 
+            className="absolute inset-0 bg-transparent cursor-pointer" 
+          />
+
+          {/* Morphing Premium Chassis Node Sheet Card */}
+          <div className="w-full md:max-w-xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border-t md:border border-slate-200/50 dark:border-slate-700/50 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] md:shadow-2xl flex flex-col justify-between z-10 select-none font-sans h-[75vh] md:h-auto rounded-t-[40px] md:rounded-[32px] animate-slide-up overflow-hidden">
+            
+            {/* Mobile Drag Pill Indicator */}
+            <div className="w-full flex justify-center pt-3 pb-1 md:hidden shrink-0">
+               <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full" />
+            </div>
+
+            <form onSubmit={handleSubmitFeedbackPayload} className="flex-1 flex flex-col justify-between h-full w-full">
+              
+              {/* Header section tracking title strings */}
+              <div className="px-5 md:px-6 pt-2 pb-4 text-left shrink-0">
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-[14px] flex items-center justify-center shadow-inner ${
+                      activeFeedbackType === "like" 
+                        ? "bg-gradient-to-br from-emerald-100 to-teal-50 text-emerald-600 dark:from-emerald-900/50 dark:to-teal-900/20 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/50" 
+                        : "bg-gradient-to-br from-rose-100 to-red-50 text-rose-600 dark:from-rose-900/50 dark:to-red-900/20 dark:text-rose-400 border border-rose-200/50 dark:border-rose-800/50"
+                    }`}>
+                      <i className={`fas ${activeFeedbackType === "like" ? "fa-thumbs-up" : "fa-thumbs-down"} text-sm`} />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-display font-black text-slate-900 dark:text-white tracking-tight leading-tight">
+                        {activeFeedbackType === "like" ? "Share Your Success Story" : "Help Us Optimize Pacing"}
+                      </h3>
+                      <p className="text-[10px] font-mono font-semibold text-slate-400 tracking-wider uppercase mt-0.5">
+                        Jemer Core Analytics Registry
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <button
+                    type="button"
+                    onClick={() => setIsFeedbackModalOpen(false)}
+                    className="w-8 h-8 rounded-full bg-slate-100/80 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors cursor-pointer"
+                  >
+                    <i className="fas fa-times text-xs" />
+                  </button>
+                </div>
+              </div>
+
+              {/* 🚀 NEW UPGRADE: AI Response Context Snippet Preview */}
+              <div className="px-5 md:px-6 pb-2 shrink-0">
+                 <div className="p-3.5 bg-slate-50/80 dark:bg-slate-950/50 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 text-xs text-slate-500 dark:text-slate-400 font-mono italic shadow-inner relative">
+                   <div className="absolute top-2 right-3 text-[8px] font-black uppercase tracking-widest text-slate-300 dark:text-slate-600">AI Snippet</div>
+                   <span className="line-clamp-2 pr-6 leading-relaxed">"{activeMessageText}"</span>
+                 </div>
+              </div>
+
+              {/* Rich Text Area Input Center Workspace Grid */}
+              <div className="flex-1 px-5 md:px-6 pb-4 flex flex-col justify-start text-left min-h-0">
+                <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-2 pl-1">
+                  Qualitative Student Commentary (Optional)
+                </label>
+                <textarea
+                  required
+                  value={feedbackText}
+                  onChange={(e) => setFeedbackText(e.target.value)}
+                  placeholder={
+                    activeFeedbackType === "like"
+                      ? "What made this great? Was the analogy perfect? Did the code structure click? Let our strategy team know..."
+                      : "What went sideways? Did the tutor hallucinate parameters, overcomplicate the physics equation, or drop detail tracks? Tell us how to fix it..."
+                  }
+                  className="w-full flex-1 p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 text-slate-900 dark:text-slate-100 text-sm font-medium placeholder-slate-400 rounded-[20px] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-blue-500/20 transition-all leading-relaxed resize-none font-sans shadow-sm"
+                />
+              </div>
+
+              {/* Action Button Strip Footer Track */}
+              <div className="px-5 md:px-6 py-4 border-t border-slate-100 dark:border-slate-800/50 shrink-0 flex items-center justify-end gap-3 bg-slate-50/50 dark:bg-slate-900/20">
+                <button
+                  type="button"
+                  onClick={() => setIsFeedbackModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                
+                <button
+                  type="submit"
+                  disabled={isSubmittingFeedback}
+                  className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-wider text-white transition-all shadow-lg active:scale-95 flex items-center gap-2 ${
+                    activeFeedbackType === "like"
+                      ? "bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-emerald-500/20"
+                      : "bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 shadow-rose-500/20"
+                  } disabled:opacity-40 disabled:pointer-events-none`}
+                >
+                  {isSubmittingFeedback ? (
+                    <>
+                      <i className="fas fa-circle-notch fa-spin mr-1" />
+                      <span>Logging Metrics...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Submit Logs</span>
+                      <i className="fas fa-paper-plane text-[10px]" />
+                    </>
+                  )}
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

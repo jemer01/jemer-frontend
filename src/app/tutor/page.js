@@ -1,40 +1,27 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed Advanced JWT Lifecycle Management & Anti-Eviction Resilience.
- * 1. Promise-Locked Refresh Engine: Added a global refresh lock (`isRefreshing`) to prevent concurrent race conditions 
- *    if the heartbeat, tab-focus, and user send actions happen simultaneously.
- * 2. Tab-Focus Recovery: Browsers aggressively throttle `setInterval` on inactive tabs. Added `visibilitychange` and 
- *    `focus` event listeners to instantly audit and swap the token the millisecond the user returns to the page.
- * 3. Network-Resilient Fallback (No False Logouts): Removed the aggressive front-end eviction. If a refresh fails 
- *    (e.g., due to a temporary WiFi drop), the system no longer instantly kicks the user to `/login.html`. It 
- *    attempts to use the existing token and strictly relies on a definitive `401 Unauthorized` from the Go server 
- *    to execute a true eviction.
+ * SUMMARY: Executed v3.1.0 - Anti-Eviction Fetch Proxy & Mutation Polling.
+ * 1. Token Mutation Poller: Replaced the blind `setTimeout` with a rigorous 50ms polling loop. It now actively 
+ *    checks `localStorage` and guarantees the token string has physically mutated before allowing the code to continue.
+ * 2. jemerAuthenticatedFetch: Built a centralized proxy wrapper. Every fetch request now routes through this 
+ *    function. It handles pre-flight expiration checks, intercepts 401 Unauthorized errors automatically, executes 
+ *    the emergency mutation poll, and replays the request behind the scenes without the UI ever knowing.
+ * 3. 5-Minute Skew Protection: Boosted the default TTL threshold to 300 seconds to protect against server/client clock skew.
  * ================================================================================================
- * 🧠 JEMER ACADEMY DASHBOARD FEATURE ENGINE — MASTER AI TUTOR PAGE RUNWAY (v2.8.0 LIVE GO STREAM)
- * ================================================================================================
- * Description: Viewport-locked, fixed screen layout coordinator organizing workspace view streams.
- * Fixed Strategy: Re-engineered with flex-col constraints to eliminate page scrolling completely.
- * Optimization Tier: Cache-first validation layers checking localStorage before querying Neon DB resource pools.
- * Sizing Tier: Enforces a symmetric vertical layout matching prompt box parameters (max-w-4xl).
- * Compliance: 100% complete line-by-line developer code documentation for maximum clarity.
+ * 🧠 JEMER ACADEMY DASHBOARD FEATURE ENGINE — MASTER AI TUTOR PAGE RUNWAY (v3.1.0)
  * ================================================================================================
  */
 
-"use client"; // Enforces client runtime rules to permit state array mutations, browser storage access, and component mounts
+"use client";
 
-import React, { useState, useEffect, useRef } from "react"; // Pulls foundational core React state tracking and lifecycle post-mount structures
-import AITutorIntro from "@/jemer-components/ui/ai-tutor-intro.jsx"; // Imports the global curriculum suggestion welcome grid
-import AIChatInterface from "@/jemer-components/ui/ai-chat-interface.jsx"; // Imports your matched-width interactive chat arena component
-import AITutorPromptBox from "@/jemer-components/ui/ai-tutor-prompt-box.jsx"; // Imports your premium hardware-accelerated prompt control execution box
-import PersonalizationEngine from "@/jemer-components/ui/personalization.jsx"; // Injects our high-fidelity multi-step wizard onboarding form component
+import React, { useState, useEffect, useRef } from "react"; 
+import AITutorIntro from "@/jemer-components/ui/ai-tutor-intro.jsx"; 
+import AIChatInterface from "@/jemer-components/ui/ai-chat-interface.jsx"; 
+import AITutorPromptBox from "@/jemer-components/ui/ai-tutor-prompt-box.jsx"; 
+import PersonalizationEngine from "@/jemer-components/ui/personalization.jsx"; 
 
-// ── 🚀 UPGRADE: ADVANCED JWT LIFECYCLE ENGINE ───────────────────────────────────────────────
+// ── 🚀 ADVANCED JWT LIFECYCLE ENGINE & INTERCEPTOR ───────────────────────────────────────────────
 
-/**
- * Mathematically decodes a base64 JWT payload securely in the browser environment
- * @param {string} token - The raw JWT string pulled from local storage
- * @returns {Object|null} - The structured JSON payload containing expiration timestamps
- */
 const decodeJWTPayload = (token) => {
   try {
     const base64Url = token.split('.')[1];
@@ -48,14 +35,8 @@ const decodeJWTPayload = (token) => {
   }
 };
 
-/**
- * Evaluates the JWT expiration threshold. 
- * Returns true if the token is dead or expiring within the given threshold.
- * @param {string} token - The current session JWT
- * @param {number} thresholdSeconds - The margin of safety in seconds (default 120s / 2 mins)
- * @returns {boolean} - True if the token requires an immediate refresh
- */
-const isTokenExpiringSoon = (token, thresholdSeconds = 120) => {
+// 🚀 UPGRADE: Default threshold pushed to 300s (5 minutes) to counter clock skew
+const isTokenExpiringSoon = (token, thresholdSeconds = 300) => {
   if (!token) return true; 
   const payload = decodeJWTPayload(token);
   if (!payload || !payload.exp) return true; 
@@ -66,17 +47,12 @@ const isTokenExpiringSoon = (token, thresholdSeconds = 120) => {
   return secondsRemaining < thresholdSeconds;
 };
 
-// 🚀 UPGRADE: Global Promise Locks to prevent concurrent execution race conditions
+// Global Promise Locks to prevent concurrent execution race conditions
 let isRefreshing = false;
 let refreshPromise = null;
 
-/**
- * Fires a silent background hook into the JemerAuth SDK to mint a fresh session JWT.
- * Encapsulated within a Promise Lock to guarantee single-execution across multi-triggers.
- * @returns {string|null} - The freshly minted JWT string, or null if eviction is required
- */
+// 🚀 UPGRADE: Token Mutation Poller
 const performSilentTokenRefresh = async () => {
-  // If a refresh is already in transit, return the active promise to prevent duplicate API hits
   if (isRefreshing) return refreshPromise;
 
   console.log("🔄 [AUTH ENGINE] Executing silent cryptographic swap via Client SDK...");
@@ -84,27 +60,37 @@ const performSilentTokenRefresh = async () => {
 
   refreshPromise = (async () => {
     try {
+      const oldToken = localStorage.getItem("jemer_session_jwt");
+
       if (typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.refreshSession === "function") {
         
         await window.JemerAuth.refreshSession();
         
-        // Brief 50ms execution delay to guarantee SDK processes have flushed fully to localStorage
-        await new Promise(resolve => setTimeout(resolve, 50));
+        // Polling Engine: Instead of a blind timeout, check every 50ms until the string physically mutates.
+        // Cap at 60 attempts (3 seconds) to prevent infinite loops.
+        let attempts = 0;
+        const maxAttempts = 60;
         
-        const newToken = localStorage.getItem("jemer_session_jwt");
-        
-        if (newToken) {
-          console.log("✅ [AUTH ENGINE] Session securely refreshed. Token TTL extended.");
-          return newToken;
+        while (attempts < maxAttempts) {
+          const currentToken = localStorage.getItem("jemer_session_jwt");
+          
+          // Verify we have a token and it is explicitly different from the old one
+          if (currentToken && currentToken !== oldToken) {
+            console.log("✅ [AUTH ENGINE] Session securely refreshed. Token physical mutation confirmed.");
+            return currentToken;
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, 50));
+          attempts++;
         }
+        
+        console.warn("⚠️ [AUTH ENGINE] Mutation timeout. SDK did not update localStorage within limits.");
       }
-      console.warn("⚠️ [AUTH ENGINE] Client SDK refresh cycle returned empty constraints.");
       return null;
     } catch (error) {
       console.error("❌ [AUTH ENGINE] Client pipeline disruption during token swap:", error);
       return null;
     } finally {
-      // Release the global lock so future checks can execute freely
       isRefreshing = false;
     }
   })();
@@ -112,40 +98,63 @@ const performSilentTokenRefresh = async () => {
   return refreshPromise;
 };
 
-/**
- * Main Interactive AI Tutor Orchestrator Canvas Page Router Component
- */
+// 🚀 UPGRADE: The Centralized Jemer Fetch Interceptor
+// Wraps all network calls to handle Auth injection and 401 Emergency Retries seamlessly
+const jemerAuthenticatedFetch = async (url, options = {}) => {
+  let activeToken = localStorage.getItem("jemer_session_jwt");
+  
+  // Pre-flight check before we even hit the network
+  if (isTokenExpiringSoon(activeToken)) {
+     console.log("⏳ [AUTH PROXY] Pre-flight TTL limit breached. Executing refresh before transit...");
+     const refreshedToken = await performSilentTokenRefresh();
+     if (refreshedToken) activeToken = refreshedToken;
+  }
+
+  // Construct headers and inject Bearer claim
+  const headers = new Headers(options.headers || {});
+  if (activeToken) {
+    headers.set("Authorization", `Bearer ${activeToken}`);
+  }
+  
+  let response = await fetch(url, { ...options, headers });
+
+  // Emergency 401 Interceptor: If the server rejects it, halt and retry perfectly
+  if (response.status === 401) {
+     console.warn("⚠️ [AUTH PROXY] 401 Unauthorized intercepted. Initiating emergency synchronous mutation poll...");
+     const emergencyToken = await performSilentTokenRefresh();
+     
+     if (emergencyToken) {
+        console.log("✅ [AUTH PROXY] Emergency swap successful. Replaying exact network request...");
+        headers.set("Authorization", `Bearer ${emergencyToken}`);
+        response = await fetch(url, { ...options, headers });
+     }
+  }
+
+  return response;
+};
+
 export default function TutorPage() {
-  // ── LAYER 1: CONVERSATIONAL LOG ENGINE STATES ───────────────────────────────────────────────
   const [chatLog, setChatLog] = useState([]);
   const [injectedText, setInjectedText] = useState("");
 
-  // ── LAYER 2: PERFORMANCE-OPTIMIZED SMART GATING STATE HOOKS ─────────────────────────────────
   const [isCheckingProfile, setIsCheckingProfile] = useState(true);
   const [showGateModal, setShowGateModal] = useState(false);
   const [forceFormOverlay, setForceFormOverlay] = useState(false);
 
-  // Master streaming state and hardware abort controller for the network kill switch
   const [isStreaming, setIsStreaming] = useState(false);
   const abortControllerRef = useRef(null);
 
-  // ── LAYER 3: CACHE-FIRST INTUITION TIMELINE PROFILE VERIFIER & HEARTBEAT (LIFECYCLE ENGINE) ──
   useEffect(() => {
-    // Shared validation routing block to evaluate tokens securely
     const auditTokenLifecycle = async () => {
       const currentToken = localStorage.getItem("jemer_session_jwt");
-      // Aggressive 5-minute (300s) buffer window
       if (currentToken && isTokenExpiringSoon(currentToken, 300)) {
         console.log("💓 [AUTH HEARTBEAT] Token approaching expiration threshold. Proactively refreshing...");
         await performSilentTokenRefresh();
       }
     };
 
-    // 🚀 UPGRADE: High-Frequency Interval (45 seconds)
     const heartbeatInterval = setInterval(auditTokenLifecycle, 45000); 
 
-    // 🚀 UPGRADE: Tab-Focus Recovery Engine. 
-    // Catches the exact moment a user returns to the page from another tab/sleep state.
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         console.log("👀 [AUTH ENGINE] Tab regained focus. Auditing token TTL...");
@@ -156,12 +165,11 @@ export default function TutorPage() {
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("focus", handleVisibilityChange);
 
-    // Initial Start-Up Gate Check
     async function executeSmartOnboardingGateCheck() {
       try {
         console.log("[TUTOR GATING CHECK] Auditing student personalization registration keys...");
         
-        let activeJwtSessionToken = localStorage.getItem("jemer_session_jwt");
+        const activeJwtSessionToken = localStorage.getItem("jemer_session_jwt");
         const activeUserUuidToken = localStorage.getItem("jemer_user_uuid");
 
         if (!activeJwtSessionToken || !activeUserUuidToken) {
@@ -170,37 +178,25 @@ export default function TutorPage() {
           return; 
         }
 
-        // 0ms Pre-Flight Gate check. 
-        if (isTokenExpiringSoon(activeJwtSessionToken)) {
-          const refreshedToken = await performSilentTokenRefresh();
-          if (refreshedToken) {
-            activeJwtSessionToken = refreshedToken;
-          }
-          // 🚀 UPGRADE: Removed aggressive eviction here. We rely ONLY on server 401s to evict.
-        }
-
         const localCacheValidationToken = localStorage.getItem("jemer_profile_calibrated");
 
         if (localCacheValidationToken === "true") {
-          console.log("[TUTOR GATING CACHE HIT] User profile validated via client memory map. Releasing gateway locks.");
           setIsCheckingProfile(false); 
           return; 
         }
 
-        console.log("[TUTOR GATING CACHE MISS] Local token missing. Pulling profile database metrics via API handler... Same method sync verification.");
-
-        const remoteServerHandshakeResponse = await fetch("/api/profile/status_check", {
+        // 🚀 UPGRADE: Routed through the authenticated fetch proxy
+        const remoteServerHandshakeResponse = await jemerAuthenticatedFetch("/api/profile/status_check", {
           method: "GET", 
           credentials: "include", 
           headers: {
-            "Authorization": `Bearer ${activeJwtSessionToken}`, 
             "Content-Type": "application/json"   
           }
         });
 
-        // 🚀 THE ONLY TRUE EVICTION TRIGGER: A verified server rejection
+        // The proxy has already handled retries. If it's STILL 401, evict immediately.
         if (remoteServerHandshakeResponse && remoteServerHandshakeResponse.status === 401) {
-          console.warn("[SECURITY EVICTION] Server engine returned 401 Unauthorized status flag. Flushing storage keys and returning user to portal.");
+          console.warn("[SECURITY EVICTION] Server engine returned absolute 401 Unauthorized flag. Flushing storage keys...");
           localStorage.removeItem("jemer_session_jwt"); 
           localStorage.removeItem("jemer_user_uuid"); 
           window.location.href = "/login.html"; 
@@ -208,7 +204,6 @@ export default function TutorPage() {
         }
 
         if (!remoteServerHandshakeResponse || !remoteServerHandshakeResponse.ok) {
-          console.warn(`[TUTOR GATING API WARNING] Server endpoint returned un-hydrated configuration. Defaulting to uncalibrated profile mapping rules.`);
           setShowGateModal(true); 
           setIsCheckingProfile(false); 
           return; 
@@ -217,11 +212,9 @@ export default function TutorPage() {
         const verificationResultJSON = await remoteServerHandshakeResponse.json();
 
         if (verificationResultJSON.isProfileComplete === true) {
-          console.log("[TUTOR GATING API VERIFIED] Complete profile records found on Neon DB. Hydrating localStorage cache line.");
           localStorage.setItem("jemer_profile_calibrated", "true"); 
           setIsCheckingProfile(false); 
         } else {
-          console.warn("[TUTOR GATING INCOMPLETE] Profile fields unhydrated. Triggering beautiful onboarding warnings.");
           setShowGateModal(true); 
           setIsCheckingProfile(false); 
         }
@@ -235,7 +228,6 @@ export default function TutorPage() {
 
     executeSmartOnboardingGateCheck(); 
 
-    // Lifecycle cleanup
     return () => {
       clearInterval(heartbeatInterval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -243,39 +235,31 @@ export default function TutorPage() {
     };
   }, []); 
 
-  // ── LAYER 4: ONBOARDING DATA ROUTING ACTIONS CALLBACK HANDLERS ──────────────────────────────
   const handleTransitionToCalibrationForm = () => {
     setShowGateModal(false); 
     setForceFormOverlay(true); 
   };
 
   const handlePersonalizationOnboardingSuccess = () => {
-    console.log("[ORCHESTRATOR Core Success] Database rows committed. Releasing gate variables.");
     localStorage.setItem("jemer_profile_calibrated", "true"); 
     setForceFormOverlay(false); 
   };
 
-  // ── LAYER 5: CORE UTILITY EVENT PIPELINES ──────────────────────────────────────────────────
   const handleCaptureIntroPromptChoice = (promptTextString) => {
-    console.log("[ORCHESTRATOR CORE] Suggestion tile triggered. Packaging text for injection:", promptTextString);
     setInjectedText(promptTextString); 
   };
 
   const handleStopStream = () => {
     if (abortControllerRef.current) {
-      console.log("🛑 [USER ACTION] Initiating hardware stream cancellation sequence...");
       abortControllerRef.current.abort();
     }
   };
 
   const handleProcessOutboundPrompt = async (messagePayload) => {
-    console.log("[ORCHESTRATOR CORE] Outbound payload intercepted. Initializing transit lines...", messagePayload);
-
     if (!messagePayload || !messagePayload.promptText) return;
 
     let aiMessageId = "";
 
-    // In-place edit state reconciliation 
     if (messagePayload.editTargetId) {
       const userIdx = chatLog.findIndex(m => m.id === messagePayload.editTargetId);
       if (userIdx !== -1 && chatLog[userIdx + 1]) {
@@ -325,33 +309,21 @@ export default function TutorPage() {
     }
 
     setInjectedText("");
-
     setIsStreaming(true);
     abortControllerRef.current = new AbortController();
 
     const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
     const ENDPOINT_PATH = `${BACKEND_URL}/api/v1/tutor/stream`;
+    const sessionId = "00000000-0000-0000-0000-000000000000"; 
 
     try {
-      let activeJwtSessionToken = localStorage.getItem("jemer_session_jwt") || "";
-      const sessionId = "00000000-0000-0000-0000-000000000000"; 
-
-      // 🚀 UPGRADE: Safe Execution Context. Never evict on frontend failure.
-      if (isTokenExpiringSoon(activeJwtSessionToken)) {
-        const refreshedToken = await performSilentTokenRefresh();
-        if (refreshedToken) {
-          activeJwtSessionToken = refreshedToken;
-        } else {
-          console.warn("⚠️ [AUTH ENGINE] Pre-flight refresh anomaly. Proceeding with existing cache to test server validation limits.");
-        }
-      }
-
-      const serverStreamResponse = await fetch(ENDPOINT_PATH, {
+      // 🚀 UPGRADE: Network transit fully delegated to our jemerAuthenticatedFetch proxy
+      // The proxy handles token checking, header injection, and seamless 401 retries internally.
+      const serverStreamResponse = await jemerAuthenticatedFetch(ENDPOINT_PATH, {
         method: "POST", 
         signal: abortControllerRef.current.signal, 
         headers: {
-          "Content-Type": "application/json", 
-          "Authorization": `Bearer ${activeJwtSessionToken}`, 
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
           session_id: sessionId,   
@@ -360,6 +332,7 @@ export default function TutorPage() {
         }),
       });
 
+      // The proxy has retried if needed. If it STILL fails, we throw the error safely.
       if (!serverStreamResponse.ok) {
         const errorPayloadText = await serverStreamResponse.text();
         
@@ -481,12 +454,10 @@ export default function TutorPage() {
   };
 
   const handleExecuteInterruptedEditRollback = (rawPromptTextString) => {
-    console.log("[ORCHESTRATOR CORE] Processing interactive edit request. Returning string to input arena:", rawPromptTextString);
     setInjectedText(rawPromptTextString); 
   };
 
   const handleProcessResponseRegeneration = (targetUserPromptRecord) => {
-    console.log("[ORCHESTRATOR CORE] Restart token authorized. Regenerating response row for prompt ID:", targetUserPromptRecord.id);
     handleProcessOutboundPrompt({
       promptText: targetUserPromptRecord.text, 
       selectedTutor: "jay",

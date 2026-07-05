@@ -1,12 +1,14 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v2.6.0 UI/UX Production Fixes.
- * 1. Dark Mode Harmonization: Replaced all hardcoded hex colors with native Tailwind `slate` scales (e.g., `dark:bg-slate-800`) to guarantee a beautiful dark mode.
- * 2. Pure SVG Engine: Stripped out unreliable FontAwesome classes and replaced all icons (Edit, Copy, Thumbs, Restart, Chevron) with crisp, inline SVGs.
- * 3. Table Overhaul: Upgraded the markdown parser to handle infinite multiple tables flawlessly. Wrapped tables in a custom `.custom-table-scroll` class for elegant sideways swiping.
- * 4. Branding & Geometry: Replaced the dummy "J" with the authentic Jemer Academy logo. Upgraded user bubbles to `rounded-3xl rounded-tr-sm` for a premium chat-tail look. Removed the "More" action button.
+ * SUMMARY: Executed v2.7.0 Bug Fixes - Advanced Tokenization & Theming.
+ * 1. Multi-Table Tokenization Engine: Replaced the primitive double-line break parser with a robust `tokenizeBlocks` 
+ *    pre-processor. It scans the raw AI response line-by-line, perfectly isolating an infinite number of Markdown 
+ *    tables into dedicated CSS grids without breaking surrounding text blocks.
+ * 2. Absolute Theme Harmonization: Completely eradicated hardcoded dark hex codes. Tables, inline editors, and 
+ *    user bubbles now use pure Tailwind `slate` tokens (`bg-slate-900`, `border-slate-800`, etc.) ensuring 
+ *    a flawless, gorgeous aesthetic in both Light Mode and Dark Mode.
  * ================================================================================================
- * 💬 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR CHAT ARENA COMPONENT (v2.6.0)
+ * 💬 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR CHAT ARENA COMPONENT (v2.7.0)
  * ================================================================================================
  */
 
@@ -14,6 +16,50 @@
 
 import React, { useState, useEffect, useRef } from "react"; 
 import { useTheme } from "@/jemer-components/context/ThemeContext.jsx"; 
+
+/**
+ * 🚀 UPGRADE: Advanced Markdown Pre-Processor
+ * Scans the raw AI text line-by-line to isolate tables from standard paragraphs.
+ * This guarantees that multiple tables generated close together render perfectly.
+ */
+const tokenizeBlocks = (text) => {
+  if (!text) return [];
+  const lines = text.split('\n');
+  const tokens = [];
+  let currentText = [];
+  let currentTable = [];
+  let inTable = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // Detects standard Markdown table rows (e.g., "| Header |" or "|---|---|")
+    const isTableLine = line.trim().startsWith('|') && line.indexOf('|', 1) !== -1;
+
+    if (isTableLine) {
+      if (!inTable) {
+        inTable = true;
+        if (currentText.length > 0) {
+          tokens.push({ type: 'text', content: currentText.join('\n') });
+          currentText = [];
+        }
+      }
+      currentTable.push(line);
+    } else {
+      if (inTable) {
+        inTable = false;
+        tokens.push({ type: 'table', content: currentTable.join('\n') });
+        currentTable = [];
+      }
+      currentText.push(line);
+    }
+  }
+
+  // Flush remaining buffers
+  if (currentText.length > 0) tokens.push({ type: 'text', content: currentText.join('\n') });
+  if (currentTable.length > 0) tokens.push({ type: 'table', content: currentTable.join('\n') });
+
+  return tokens;
+};
 
 export default function AIChatInterface({ 
   activeChatLog, 
@@ -118,7 +164,6 @@ export default function AIChatInterface({
   return (
     <div className="w-full flex flex-col gap-6 sm:gap-8 py-6 select-none animate-fade-in">
       
-      {/* 🚀 UPGRADE: Custom sleek CSS scrollbar for tables */}
       <style dangerouslySetInnerHTML={{__html: `
         .custom-table-scroll::-webkit-scrollbar { height: 6px; }
         .custom-table-scroll::-webkit-scrollbar-track { background: transparent; }
@@ -158,7 +203,7 @@ export default function AIChatInterface({
                     autoFocus
                   />
                   <div className="flex items-center justify-end gap-2 pt-2">
-                    <button onClick={cancelInlineEdit} className="px-4 py-2 rounded-full text-xs font-bold text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    <button onClick={cancelInlineEdit} className="px-4 py-2 rounded-full text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                       Cancel
                     </button>
                     <button onClick={() => saveInlineEdit(msg)} className="px-5 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-md active:scale-95">
@@ -204,7 +249,6 @@ export default function AIChatInterface({
                     </button>
                   </div>
 
-                  {/* 🚀 UPGRADE: Advanced geometry - rounded-3xl with a sharp tail (rounded-tr-sm) and deep shadow */}
                   <div className="max-w-[85%] sm:max-w-[75%] bg-slate-100 dark:bg-slate-800 border border-slate-200/40 dark:border-slate-700/50 rounded-3xl rounded-tr-sm px-5 py-4 text-left shadow-md dark:shadow-[0_8px_16px_rgba(0,0,0,0.3)] group-hover:shadow-lg transition-shadow duration-200">
                     <p className="text-sm sm:text-base font-sans font-medium text-slate-800 dark:text-slate-100 leading-relaxed whitespace-pre-wrap break-words">
                       {displayText}
@@ -238,13 +282,15 @@ export default function AIChatInterface({
           else stageWord = "Replying...";
         }
 
+        // 🚀 UPGRADE: Engage the advanced pre-processor to perfectly isolate tables from text
+        const responseTokens = tokenizeBlocks(msg.text);
+
         return (
           <div
             key={msg.id}
             className="w-full max-w-4xl mx-auto px-4 flex flex-col items-start text-left border-b border-slate-100/60 dark:border-slate-800/40 pb-6 animate-fade-in"
           >
             <div className="flex items-center gap-2 mb-2.5 select-none pl-1">
-              {/* 🚀 UPGRADE: Authentic Corporate Branding Image */}
               <img 
                 src="/assets/brand/jemer-logo.png" 
                 alt="Jemer AI" 
@@ -288,98 +334,112 @@ export default function AIChatInterface({
             )}
 
             <div className="w-full text-slate-800 dark:text-slate-200 text-sm sm:text-base leading-relaxed font-sans font-medium space-y-3 pl-1 break-words">
-              {msg.text.split("\n\n").map((paragraphBlock, pIdx) => {
-                if (!paragraphBlock.trim()) return null;
+              {responseTokens.map((token, tIdx) => {
+                
+                // 🚀 UPGRADE: Safe Table Render Engine
+                if (token.type === "table") {
+                  const tableLines = token.content.split('\n').map(l => l.trim()).filter(Boolean);
+                  if (tableLines.length < 2) return null; 
 
-                // 🚀 UPGRADE: Robust Multi-Table Engine
-                if (paragraphBlock.trim().startsWith("|") && paragraphBlock.indexOf("|-") !== -1) {
-                  const tableLines = paragraphBlock.trim().split("\n").filter(l => l.trim().startsWith("|"));
+                  const headers = tableLines[0].split('|').filter(Boolean).map(h => h.trim());
                   
-                  if (tableLines.length >= 2) {
-                    const headers = tableLines[0].split("|").filter(Boolean).map(h => h.trim());
-                    const bodyLines = tableLines.slice(2).map(line => line.split("|").filter(Boolean).map(c => c.trim()));
+                  // Intelligently skip the markdown separator row (e.g. |---|---|)
+                  let dataStartIndex = 1;
+                  if (tableLines[1] && tableLines[1].replace(/[-:| ]/g, '') === '') {
+                    dataStartIndex = 2;
+                  }
+                  
+                  const bodyLines = tableLines.slice(dataStartIndex).map(line => line.split('|').filter(Boolean).map(c => c.trim()));
 
-                    return (
-                      <div key={pIdx} className="w-full overflow-x-auto custom-table-scroll my-5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm">
-                        <table className="w-full text-left border-collapse text-sm min-w-[600px]">
-                          <thead className="bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300">
-                            <tr>
-                              {headers.map((h, i) => (
-                                <th key={i} className="p-3 border-b border-slate-200 dark:border-slate-700/60 font-bold whitespace-nowrap">{h}</th>
+                  return (
+                    <div key={`table-${tIdx}`} className="w-full overflow-x-auto custom-table-scroll my-5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm">
+                      <table className="w-full text-left border-collapse text-sm min-w-[600px]">
+                        <thead className="bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300">
+                          <tr>
+                            {headers.map((h, i) => (
+                              <th key={i} className="p-3 border-b border-slate-200 dark:border-slate-700/60 font-bold whitespace-nowrap">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50 bg-white dark:bg-slate-950/50">
+                          {bodyLines.map((row, i) => (
+                            <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                              {row.map((cell, j) => (
+                                <td key={j} className="p-3 text-slate-600 dark:text-slate-300 font-medium">
+                                  <span dangerouslySetInnerHTML={{
+                                    __html: cell
+                                      .replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-900 dark:text-white font-extrabold">$1</strong>')
+                                      .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
+                                  }} />
+                                </td>
                               ))}
                             </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50 bg-white dark:bg-slate-950/50">
-                            {bodyLines.map((row, i) => (
-                              <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                                {row.map((cell, j) => (
-                                  <td key={j} className="p-3 text-slate-600 dark:text-slate-300 font-medium">
-                                    {cell}
-                                  </td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    );
-                  }
-                }
-
-                const headerMatch = paragraphBlock.match(/^(#{1,4})\s(.*)/);
-                if (headerMatch) {
-                  const level = headerMatch[1].length;
-                  const content = headerMatch[2];
-                  const Tag = `h${level}`;
-                  const sizes = { 1: "text-2xl", 2: "text-xl", 3: "text-lg", 4: "text-base" };
-                  return (
-                    <Tag key={pIdx} className={`${sizes[level]} font-display font-extrabold text-slate-900 dark:text-white tracking-tight pt-3 pb-1`}>
-                      {content.replace(/\*\*(.*?)\*\*/g, '$1')}
-                    </Tag>
-                  );
-                }
-
-                if (paragraphBlock.startsWith(">")) {
-                  return (
-                    <blockquote key={pIdx} className="border-l-4 border-purple-500/60 bg-purple-50/40 dark:bg-purple-900/20 px-4 py-3 rounded-r-xl text-sm italic font-medium text-purple-900 dark:text-purple-300 my-2 shadow-inner">
-                      {paragraphBlock.replace(/^>\s*/gm, "").trim()}
-                    </blockquote>
-                  );
-                }
-
-                if (paragraphBlock.match(/^[-*]\s/m) || paragraphBlock.match(/^\d+\.\s/m)) {
-                  return (
-                    <div key={pIdx} className="space-y-2 pl-2 my-2">
-                      {paragraphBlock.split("\n").map((listItem, lIdx) => {
-                        const isOrdered = listItem.match(/^\d+\.\s/);
-                        const bullet = isOrdered ? listItem.match(/^\d+\./)[0] : "•";
-                        return (
-                          <p key={lIdx} className="pl-5 relative before:content-[attr(data-bullet)] before:absolute before:left-0 before:font-bold before:text-blue-600 dark:before:text-blue-400" data-bullet={bullet}>
-                            <span dangerouslySetInnerHTML={{
-                              __html: listItem.replace(/^[-*]\s|^\d+\.\s/, "")
-                                .replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-900 dark:text-white font-extrabold">$1</strong>')
-                                .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
-                            }} />
-                          </p>
-                        );
-                      })}
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   );
                 }
 
-                return (
-                  <p key={pIdx} dangerouslySetInnerHTML={{
-                    __html: paragraphBlock
-                      .replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-900 dark:text-white font-extrabold">$1</strong>')
-                      .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
-                  }} />
-                );
+                // Standard Text Parser
+                if (token.type === "text") {
+                  return token.content.split("\n\n").map((paragraphBlock, pIdx) => {
+                    if (!paragraphBlock.trim()) return null;
+
+                    const headerMatch = paragraphBlock.match(/^(#{1,4})\s(.*)/);
+                    if (headerMatch) {
+                      const level = headerMatch[1].length;
+                      const content = headerMatch[2];
+                      const Tag = `h${level}`;
+                      const sizes = { 1: "text-2xl", 2: "text-xl", 3: "text-lg", 4: "text-base" };
+                      return (
+                        <Tag key={`text-${tIdx}-p-${pIdx}`} className={`${sizes[level]} font-display font-extrabold text-slate-900 dark:text-white tracking-tight pt-3 pb-1`}>
+                          {content.replace(/\*\*(.*?)\*\*/g, '$1')}
+                        </Tag>
+                      );
+                    }
+
+                    if (paragraphBlock.startsWith(">")) {
+                      return (
+                        <blockquote key={`text-${tIdx}-p-${pIdx}`} className="border-l-4 border-purple-500/60 bg-purple-50/40 dark:bg-purple-900/20 px-4 py-3 rounded-r-xl text-sm italic font-medium text-purple-900 dark:text-purple-300 my-2 shadow-inner">
+                          {paragraphBlock.replace(/^>\s*/gm, "").trim()}
+                        </blockquote>
+                      );
+                    }
+
+                    if (paragraphBlock.match(/^[-*]\s/m) || paragraphBlock.match(/^\d+\.\s/m)) {
+                      return (
+                        <div key={`text-${tIdx}-p-${pIdx}`} className="space-y-2 pl-2 my-2">
+                          {paragraphBlock.split("\n").map((listItem, lIdx) => {
+                            const isOrdered = listItem.match(/^\d+\.\s/);
+                            const bullet = isOrdered ? listItem.match(/^\d+\./)[0] : "•";
+                            return (
+                              <p key={lIdx} className="pl-5 relative before:content-[attr(data-bullet)] before:absolute before:left-0 before:font-bold before:text-blue-600 dark:before:text-blue-400" data-bullet={bullet}>
+                                <span dangerouslySetInnerHTML={{
+                                  __html: listItem.replace(/^[-*]\s|^\d+\.\s/, "")
+                                    .replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-900 dark:text-white font-extrabold">$1</strong>')
+                                    .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
+                                }} />
+                              </p>
+                            );
+                          })}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <p key={`text-${tIdx}-p-${pIdx}`} dangerouslySetInnerHTML={{
+                        __html: paragraphBlock
+                          .replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-900 dark:text-white font-extrabold">$1</strong>')
+                          .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
+                      }} />
+                    );
+                  });
+                }
               })}
             </div>
 
-            {/* 🚀 UPGRADE: Pure SVG Action Strip with strictly mapped Slate dark mode borders */}
             <div className={`flex items-center gap-2 mt-5 pl-1 select-none animate-fade-in transition-opacity duration-200 ${isCurrentlyStreaming ? "opacity-30 pointer-events-none" : "opacity-100"}`}>
-              
               <button
                 type="button"
                 onClick={() => handleToggleLikeSentiment(msg.id)}

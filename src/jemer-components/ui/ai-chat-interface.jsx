@@ -1,25 +1,28 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v4.0.0 - Premium UI Feedback Modal & AI Context Capture.
- * 1. AI Context Tracking: Upgraded `handleToggleLikeSentiment` & `handleToggleDislikeSentiment` to capture the 
- *    full `msg` object. Added `activeMessageText` state. The API payload now includes `ai_response_text` so 
- *    the engineering team knows exactly what triggered the user.
- * 2. Premium Modal UI Redesign: Transformed the basic modal into a high-end glassmorphic component. Added a 
- *    mobile "drag pill", a sleek AI context preview block quote, softer focus rings, and professional typography hierarchy.
+ * SUMMARY: Executed v4.5.0 - Premium UI/UX Polish & Z-Index Harmonization.
+ * 1. Universal CSS Scrollbars: Ripped out native HTML scrollbars. Injected `.jemer-premium-scroll` 
+ *    and applied it to the Inline Edit textarea, Feedback Modal textarea, and Reasoning Accordions 
+ *    for a pristine, high-end feel.
+ * 2. Skeleton Stream Indicator: Replaced the primitive "bouncing dots" with an enterprise-grade 
+ *    animated shimmering text skeleton while the AI is generating/thinking.
+ * 3. Context Harmonization: Cross-referenced the provided Navbar (z-30) and Sidebar (z-40) to 
+ *    ensure the Feedback Modal (z-150) and popovers (z-20) perfectly respect the global stacking context.
  * ================================================================================================
- * 💬 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR CHAT ARENA COMPONENT (v4.0.0)
+ * 💬 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR CHAT ARENA COMPONENT (v4.5.0)
  * ================================================================================================
  */
 
-"use client";
+"use client"; // Enforces client-side processing configurations to safely manage layout hooks and browser document nodes
 
 import React, { useState, useEffect, useRef } from "react"; 
-import { useTheme } from "@/jemer-components/context/ThemeContext.jsx"; 
-import MarkdownRenderer from "@/jemer-components/ui/markdown-renderer.jsx"; 
+import { useTheme } from "@/jemer-components/context/ThemeContext.jsx"; // Imports the crash-proof global theme hook gateway
+import MarkdownRenderer from "@/jemer-components/ui/markdown-renderer.jsx"; // Imports our master decoupled Markdown and Math rendering engine
 
 /**
  * Advanced Markdown Pre-Processor
  * Scans the raw AI text line-by-line to perfectly isolate tables from standard paragraphs.
+ * This guarantees that multiple tables generated close together render perfectly in our custom grids.
  */
 const tokenizeBlocks = (text) => {
   if (!text) return []; 
@@ -66,21 +69,23 @@ export default function AIChatInterface({
 }) {
   const { theme } = useTheme(); 
 
+  // Core application tracking elements state parameters
   const [hoveredMessageId, setHoveredMessageId] = useState(null);
   const [copyStatusTracker, setCopyStatusTracker] = useState({});
   const [likedMessages, setLikedMessages] = useState({});
   const [dislikedMessages, setDislikedMessages] = useState({});
 
+  // Expansion and text draft edit pointers states handles
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editDraftText, setEditDraftText] = useState("");
   const [expandedPrompts, setExpandedPrompts] = useState({});
   const [expandedReasoning, setExpandedReasoning] = useState({});
 
-  // 🚀 NEW UPGRADE: FEEDBACK ENGINE STATE VARIABLES WITH AI CONTEXT
+  // FEEDBACK ENGINE STATE VARIABLES WITH AI CONTEXT
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false); 
   const [activeFeedbackType, setActiveFeedbackType] = useState(null); 
   const [activeMessageId, setActiveMessageId] = useState(null); 
-  const [activeMessageText, setActiveMessageText] = useState(""); // Captures the exact AI string for DB logs and UI preview
+  const [activeMessageText, setActiveMessageText] = useState(""); 
   const [feedbackText, setFeedbackText] = useState(""); 
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false); 
 
@@ -127,10 +132,10 @@ export default function AIChatInterface({
     });
   };
 
-  // 🚀 NEW UPGRADE: Re-engineered to capture full `msg` object to extract AI text payload
+  // Capture full `msg` object to extract AI text payload for engineering review
   const handleToggleLikeSentiment = (msg) => {
     setActiveMessageId(msg.id);
-    setActiveMessageText(msg.text); // Lock the AI response context
+    setActiveMessageText(msg.text); 
     setActiveFeedbackType("like");
     setFeedbackText(""); 
     setIsFeedbackModalOpen(true); 
@@ -138,7 +143,7 @@ export default function AIChatInterface({
 
   const handleToggleDislikeSentiment = (msg) => {
     setActiveMessageId(msg.id);
-    setActiveMessageText(msg.text); // Lock the AI response context
+    setActiveMessageText(msg.text); 
     setActiveFeedbackType("dislike");
     setFeedbackText(""); 
     setIsFeedbackModalOpen(true); 
@@ -170,7 +175,7 @@ export default function AIChatInterface({
     }
   };
 
-  // 🚀 NEW UPGRADE: Includes `ai_response_text` into the Neon DB payload
+  // NEON REST DATA TABLE RECONCILIATION PIPE
   const handleSubmitFeedbackPayload = async (formEventContext) => {
     formEventContext.preventDefault(); 
     setIsSubmittingFeedback(true); 
@@ -195,7 +200,7 @@ export default function AIChatInterface({
         body: JSON.stringify({
           user_id: userUuid, 
           message_id: activeMessageId, 
-          ai_response_text: activeMessageText, // Extracted contextual AI text block
+          ai_response_text: activeMessageText, 
           sentiment: activeFeedbackType, 
           feedback_text: feedbackText.trim() 
         })
@@ -225,11 +230,27 @@ export default function AIChatInterface({
   return (
     <div className="w-full flex flex-col gap-6 sm:gap-8 py-6 select-none animate-fade-in relative">
       
+      {/* 🚀 NEW UPGRADE: Universal Premium Scrollbar & Shimmer Injection */}
       <style dangerouslySetInnerHTML={{__html: `
-        .custom-table-scroll::-webkit-scrollbar { height: 6px; }
-        .custom-table-scroll::-webkit-scrollbar-track { background: transparent; }
-        .custom-table-scroll::-webkit-scrollbar-thumb { background-color: rgba(148,163,184,0.3); border-radius: 10px; }
-        .custom-table-scroll::-webkit-scrollbar-thumb:hover { background-color: rgba(148,163,184,0.5); }
+        /* Premium custom scrollbar eradicating ugly HTML defaults */
+        .jemer-premium-scroll::-webkit-scrollbar { width: 5px; height: 6px; }
+        .jemer-premium-scroll::-webkit-scrollbar-track { background: transparent; }
+        .jemer-premium-scroll::-webkit-scrollbar-thumb { background-color: rgba(148,163,184,0.3); border-radius: 10px; }
+        .jemer-premium-scroll::-webkit-scrollbar-thumb:hover { background-color: rgba(148,163,184,0.5); }
+        
+        /* Shimmer Animation for Premium UI Loading State */
+        @keyframes chatShimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        .animate-chat-shimmer {
+          background: linear-gradient(90deg, rgba(226,232,240,0.4) 25%, rgba(203,213,225,0.8) 50%, rgba(226,232,240,0.4) 75%);
+          background-size: 200% 100%;
+          animation: chatShimmer 1.5s infinite linear;
+        }
+        .dark .animate-chat-shimmer {
+          background: linear-gradient(90deg, rgba(30,41,59,0.4) 25%, rgba(51,65,85,0.8) 50%, rgba(30,41,59,0.4) 75%);
+        }
       `}} />
 
       {visibleMessages.map((msg, index) => {
@@ -258,7 +279,8 @@ export default function AIChatInterface({
                       e.target.style.height = 'auto';
                       e.target.style.height = e.target.scrollHeight + 'px';
                     }}
-                    className="w-full bg-transparent text-slate-900 dark:text-slate-100 text-sm sm:text-base font-sans font-medium outline-none resize-none leading-relaxed"
+                    // 🚀 NEW UPGRADE: Applied the jemer-premium-scroll class to the inline edit textarea
+                    className="jemer-premium-scroll w-full bg-transparent text-slate-900 dark:text-slate-100 text-sm sm:text-base font-sans font-medium outline-none resize-none leading-relaxed"
                     style={{ minHeight: "60px", maxHeight: "300px", overflowY: "auto" }}
                     autoFocus
                   />
@@ -336,9 +358,9 @@ export default function AIChatInterface({
 
         let stageWord = "Formulating approach...";
         if (isCurrentlyStreaming) {
-          if (!internalReasoningText && !msg.text) stageWord = "Analyzing...";
-          else if (internalReasoningText && !msg.text) stageWord = "Thinking...";
-          else stageWord = "Replying...";
+          if (!internalReasoningText && !msg.text) stageWord = "Analyzing parameters...";
+          else if (internalReasoningText && !msg.text) stageWord = "Synthesizing logic...";
+          else stageWord = "Generating response...";
         }
 
         const responseTokens = tokenizeBlocks(msg.text);
@@ -371,7 +393,8 @@ export default function AIChatInterface({
                 </button>
                 
                 {isReasoningExpanded && (
-                  <div className="mt-2 pl-3 border-l-2 border-slate-300 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 font-mono space-y-1 bg-slate-50/50 dark:bg-slate-900/40 p-3 rounded-r-xl shadow-inner animate-fade-in max-h-[300px] overflow-y-auto custom-table-scroll">
+                  // 🚀 NEW UPGRADE: Applied the jemer-premium-scroll class to the reasoning accordion box
+                  <div className="jemer-premium-scroll mt-2 pl-3 border-l-2 border-slate-300 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 font-mono space-y-1 bg-slate-50/50 dark:bg-slate-900/40 p-3 rounded-r-xl shadow-inner animate-fade-in max-h-[300px] overflow-y-auto">
                     <p className="whitespace-pre-line leading-relaxed break-words font-medium">
                       {internalReasoningText}
                     </p>
@@ -380,14 +403,16 @@ export default function AIChatInterface({
               </div>
             )}
 
+            {/* 🚀 NEW UPGRADE: Premium Shimmer Skeleton Loading Indicator */}
             {isCurrentlyStreaming && !msg.text.trim() && (
-              <div className="text-xs font-sans font-bold text-slate-500 dark:text-slate-400 pl-1 py-2 flex items-center gap-2 select-none animate-fade-in">
-                <span className="flex gap-1 items-center h-full pt-1">
-                  <span className="w-1.5 h-1.5 bg-blue-600 dark:bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '-0.3s' }}></span>
-                  <span className="w-1.5 h-1.5 bg-blue-600 dark:bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '-0.15s' }}></span>
-                  <span className="w-1.5 h-1.5 bg-blue-600 dark:bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></span>
-                </span>
-                <span className="ml-1 tracking-wide">{stageWord}</span>
+              <div className="w-full animate-fade-in space-y-3 mt-1 pl-1 max-w-2xl">
+                <div className="flex items-center gap-2 mb-2">
+                  <i className="fas fa-circle-notch fa-spin text-blue-500 text-[10px]" />
+                  <span className="text-xs font-mono font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">{stageWord}</span>
+                </div>
+                <div className="w-[85%] h-4 rounded-md animate-chat-shimmer" />
+                <div className="w-[100%] h-4 rounded-md animate-chat-shimmer" />
+                <div className="w-[60%] h-4 rounded-md animate-chat-shimmer" />
               </div>
             )}
 
@@ -408,7 +433,8 @@ export default function AIChatInterface({
                   const bodyLines = tableLines.slice(dataStartIndex).map(line => line.split('|').filter(Boolean).map(c => c.trim()));
 
                   return (
-                    <div key={`table-${tIdx}`} className="w-full overflow-x-auto custom-table-scroll my-5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm">
+                    // 🚀 NEW UPGRADE: Replaced custom-table-scroll with our global jemer-premium-scroll
+                    <div key={`table-${tIdx}`} className="jemer-premium-scroll w-full overflow-x-auto my-5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm">
                       <table className="w-full text-left border-collapse text-sm min-w-[600px]">
                         <thead className="bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300">
                           <tr>
@@ -449,7 +475,6 @@ export default function AIChatInterface({
 
             <div className={`flex items-center gap-2 mt-5 pl-1 select-none animate-fade-in transition-opacity duration-200 ${isCurrentlyStreaming ? "opacity-30 pointer-events-none" : "opacity-100"}`}>
               
-              {/* 🚀 UPGRADE: Pass 'msg' object instead of 'msg.id' to lock AI context text */}
               <button
                 type="button"
                 onClick={() => handleToggleLikeSentiment(msg)}
@@ -507,28 +532,23 @@ export default function AIChatInterface({
       
       <div ref={messagesEndRef} className="h-1 w-full" />
 
-      {/* 🚀 NEW UPGRADE: GLASSMORPHIC PREMIUM FEEDBACK OVERLAY CONTAINER */}
-      {/* Implements centered modal layout logic for laptops and fluid 75vh bottom sheet drawers for smartphones */}
+      {/* 🚀 Z-INDEX HARMONIZATION: Modal locked to z-[150] to clear Navbar (z-30) and Sidebar (z-40) */}
       {isFeedbackModalOpen && (
         <div className="fixed inset-0 z-[150] bg-slate-900/30 dark:bg-black/60 backdrop-blur-md flex items-end md:items-center justify-center transition-all duration-300 p-0 md:p-6">
           
-          {/* Transparent click dismiss background tint path */}
           <div 
             onClick={() => setIsFeedbackModalOpen(false)} 
             className="absolute inset-0 bg-transparent cursor-pointer" 
           />
 
-          {/* Morphing Premium Chassis Node Sheet Card */}
           <div className="w-full md:max-w-xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border-t md:border border-slate-200/50 dark:border-slate-700/50 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] md:shadow-2xl flex flex-col justify-between z-10 select-none font-sans h-[75vh] md:h-auto rounded-t-[40px] md:rounded-[32px] animate-slide-up overflow-hidden">
             
-            {/* Mobile Drag Pill Indicator */}
             <div className="w-full flex justify-center pt-3 pb-1 md:hidden shrink-0">
                <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full" />
             </div>
 
             <form onSubmit={handleSubmitFeedbackPayload} className="flex-1 flex flex-col justify-between h-full w-full">
               
-              {/* Header section tracking title strings */}
               <div className="px-5 md:px-6 pt-2 pb-4 text-left shrink-0">
                 <div className="flex items-center justify-between w-full">
                   <div className="flex items-center gap-3">
@@ -559,15 +579,14 @@ export default function AIChatInterface({
                 </div>
               </div>
 
-              {/* 🚀 NEW UPGRADE: AI Response Context Snippet Preview */}
               <div className="px-5 md:px-6 pb-2 shrink-0">
-                 <div className="p-3.5 bg-slate-50/80 dark:bg-slate-950/50 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 text-xs text-slate-500 dark:text-slate-400 font-mono italic shadow-inner relative">
+                 {/* 🚀 NEW UPGRADE: Applied jemer-premium-scroll to the preview box to handle extremely long AI text beautifully */}
+                 <div className="jemer-premium-scroll p-3.5 bg-slate-50/80 dark:bg-slate-950/50 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 text-xs text-slate-500 dark:text-slate-400 font-mono italic shadow-inner relative max-h-[80px] overflow-y-auto">
                    <div className="absolute top-2 right-3 text-[8px] font-black uppercase tracking-widest text-slate-300 dark:text-slate-600">AI Snippet</div>
-                   <span className="line-clamp-2 pr-6 leading-relaxed">"{activeMessageText}"</span>
+                   <span className="pr-6 leading-relaxed">"{activeMessageText}"</span>
                  </div>
               </div>
 
-              {/* Rich Text Area Input Center Workspace Grid */}
               <div className="flex-1 px-5 md:px-6 pb-4 flex flex-col justify-start text-left min-h-0">
                 <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-2 pl-1">
                   Qualitative Student Commentary (Optional)
@@ -581,11 +600,11 @@ export default function AIChatInterface({
                       ? "What made this great? Was the analogy perfect? Did the code structure click? Let our strategy team know..."
                       : "What went sideways? Did the tutor hallucinate parameters, overcomplicate the physics equation, or drop detail tracks? Tell us how to fix it..."
                   }
-                  className="w-full flex-1 p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 text-slate-900 dark:text-slate-100 text-sm font-medium placeholder-slate-400 rounded-[20px] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-blue-500/20 transition-all leading-relaxed resize-none font-sans shadow-sm"
+                  // 🚀 NEW UPGRADE: Applied jemer-premium-scroll class to the feedback input box
+                  className="jemer-premium-scroll w-full flex-1 p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 text-slate-900 dark:text-slate-100 text-sm font-medium placeholder-slate-400 rounded-[20px] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-blue-500/20 transition-all leading-relaxed resize-none font-sans shadow-sm"
                 />
               </div>
 
-              {/* Action Button Strip Footer Track */}
               <div className="px-5 md:px-6 py-4 border-t border-slate-100 dark:border-slate-800/50 shrink-0 flex items-center justify-end gap-3 bg-slate-50/50 dark:bg-slate-900/20">
                 <button
                   type="button"

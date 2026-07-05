@@ -1,14 +1,16 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v3.1.0 - Anti-Eviction Fetch Proxy & Mutation Polling.
- * 1. Token Mutation Poller: Replaced the blind `setTimeout` with a rigorous 50ms polling loop. It now actively 
- *    checks `localStorage` and guarantees the token string has physically mutated before allowing the code to continue.
- * 2. jemerAuthenticatedFetch: Built a centralized proxy wrapper. Every fetch request now routes through this 
- *    function. It handles pre-flight expiration checks, intercepts 401 Unauthorized errors automatically, executes 
- *    the emergency mutation poll, and replays the request behind the scenes without the UI ever knowing.
- * 3. 5-Minute Skew Protection: Boosted the default TTL threshold to 300 seconds to protect against server/client clock skew.
+ * SUMMARY: Executed v4.0.0 - Dynamic Sessions, Reverse Pagination & Optimistic Bumping.
+ * 1. Dynamic Session IDs: Ripped out the hardcoded session ID. Replaced it with `activeSessionId` 
+ *    state. Natively generates `crypto.randomUUID()` for brand new chats.
+ * 2. Reverse Infinite Scroll: Attached an `IntersectionObserver` to the TOP of the chat window. 
+ *    When the user scrolls up, it triggers `loadChatHistory` pulling the older 30 messages.
+ * 3. Scroll Preservation: Implemented DOM height snapshotting (`prevScrollHeight`) so when old messages 
+ *    load, the screen doesn't violently jump to the top, keeping the user exactly where they were reading.
+ * 4. Event Bridges: Added `jemer_chat_updated` dispatcher to tell the sidebar to bump the session up. 
+ *    Added `jemer_session_selected` listeners to intercept clicks from the sidebar smoothly.
  * ================================================================================================
- * 🧠 JEMER ACADEMY DASHBOARD FEATURE ENGINE — MASTER AI TUTOR PAGE RUNWAY (v3.1.0)
+ * 🧠 JEMER ACADEMY DASHBOARD FEATURE ENGINE — MASTER AI TUTOR PAGE RUNWAY (v4.0.0)
  * ================================================================================================
  */
 
@@ -35,7 +37,6 @@ const decodeJWTPayload = (token) => {
   }
 };
 
-// 🚀 UPGRADE: Default threshold pushed to 300s (5 minutes) to counter clock skew
 const isTokenExpiringSoon = (token, thresholdSeconds = 300) => {
   if (!token) return true; 
   const payload = decodeJWTPayload(token);
@@ -47,11 +48,9 @@ const isTokenExpiringSoon = (token, thresholdSeconds = 300) => {
   return secondsRemaining < thresholdSeconds;
 };
 
-// Global Promise Locks to prevent concurrent execution race conditions
 let isRefreshing = false;
 let refreshPromise = null;
 
-// 🚀 UPGRADE: Token Mutation Poller
 const performSilentTokenRefresh = async () => {
   if (isRefreshing) return refreshPromise;
 
@@ -66,15 +65,12 @@ const performSilentTokenRefresh = async () => {
         
         await window.JemerAuth.refreshSession();
         
-        // Polling Engine: Instead of a blind timeout, check every 50ms until the string physically mutates.
-        // Cap at 60 attempts (3 seconds) to prevent infinite loops.
         let attempts = 0;
         const maxAttempts = 60;
         
         while (attempts < maxAttempts) {
           const currentToken = localStorage.getItem("jemer_session_jwt");
           
-          // Verify we have a token and it is explicitly different from the old one
           if (currentToken && currentToken !== oldToken) {
             console.log("✅ [AUTH ENGINE] Session securely refreshed. Token physical mutation confirmed.");
             return currentToken;
@@ -98,19 +94,15 @@ const performSilentTokenRefresh = async () => {
   return refreshPromise;
 };
 
-// 🚀 UPGRADE: The Centralized Jemer Fetch Interceptor
-// Wraps all network calls to handle Auth injection and 401 Emergency Retries seamlessly
 const jemerAuthenticatedFetch = async (url, options = {}) => {
   let activeToken = localStorage.getItem("jemer_session_jwt");
   
-  // Pre-flight check before we even hit the network
   if (isTokenExpiringSoon(activeToken)) {
      console.log("⏳ [AUTH PROXY] Pre-flight TTL limit breached. Executing refresh before transit...");
      const refreshedToken = await performSilentTokenRefresh();
      if (refreshedToken) activeToken = refreshedToken;
   }
 
-  // Construct headers and inject Bearer claim
   const headers = new Headers(options.headers || {});
   if (activeToken) {
     headers.set("Authorization", `Bearer ${activeToken}`);
@@ -118,7 +110,6 @@ const jemerAuthenticatedFetch = async (url, options = {}) => {
   
   let response = await fetch(url, { ...options, headers });
 
-  // Emergency 401 Interceptor: If the server rejects it, halt and retry perfectly
   if (response.status === 401) {
      console.warn("⚠️ [AUTH PROXY] 401 Unauthorized intercepted. Initiating emergency synchronous mutation poll...");
      const emergencyToken = await performSilentTokenRefresh();
@@ -143,6 +134,119 @@ export default function TutorPage() {
 
   const [isStreaming, setIsStreaming] = useState(false);
   const abortControllerRef = useRef(null);
+
+  // 🚀 NEW UPGRADE: CHAT HISTORY & REVERSE PAGINATION STATES
+  const [activeSessionId, setActiveSessionId] = useState(null); // Defaults to null for fresh chats
+  const [historyOffset, setHistoryOffset] = useState(0); // Tracks pagination jumps
+  const [hasMoreHistory, setHasMoreHistory] = useState(true); // Flags if DB is exhausted
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false); // Prevents overlapping fetches
+
+  const chatContainerRef = useRef(null); // Used to snapshot scroll heights
+  const topObserverTarget = useRef(null); // Invisible anchor triggering infinite scroll
+
+  // ── 🚀 NEW UPGRADE: CHAT HISTORY FETCHING LOGIC ───────────────────────────────────────────────
+  
+  const loadChatHistory = async (sessionId, currentOffset, isReset = false) => {
+    if ((!hasMoreHistory && !isReset) || isLoadingHistory) return;
+
+    setIsLoadingHistory(true);
+    if (isReset) {
+      setChatLog([]);
+      setHistoryOffset(0);
+      setHasMoreHistory(true);
+    }
+
+    try {
+      const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+      // Fetch the history block securely via our 401-resilient proxy
+      const response = await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/tutor/sessions/${sessionId}/messages?limit=30&offset=${currentOffset}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data && data.length > 0) {
+          // Format raw DB messages to match our UI state footprint
+          const formattedLogs = data.map(msg => ({
+            id: msg.id,
+            sender: msg.role === "user" ? "user" : "ai",
+            text: msg.content || "",
+            reasoning: msg.reasoning_content || "",
+            isThinking: false
+          }));
+
+          // Scroll Position Preservation Logic
+          const prevScrollHeight = chatContainerRef.current?.scrollHeight || 0;
+
+          setChatLog(prev => {
+            // Unshift (Prepend) older messages to the TOP of the chat array
+            return isReset ? formattedLogs : [...formattedLogs, ...prev];
+          });
+          
+          setHistoryOffset(currentOffset + 30);
+
+          // Force the scrollbar to stay exactly where the user was looking before the new messages loaded
+          setTimeout(() => {
+            if (!isReset && chatContainerRef.current) {
+              const newScrollHeight = chatContainerRef.current.scrollHeight;
+              chatContainerRef.current.scrollTop += (newScrollHeight - prevScrollHeight);
+            }
+          }, 0);
+
+        } else {
+          setHasMoreHistory(false); // Reached the beginning of the conversation
+        }
+      }
+    } catch (error) {
+      console.error("[TUTOR PAGE] Failed to synchronize historical chat logs:", error);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  // Listen for Sidebar Events (Allows seamless routing without heavy React Context drops)
+  useEffect(() => {
+    const handleSessionSelect = (e) => {
+      const sessionId = e.detail;
+      setActiveSessionId(sessionId);
+      loadChatHistory(sessionId, 0, true);
+    };
+    
+    const handleNewChat = () => {
+      setActiveSessionId(null);
+      setChatLog([]);
+      setInjectedText("");
+    };
+
+    window.addEventListener("jemer_session_selected", handleSessionSelect);
+    window.addEventListener("jemer_new_chat", handleNewChat);
+
+    return () => {
+      window.removeEventListener("jemer_session_selected", handleSessionSelect);
+      window.removeEventListener("jemer_new_chat", handleNewChat);
+    };
+  }, []);
+
+  // Top-Anchor Intersection Observer for Reverse Infinite Scrolling
+  useEffect(() => {
+    const observer = new IntersectionObserver((entries) => {
+      // Trigger fetch when the top boundary hits the viewport, providing the user is not actively streaming
+      if (entries[0].isIntersecting && activeSessionId && hasMoreHistory && !isLoadingHistory && !isStreaming) {
+        console.log("[TUTOR PAGE] Top viewport boundary breached. Sideloading older dialogue context...");
+        loadChatHistory(activeSessionId, historyOffset, false);
+      }
+    }, { threshold: 1.0 });
+
+    if (topObserverTarget.current) {
+      observer.observe(topObserverTarget.current);
+    }
+
+    return () => {
+      if (topObserverTarget.current) observer.unobserve(topObserverTarget.current);
+    };
+  }, [activeSessionId, historyOffset, hasMoreHistory, isLoadingHistory, isStreaming]);
+
+
+  // ── CORE LIFECYCLE & SECURITY GATES ─────────────────────────────────────────────────────────
 
   useEffect(() => {
     const auditTokenLifecycle = async () => {
@@ -185,7 +289,6 @@ export default function TutorPage() {
           return; 
         }
 
-        // 🚀 UPGRADE: Routed through the authenticated fetch proxy
         const remoteServerHandshakeResponse = await jemerAuthenticatedFetch("/api/profile/status_check", {
           method: "GET", 
           credentials: "include", 
@@ -194,7 +297,6 @@ export default function TutorPage() {
           }
         });
 
-        // The proxy has already handled retries. If it's STILL 401, evict immediately.
         if (remoteServerHandshakeResponse && remoteServerHandshakeResponse.status === 401) {
           console.warn("[SECURITY EVICTION] Server engine returned absolute 401 Unauthorized flag. Flushing storage keys...");
           localStorage.removeItem("jemer_session_jwt"); 
@@ -255,10 +357,19 @@ export default function TutorPage() {
     }
   };
 
+  // ── OUTBOUND PROMPT DISPATCHER ───────────────────────────────────────────────────────────────
+
   const handleProcessOutboundPrompt = async (messagePayload) => {
     if (!messagePayload || !messagePayload.promptText) return;
 
     let aiMessageId = "";
+    
+    // 🚀 NEW UPGRADE: Manage dynamic Session IDs natively
+    let currentSessionId = activeSessionId;
+    if (!currentSessionId) {
+      currentSessionId = crypto.randomUUID(); // Generate standard secure UUID
+      setActiveSessionId(currentSessionId);
+    }
 
     if (messagePayload.editTargetId) {
       const userIdx = chatLog.findIndex(m => m.id === messagePayload.editTargetId);
@@ -314,11 +425,8 @@ export default function TutorPage() {
 
     const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
     const ENDPOINT_PATH = `${BACKEND_URL}/api/v1/tutor/stream`;
-    const sessionId = "00000000-0000-0000-0000-000000000000"; 
 
     try {
-      // 🚀 UPGRADE: Network transit fully delegated to our jemerAuthenticatedFetch proxy
-      // The proxy handles token checking, header injection, and seamless 401 retries internally.
       const serverStreamResponse = await jemerAuthenticatedFetch(ENDPOINT_PATH, {
         method: "POST", 
         signal: abortControllerRef.current.signal, 
@@ -326,13 +434,16 @@ export default function TutorPage() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          session_id: sessionId,   
+          session_id: currentSessionId, // 🚀 Bind payload to active tracked session
           tutor_id: messagePayload.selectedTutor || "jay", 
           user_prompt: messagePayload.promptText, 
         }),
       });
 
-      // The proxy has retried if needed. If it STILL fails, we throw the error safely.
+      // 🚀 NEW UPGRADE: Instantly dispatch a global event letting the Sidebar know a message was sent.
+      // This allows the sidebar to bump this session optimistically to the top!
+      window.dispatchEvent(new Event("jemer_chat_updated"));
+
       if (!serverStreamResponse.ok) {
         const errorPayloadText = await serverStreamResponse.text();
         
@@ -481,7 +592,21 @@ export default function TutorPage() {
   return (
     <div className="h-full w-full flex flex-col justify-between overflow-hidden p-2 sm:p-4 md:p-6 max-w-4xl mx-auto relative">
       
-      <div className="flex-1 w-full overflow-y-auto pr-1 scrollbar-none pb-4 flex flex-col min-h-0 justify-start">
+      <div 
+        ref={chatContainerRef} // 🚀 Binds reference to track scroll preservation positions
+        className="flex-1 w-full overflow-y-auto pr-1 scrollbar-none pb-4 flex flex-col min-h-0 justify-start"
+      >
+        
+        {/* 🚀 NEW UPGRADE: Top Anchor for Reverse Pagination Loading */}
+        <div ref={topObserverTarget} className="h-2 w-full shrink-0" />
+        
+        {isLoadingHistory && (
+          <div className="w-full py-4 text-center shrink-0">
+             <i className="fas fa-circle-notch fa-spin text-indigo-500 text-lg" />
+             <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400 mt-2">Fetching Archives...</p>
+          </div>
+        )}
+
         {isConversationActive ? (
           <AIChatInterface 
             activeChatLog={chatLog} 

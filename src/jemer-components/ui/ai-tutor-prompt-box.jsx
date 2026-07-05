@@ -1,17 +1,19 @@
 /**
-🤖 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR PROMPT BOX CORE ENGINE (v2.4.0 FULL UPGRADE)
-Description: Viewport-responsive, theme-adaptive AI prompt execution box panel with high depth and radius.
-Performance Tier: Hardware-Accelerated 3-Second Perimeter Animation Hydration Loop.
-Design Tokens: Integrated with useTheme() to match global high-contrast display layers.
-Modification Layer: Equipped with local storage synchronization and glassmorphic shadow profiling.
-Compliance: 100% comprehensive line-by-line developer documentation for extreme clarity.
-This is a proof that git pull origin main works.
-*/
+ * [NEW UPGRADE]
+ * SUMMARY: Executed Phase 1 - Prompt Box Stream Controller.
+ * 1. Stream Props: Injected `isStreaming` and `onStopStream` into the component signature.
+ * 2. UI Lockout: The textarea completely disables itself, drops opacity, and ignores 'Enter' keys while the AI is generating.
+ * 3. Morphing Button: The Send button dynamically transforms into a "Stop" button featuring a custom bouncing 3-dot "replying" animation.
+ * ================================================================================================
+ * 🤖 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR PROMPT BOX CORE ENGINE (v2.5.0 FULL UPGRADE)
+ * ================================================================================================
+ */
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { useTheme } from "@/jemer-components/context/ThemeContext.jsx";
 
-export default function AITutorPromptBox({ onSendMessage, injectedPromptText }) {
+// 🚀 UPGRADE: Added isStreaming and onStopStream to the component signature
+export default function AITutorPromptBox({ onSendMessage, injectedPromptText, isStreaming, onStopStream }) {
   // Pull high-contrast active theme details from the centralized theme application layer context 
   const { theme } = useTheme();
   
@@ -116,7 +118,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText }) 
       }
     }
 
-    // ── UPGRADE 2: LOAD SELECTIONS FROM LOCAL STORAGE PERSISTENCE LAYERS ──
     const savedImageGen = localStorage.getItem("jemer_image_gen_mode");
     if (savedImageGen && savedImageGen !== "off") {
       setImageGenMode(savedImageGen);
@@ -158,7 +159,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText }) 
     setTutorMenuOpen(false);
   };
 
-  // ── UPGRADE 1 & 2: RE-ENGINEERED CONCURRENT TOOL EXTRACTION ACTIVATOR ──
   // Keeps image synthesis settings completely active alongside custom workspace panels concurrent
   const activateTool = (toolType, mode = null) => {
     if (toolType === 'canvas') {
@@ -250,7 +250,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText }) 
     }
     setAttachedFiles([]);
     
-    // ── UPGRADE 3: REMOVED CONTEXT DEACTIVATION RESETS ──
     // Selections remain pinned inside prompt arena frames across continuous turns
     setHasSentFirstMessage(true);
   };
@@ -264,7 +263,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText }) 
 
   return (
     <div className="w-full max-w-3xl mx-auto px-4 relative select-none">
-      {/* ── UPGRADE 5 & 6: ADVANCED RADIUS CO-ALIGNED RAINBOW GLOW ELEMENT CHASSIS (rounded-[48px]) ── */}
       {showGlow && (
         <>
           {/* Layer A: Wide blur peripheral dispersion track */}
@@ -333,12 +331,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText }) 
         .modal-scroll { -ms-overflow-style: none; scrollbar-width: none; }
       `}} />
 
-      {/* ── UPGRADE 4, 5 & DEPTH: MASTER CHASSIS BOX PANELS WITH FROSTED GLASS & MULTI-ALTITUDE SHADOWS ──
-          - Swapped standard rounding to high pebble-style curve rounded-[48px]
-          - Decreased padding from p-4 sm:p-5 to p-3 sm:p-3.5 and gap to gap-2.5 to contract vertical length footprint
-          - Added bg-white/90 dark:bg-slate-900/90 and backdrop-blur-xl for smooth frosted surface glassmorphism
-          - Injected high-altitude layered ambient shadows simulation pop out from base document layers
-      */}
       <div className="relative w-full rounded-[48px] bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200/80 dark:border-slate-700/50 p-3 sm:p-3.5 flex flex-col gap-2.5 transition-all duration-300 z-10 shadow-[0_10px_20px_-5px_rgba(0,0,0,0.05),0_30px_60px_-10px_rgba(0,0,0,0.12)] dark:shadow-[0_15px_25px_-5px_rgba(0,0,0,0.5),0_40px_70px_-15px_rgba(0,0,0,0.75)]">
         
         {/* Active Indicators Area Row */}
@@ -388,20 +380,23 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText }) 
           </div>
         )}
 
-        {/* Text Input Block Wrapper Cell */}
+        {/* 🚀 UPGRADE: UI Lockout - Disables the textarea entirely during active generation streams */}
         <div className="w-full">
           <textarea
             ref={textareaRef}
             value={textPrompt}
             onChange={(e) => setTextPrompt(e.target.value)}
+            disabled={isStreaming}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                handleDispatchPromptMessage();
+                if (!isStreaming) {
+                  handleDispatchPromptMessage();
+                }
               }
             }}
-            placeholder={hasSentFirstMessage ? "Reply Tutor..." : "What can I Teach you today?"}
-            className="prompt-textarea w-full bg-transparent text-slate-900 dark:text-slate-100 font-sans font-medium text-base sm:text-lg placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none resize-none leading-relaxed"
+            placeholder={isStreaming ? "Tutor is replying..." : hasSentFirstMessage ? "Reply Tutor..." : "What can I Teach you today?"}
+            className={`prompt-textarea w-full bg-transparent text-slate-900 dark:text-slate-100 font-sans font-medium text-base sm:text-lg placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none resize-none leading-relaxed transition-all duration-200 ${isStreaming ? "opacity-40 cursor-not-allowed" : ""}`}
             style={{ minHeight: "42px", maxHeight: "200px", overflowY: "hidden" }}
             rows={1}
           />
@@ -442,14 +437,14 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText }) 
           <div className="flex items-center flex-wrap gap-2 relative">
             
             <div className="relative">
-              {/* ── UPGRADE 6: FILE SLIDER PLUS MENU TRIGGER — SHIFTED TO PILL GEOMETRY (rounded-full) ── */}
               <button
                 type="button"
                 onClick={() => {
                   setPlusMenuOpen(!plusMenuOpen);
                   setTutorMenuOpen(false);
                 }}
-                className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all duration-200 active:scale-95 cursor-pointer focus:outline-none ${
+                disabled={isStreaming}
+                className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all duration-200 cursor-pointer focus:outline-none ${isStreaming ? "opacity-50 pointer-events-none" : ""} ${
                   plusMenuOpen 
                     ? "bg-slate-900 border-slate-900 text-white dark:bg-white dark:border-white dark:text-slate-900" 
                     : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
@@ -462,7 +457,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText }) 
               </button>
 
               {plusMenuOpen && (
-                /* ── UPGRADE DEPTH: ADDED CUSTOM HIGH ALTITUDE DROP SHADOW EXTRACTS ON EXPANSIONS ── */
                 <div className="absolute bottom-full left-0 mb-3 w-72 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border border-slate-200/90 dark:border-slate-700/80 p-3 z-50 animate-slide-up shadow-[0_20px_50px_rgba(0,0,0,0.18)] dark:shadow-[0_25px_60px_rgba(0,0,0,0.65)]">
                   
                   <div className="space-y-1 mb-3">
@@ -513,7 +507,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText }) 
                           className="w-full flex items-center justify-between px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                         >
                           <span className="flex items-center gap-2">
-                            {/* ── UPGRADE 7: OFF OPTION REMOVED FROM ALL CORE EVALUATION BLOCKS ── */}
                             {imageGenMode === "adaptive" ? (
                               <>
                                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
@@ -533,7 +526,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText }) 
 
                         {imageGenDropdownOpen && (
                           <div className="absolute top-full left-0 right-0 mt-1.5 w-full rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl z-20 overflow-hidden animate-fade-in">
-                            {/* ── UPGRADE 7: REMOVED THE OFF INTERACTING LINK TRIGGER COMPLETELY ── */}
                             <button
                               type="button"
                               onClick={() => {
@@ -627,14 +619,14 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText }) 
             </div>
 
             <div className="relative">
-              {/* ── UPGRADE 6: ACTIVE TUTOR TRIGGER SELECTOR BUTTON — CONVERTED TO PILL GEOMETRY (rounded-full) ── */}
               <button
                 type="button"
                 onClick={() => {
                   setTutorMenuOpen(!tutorMenuOpen);
                   setPlusMenuOpen(false);
                 }}
-                className="h-10 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 px-3.5 text-sm font-semibold transition-all duration-200 cursor-pointer active:scale-98 focus:outline-none shadow-sm"
+                disabled={isStreaming}
+                className={`h-10 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 px-3.5 text-sm font-semibold transition-all duration-200 cursor-pointer focus:outline-none shadow-sm ${isStreaming ? "opacity-50 pointer-events-none" : "active:scale-98"}`}
               >
                 <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
                 <span>{activeTutor.name}</span>
@@ -777,19 +769,38 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText }) 
           </div>
 
           <div className="flex items-center gap-2">
-            {/* ── UPGRADE 6: PROMPT OUTBOUND SEND DISPATCH TRIGGER BUTTON — SHIFTED TO PILL GEOMETRY (rounded-full) ── */}
-            <button
-              type="button"
-              onClick={handleDispatchPromptMessage}
-              disabled={!textPrompt.trim() && attachedFiles.length === 0}
-              className="h-10 px-5 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-sans font-bold text-sm flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer shadow-lg shadow-indigo-500/25 active:scale-95 disabled:opacity-40 disabled:pointer-events-none disabled:shadow-none"
-              title="Send message"
-            >
-              <span>Send</span>
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
-            </button>
+            {/* 🚀 UPGRADE: Morphing Action Button - Shows Replying dots + Stop icon during streams */}
+            {isStreaming ? (
+              <button
+                type="button"
+                onClick={onStopStream}
+                className="h-10 px-4 rounded-full bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-sans font-bold text-sm flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer shadow-lg active:scale-95"
+                title="Stop generation"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="flex gap-0.5 mt-1">
+                    <span className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                    <span className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                    <span className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                  </span>
+                  <span className="ml-1">Stop</span>
+                  <i className="fas fa-stop text-[10px]" />
+                </div>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleDispatchPromptMessage}
+                disabled={!textPrompt.trim() && attachedFiles.length === 0}
+                className="h-10 px-5 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-sans font-bold text-sm flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer shadow-lg shadow-indigo-500/25 active:scale-95 disabled:opacity-40 disabled:pointer-events-none disabled:shadow-none"
+                title="Send message"
+              >
+                <span>Send</span>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+              </button>
+            )}
           </div>
 
         </div>

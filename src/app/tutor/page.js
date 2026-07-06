@@ -1,16 +1,13 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v4.0.0 - Dynamic Sessions, Reverse Pagination & Optimistic Bumping.
- * 1. Dynamic Session IDs: Ripped out the hardcoded session ID. Replaced it with `activeSessionId` 
- *    state. Natively generates `crypto.randomUUID()` for brand new chats.
- * 2. Reverse Infinite Scroll: Attached an `IntersectionObserver` to the TOP of the chat window. 
- *    When the user scrolls up, it triggers `loadChatHistory` pulling the older 30 messages.
- * 3. Scroll Preservation: Implemented DOM height snapshotting (`prevScrollHeight`) so when old messages 
- *    load, the screen doesn't violently jump to the top, keeping the user exactly where they were reading.
- * 4. Event Bridges: Added `jemer_chat_updated` dispatcher to tell the sidebar to bump the session up. 
- *    Added `jemer_session_selected` listeners to intercept clicks from the sidebar smoothly.
+ * SUMMARY: Executed v4.1.0 - Pagination Sync & Routing Fixes.
+ * 1. Fixed "New Chat" Routing Bug: Upgraded the `jemer_new_chat` event listener to fully wipe `historyOffset`, 
+ *    `hasMoreHistory`, and active states so the UI correctly routes back to the intro canopy.
+ * 2. Fixed Pagination Desync Bug: Injected `setHistoryOffset(prev => prev + 2)` inside the prompt dispatcher. 
+ *    This ensures that live messages pushed to the DB don't shift the offset and cause duplicate fetches 
+ *    when scrolling up into the archives.
  * ================================================================================================
- * 🧠 JEMER ACADEMY DASHBOARD FEATURE ENGINE — MASTER AI TUTOR PAGE RUNWAY (v4.0.0)
+ * 🧠 JEMER ACADEMY DASHBOARD FEATURE ENGINE — MASTER AI TUTOR PAGE RUNWAY (v4.1.0)
  * ================================================================================================
  */
 
@@ -135,7 +132,6 @@ export default function TutorPage() {
   const [isStreaming, setIsStreaming] = useState(false);
   const abortControllerRef = useRef(null);
 
-  // 🚀 NEW UPGRADE: CHAT HISTORY & REVERSE PAGINATION STATES
   const [activeSessionId, setActiveSessionId] = useState(null); // Defaults to null for fresh chats
   const [historyOffset, setHistoryOffset] = useState(0); // Tracks pagination jumps
   const [hasMoreHistory, setHasMoreHistory] = useState(true); // Flags if DB is exhausted
@@ -211,10 +207,14 @@ export default function TutorPage() {
       loadChatHistory(sessionId, 0, true);
     };
     
+    // 🚀 NEW UPGRADE: Fixes "New Chat" routing bug by fully wiping pagination states alongside session strings
     const handleNewChat = () => {
+      console.log("[TUTOR PAGE] 'jemer_new_chat' event intercepted. Wiping canvas to mount intro canopy...");
       setActiveSessionId(null);
       setChatLog([]);
       setInjectedText("");
+      setHistoryOffset(0);         // Reset pagination counter for the next session
+      setHasMoreHistory(true);     // Reset database end-of-list flag
     };
 
     window.addEventListener("jemer_session_selected", handleSessionSelect);
@@ -364,7 +364,7 @@ export default function TutorPage() {
 
     let aiMessageId = "";
     
-    // 🚀 NEW UPGRADE: Manage dynamic Session IDs natively
+    // Manage dynamic Session IDs natively
     let currentSessionId = activeSessionId;
     if (!currentSessionId) {
       currentSessionId = crypto.randomUUID(); // Generate standard secure UUID
@@ -423,6 +423,11 @@ export default function TutorPage() {
     setIsStreaming(true);
     abortControllerRef.current = new AbortController();
 
+    // 🚀 NEW UPGRADE: Synchronize the pagination offset with the live database insert.
+    // Every dispatch pushes 1 User prompt and 1 AI response to the DB. Incrementing offset by 2 
+    // guarantees the reverse IntersectionObserver won't fetch these exact messages again on scroll.
+    setHistoryOffset((prevOffset) => prevOffset + 2);
+
     const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
     const ENDPOINT_PATH = `${BACKEND_URL}/api/v1/tutor/stream`;
 
@@ -434,13 +439,13 @@ export default function TutorPage() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          session_id: currentSessionId, // 🚀 Bind payload to active tracked session
+          session_id: currentSessionId, // Bind payload to active tracked session
           tutor_id: messagePayload.selectedTutor || "jay", 
           user_prompt: messagePayload.promptText, 
         }),
       });
 
-      // 🚀 NEW UPGRADE: Instantly dispatch a global event letting the Sidebar know a message was sent.
+      // Instantly dispatch a global event letting the Sidebar know a message was sent.
       // This allows the sidebar to bump this session optimistically to the top!
       window.dispatchEvent(new Event("jemer_chat_updated"));
 
@@ -593,11 +598,11 @@ export default function TutorPage() {
     <div className="h-full w-full flex flex-col justify-between overflow-hidden p-2 sm:p-4 md:p-6 max-w-4xl mx-auto relative">
       
       <div 
-        ref={chatContainerRef} // 🚀 Binds reference to track scroll preservation positions
+        ref={chatContainerRef} // Binds reference to track scroll preservation positions
         className="flex-1 w-full overflow-y-auto pr-1 scrollbar-none pb-4 flex flex-col min-h-0 justify-start"
       >
         
-        {/* 🚀 NEW UPGRADE: Top Anchor for Reverse Pagination Loading */}
+        {/* Top Anchor for Reverse Pagination Loading */}
         <div ref={topObserverTarget} className="h-2 w-full shrink-0" />
         
         {isLoadingHistory && (

@@ -1,17 +1,12 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v2.6.0 - Dynamic DB Integration & Infinite Scroll Sidebar.
- * 1. Live Neon DB Fetching: Scrapped `mockLearningSessions`. Now fetches real session data from 
- *    `/api/v1/tutor/sessions` using limit/offset pagination.
- * 2. Infinite Scroll Observer: Attached an `IntersectionObserver` to a bottom anchor. When the user 
- *    scrolls to the bottom, it silently fetches the next 10 chats without ugly pagination buttons.
- * 3. 3-Dot Context Menu: Added hover-state menus for Laptops (always visible on Mobile) to Pin, Rename, 
- *    Archive, and Delete sessions. Uses Optimistic UI to update the list instantly before the DB resolves.
- * 4. Dummy Modals & Routing: "New Chat" resets the session. "Images" and "Archive" now open beautiful 
- *    glassmorphic dummy overlay pages within the sidebar context.
- * 5. Premium Shimmer Loaders: Replaced basic spinners with animated skeleton lines during network fetches.
+ * SUMMARY: Executed v2.7.1 - Broken Routing Bridge Patch.
+ * 1. Fixed "Previous Chat" Routing Failure: Injected `window.dispatchEvent(new CustomEvent("jemer_session_selected", { detail: sessionIdToken }))` 
+ *    inside `handleSelectActiveHistoryRow`. Since the sidebar lives outside the main page scope, 
+ *    this custom global event forces `page.js` to instantly wake up, grab the UUID, and fetch 
+ *    the correct historical chat from Neon DB.
  * ================================================================================================
- * 📜 JEMER ACADEMY DESIGN SYSTEM — PREMIUM AUXILIARY TUTOR MANAGEMENT SIDEBAR (v2.6.0)
+ * 📜 JEMER ACADEMY DESIGN SYSTEM — PREMIUM AUXILIARY TUTOR MANAGEMENT SIDEBAR (v2.7.1)
  * ================================================================================================
  */
 
@@ -114,12 +109,12 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
 
   // Initial load hook to fetch the first batch of 10 sessions on component mount
   useEffect(() => {
-    if (isOpen) {
-      fetchSessionsFromDB(0, true);
-    }
-  }, [isOpen]);
+    // Fetches only once on mount to prevent infinite polling DB costs
+    fetchSessionsFromDB(0, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // 🚀 NEW UPGRADE: Intersection Observer for Infinite Scrolling
+  // Intersection Observer for Infinite Scrolling
   // Triggers automatically when the user scrolls the invisible target div into view
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -168,6 +163,8 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
   const handleTriggerNewChatSession = () => {
     console.log("[TUTOR SIDEBAR SYSTEM] Flushing active canvas views to mount clean introduction grids...");
     setSelectedSessionId(null);
+    // Dispatch the event that page.js is listening for to wipe chat state
+    window.dispatchEvent(new Event("jemer_new_chat"));
     if (onNewChat) onNewChat(); 
     if (onClose) onClose(); 
   };
@@ -176,11 +173,16 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
   const handleSelectActiveHistoryRow = (sessionIdToken) => {
     console.log(`[TUTOR SIDEBAR SYSTEM] Syncing workspace memory channels to target log ID: ${sessionIdToken}`);
     setSelectedSessionId(sessionIdToken);
+    
+    // 🚀 NEW UPGRADE: Re-established the severed routing bridge.
+    // Dispatches a CustomEvent with the session ID payload directly to page.js
+    window.dispatchEvent(new CustomEvent("jemer_session_selected", { detail: sessionIdToken }));
+    
     if (onSelectSession) onSelectSession(sessionIdToken);
     if (onClose) onClose(); 
   };
 
-  // 🚀 NEW UPGRADE: Optimistic DB Mutations (Pin, Archive, Rename, Delete)
+  // Optimistic DB Mutations (Pin, Archive, Rename, Delete)
   const executeSessionMutation = async (sessionId, mutationPayload, actionType) => {
     // 1. Optimistic UI Update: Execute the visual change immediately before the server responds
     setSessions(prev => {
@@ -400,7 +402,7 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
                             <div className="flex items-center gap-3 min-w-0 flex-1">
                               {/* Dynamic Icon: Changes if session is Pinned */}
                               {session.is_pinned ? (
-                                <i className="fas fa-thumbtack text-[10px] shrink-0 text-blue-600 dark:text-blue-400" />
+                                <svg className="w-3.5 h-3.5 shrink-0 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z" /></svg>
                               ) : (
                                 <svg className={`w-3.5 h-3.5 shrink-0 transition-colors ${isCurrentlyFocused ? "text-blue-900 dark:text-blue-400" : "text-slate-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -426,7 +428,7 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
                               )}
                             </div>
 
-                            {/* 🚀 NEW UPGRADE: Adaptive 3-Dot Hover Menu */}
+                            {/* Adaptive 3-Dot Hover Menu with Unbreakable SVG */}
                             {!isRenaming && (
                               <div 
                                 onClick={(e) => {
@@ -435,7 +437,9 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
                                 }}
                                 className="w-6 h-6 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shrink-0 md:opacity-0 md:group-hover:opacity-100 opacity-100 cursor-pointer"
                               >
-                                <i className="fas fa-ellipsis-h text-[10px]" />
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                                </svg>
                               </div>
                             )}
                           </button>
@@ -447,17 +451,17 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
                               className="absolute right-2 top-10 w-36 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 py-1.5 animate-fade-in flex flex-col"
                             >
                               <button onClick={(e) => { e.stopPropagation(); executeSessionMutation(session.id, { is_pinned: !session.is_pinned }, "pin"); }} className="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2">
-                                <i className="fas fa-thumbtack w-3 text-center" /> {session.is_pinned ? "Unpin" : "Pin"}
+                                <svg className="w-3.5 h-3.5 text-center shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg> {session.is_pinned ? "Unpin" : "Pin"}
                               </button>
                               <button onClick={(e) => { e.stopPropagation(); startRenaming(session); }} className="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2">
-                                <i className="fas fa-edit w-3 text-center" /> Rename
+                                <svg className="w-3.5 h-3.5 text-center shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg> Rename
                               </button>
                               <button onClick={(e) => { e.stopPropagation(); executeSessionMutation(session.id, { is_archived: true }, "archive"); }} className="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2">
-                                <i className="fas fa-archive w-3 text-center" /> Archive
+                                <svg className="w-3.5 h-3.5 text-center shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg> Archive
                               </button>
                               <div className="my-1 border-t border-slate-100 dark:border-slate-700/60" />
                               <button onClick={(e) => { e.stopPropagation(); executeSessionMutation(session.id, null, "delete"); }} className="w-full text-left px-4 py-2 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2">
-                                <i className="fas fa-trash-alt w-3 text-center" /> Delete
+                                <svg className="w-3.5 h-3.5 text-center shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg> Delete
                               </button>
                             </div>
                           )}

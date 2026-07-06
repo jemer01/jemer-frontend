@@ -1,13 +1,11 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v4.1.0 - Pagination Sync & Routing Fixes.
- * 1. Fixed "New Chat" Routing Bug: Upgraded the `jemer_new_chat` event listener to fully wipe `historyOffset`, 
- *    `hasMoreHistory`, and active states so the UI correctly routes back to the intro canopy.
- * 2. Fixed Pagination Desync Bug: Injected `setHistoryOffset(prev => prev + 2)` inside the prompt dispatcher. 
- *    This ensures that live messages pushed to the DB don't shift the offset and cause duplicate fetches 
- *    when scrolling up into the archives.
+ * SUMMARY: Executed v4.2.0 - Seamless UI Titling Sync.
+ * 1. Delayed Sidebar Sync: Injected a secondary `window.dispatchEvent(new Event("jemer_chat_updated"))` 
+ *    exactly when the `data: [DONE]` signal is received from the backend stream. This guarantees the sidebar 
+ *    refreshes and fetches the newly generated AI title *after* the background titling goroutine has finished saving it.
  * ================================================================================================
- * 🧠 JEMER ACADEMY DASHBOARD FEATURE ENGINE — MASTER AI TUTOR PAGE RUNWAY (v4.1.0)
+ * 🧠 JEMER ACADEMY DASHBOARD FEATURE ENGINE — MASTER AI TUTOR PAGE RUNWAY (v4.2.0)
  * ================================================================================================
  */
 
@@ -207,7 +205,7 @@ export default function TutorPage() {
       loadChatHistory(sessionId, 0, true);
     };
     
-    // 🚀 NEW UPGRADE: Fixes "New Chat" routing bug by fully wiping pagination states alongside session strings
+    // Fixes "New Chat" routing bug by fully wiping pagination states alongside session strings
     const handleNewChat = () => {
       console.log("[TUTOR PAGE] 'jemer_new_chat' event intercepted. Wiping canvas to mount intro canopy...");
       setActiveSessionId(null);
@@ -423,7 +421,7 @@ export default function TutorPage() {
     setIsStreaming(true);
     abortControllerRef.current = new AbortController();
 
-    // 🚀 NEW UPGRADE: Synchronize the pagination offset with the live database insert.
+    // Synchronize the pagination offset with the live database insert.
     // Every dispatch pushes 1 User prompt and 1 AI response to the DB. Incrementing offset by 2 
     // guarantees the reverse IntersectionObserver won't fetch these exact messages again on scroll.
     setHistoryOffset((prevOffset) => prevOffset + 2);
@@ -488,6 +486,10 @@ export default function TutorPage() {
                 msgItem.id === aiMessageId ? { ...msgItem, isThinking: false } : msgItem
               )
             );
+            // 🚀 NEW UPGRADE: Secondary Dispatch Sync
+            // Fires precisely when the AI generation completes. This guarantees the sidebar 
+            // refetches the title AFTER the background goroutine has successfully saved it to the DB.
+            window.dispatchEvent(new Event("jemer_chat_updated"));
             break;
           }
 

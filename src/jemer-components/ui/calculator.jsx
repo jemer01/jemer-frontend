@@ -1,13 +1,20 @@
 /**
+ * [NEW UPGRADE]
+ * SUMMARY: Executed v2.2.0 - Core UX & Stability Overhaul.
+ * 1. Broken Icon Fix: Eradicated the fragile raw SVG on the backspace button. Replaced it with 
+ * a bulletproof FontAwesome `<i className="fas fa-backspace" />` class to guarantee visibility.
+ * 2. NaN20 Crash Patch: Built a Type-Guard matrix in `handleExecuteSingleParamSciCalc`. Empty 
+ * screens now safely evaluate as '0'. Results cleanly flag as calculated, eliminating the string 
+ * concatenation bug that caused "NaN20 is not defined" crashes.
+ * 3. Premium UX Chaining: Introduced the `isCalculated` state tracker. Pressing a number after `=` 
+ * now smartly starts a fresh calculation. Pressing an operator (`+`, `-`) seamlessly chains the math. 
+ * Typing multiple operators consecutively (e.g., `+` then `×`) instantly overwrites the last one.
+ * 4. Desktop Smart Controls: Injected a global `useEffect` keyboard listener tracking numbers, operators, 
+ * Enter, Backspace, and Escape. Added active element validation to prevent hijacking typing when the 
+ * student is chatting in the prompt box!
+ * 5. Branding Update: Successfully updated the footer watermark to 'Jemer pro Calculator'.
  * ================================================================================================
- * 🧮 JEMER ACADEMY STARTUP ECOSYSTEM — HIGH-FIDELITY ADAPTIVE MATHEMATICAL ENGINE (v2.1)
- * ================================================================================================
- * Description: Premium neomorphic mathematical exploration core matching image_55be81.jpg.
- * Sizing Tier: Clamped with zero-scroll viewport limits on both laptops and mobile phones.
- * Patch Notes: Fixed implicit parenthesis multiplication parsing bug ("NaN is not a function").
- * Depth Upgrades: Boosted light-mode shadow weights and double-walled high-contrast border definition rails.
- * Compliance: 100% comprehensive line-by-line developer code documentation for absolute clarity.
- * File Targeting: src/jemer-components/ui/calculator.jsx
+ * 🧮 JEMER ACADEMY STARTUP ECOSYSTEM — HIGH-FIDELITY ADAPTIVE MATHEMATICAL ENGINE (v2.2.0)
  * ================================================================================================
  */
 
@@ -25,122 +32,172 @@ import { useTheme } from "@/jemer-components/context/ThemeContext.jsx"; // Binds
  */
 export default function Calculator({ isOpen, onClose, onMaximize }) {
   // ── LAYER 1: DESIGN SYSTEM THEME INTERACTION HOOKS ──────────────────────────────────────────
-  // Extract custom active theme parameters directly out of the context pipeline to handle high-contrast transitions
   const { theme } = useTheme();
 
   // ── LAYER 2: SYSTEM CALCULATION ENGINE MUTATION STATES ────────────────────────────────────────
-  // Tracks active text equations typed out onto the numerical monitor screen
   const [displayValue, setDisplayValue] = useState("");
-  
-  // Tracks clean list logs of previously evaluated histories to mirror stacked text views
   const [equationHistory, setEquationHistory] = useState("");
-  
-  // Responsive layout tracking flag evaluating monitor dimensions dynamically
   const [isMobileView, setIsMobileView] = useState(false);
-  
-  // Controls the sliding state parameters for the nested scientific expansion toolbar matrix
   const [scientificPanelOpen, setScientificPanelOpen] = useState(false);
+  
+  // 🚀 NEW UPGRADE: Tracks if the current display is a finished result to enable smart UX chaining
+  const [isCalculated, setIsCalculated] = useState(false);
 
-  // ── LAYER 3: RESPONSIVE MEDIA LISTENERS EFFECTS ──────────────────────────────────────────────
-  /**
-   * [VIEWPORT BREAKPOINT MONITOR EFFECT]
-   * Hooks active window resize listeners upon construction to pivot styles between sheets and modals cleanly.
-   */
+  // ── LAYER 3: RESPONSIVE MEDIA & SMART KEYBOARD LISTENERS EFFECTS ────────────────────────────
+  
   useEffect(() => {
     const executeViewportAudit = () => {
-      setIsMobileView(window.innerWidth < 768); // Triggers true if width drops beneath standard tablet grids (768px)
+      setIsMobileView(window.innerWidth < 768); 
     };
-    executeViewportAudit(); // Run initial width scan
-    window.addEventListener("resize", executeViewportAudit); // Listen for monitor adjustments
-    return () => window.removeEventListener("resize", executeViewportAudit); // Unmount threads cleanly
+    executeViewportAudit(); 
+    window.addEventListener("resize", executeViewportAudit); 
+    return () => window.removeEventListener("resize", executeViewportAudit); 
   }, []);
 
+  // 🚀 NEW UPGRADE: Smart Desktop Keyboard Controls Matrix
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleGlobalKeyDown = (e) => {
+      // Security Check: Ignore keystrokes if the user is typing in a chat box or textarea
+      const activeTag = document.activeElement?.tagName?.toLowerCase();
+      if (activeTag === "input" || activeTag === "textarea") return;
+
+      const key = e.key;
+
+      if (/^[0-9.]$/.test(key)) {
+        e.preventDefault();
+        handleAppendToken(key);
+      } else if (key === "+" || key === "-") {
+        e.preventDefault();
+        handleAppendToken(key);
+      } else if (key === "*" || key === "x" || key === "X") {
+        e.preventDefault();
+        handleAppendToken("×");
+      } else if (key === "/") {
+        e.preventDefault();
+        handleAppendToken("÷");
+      } else if (key === "Enter" || key === "=") {
+        e.preventDefault();
+        handleEvaluateTotalResult();
+      } else if (key === "Backspace") {
+        e.preventDefault();
+        handleBackspaceSlice();
+      } else if (key === "Escape" || key.toLowerCase() === "c") {
+        e.preventDefault();
+        handleResetMemory();
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, [isOpen, displayValue, isCalculated, equationHistory]);
+
   // ── LAYER 4: ARITHMETIC CORE TRANSACTION OPERATORS LOGIC ──────────────────────────────────────
-  /**
-   * Concatenates fresh text characters or operators straight onto the monitor string
-   * @param {string} token - The alphanumeric key value selected by the student (e.g., "5", "+").
-   */
+
   const handleAppendToken = (token) => {
+    const isOperator = ["+", "-", "×", "÷"].includes(token);
+
     setDisplayValue((prev) => {
-      // Clean up past syntax errors automatically on input changes
-      if (prev === "Syntax Error" || prev === "Math Error") return token;
+      // Clean up past syntax errors automatically
+      if (prev === "Syntax Error" || prev === "Math Error") return isOperator ? "0" + token : token;
+
+      // 🚀 NEW UX UPGRADE: Smart calculation chaining
+      if (isCalculated) {
+        setIsCalculated(false);
+        if (isOperator) {
+          return prev + token; // Chain the result (e.g. 4 + ...)
+        } else {
+          return token; // Start a fresh calculation block
+        }
+      }
+
+      // 🚀 NEW UX UPGRADE: Operator Overwrite Matrix (prevents "++" or "+x" crashes)
+      if (isOperator && prev.length > 0) {
+        const lastChar = prev.slice(-1);
+        if (["+", "-", "×", "÷"].includes(lastChar)) {
+          return prev.slice(0, -1) + token; // Instantly replace the old operator with the new one!
+        }
+      }
+      
+      // Prevent ugly leading zeros (e.g. "05")
+      if (prev === "0" && !isOperator && token !== ".") {
+        return token;
+      }
+
       return prev + token;
     });
   };
 
-  /**
-   * Drops the absolute final character index out of the working memory buffer string
-   */
   const handleBackspaceSlice = () => {
+    setIsCalculated(false); // Reset calculation flag so backspacing allows continued editing
     setDisplayValue((prev) => {
       if (prev === "Syntax Error" || prev === "Math Error" || prev.length <= 1) return "";
-      return prev.slice(0, -1); // Trim last string character safely
+      return prev.toString().slice(0, -1); 
     });
   };
 
-  /**
-   * Completely flushes computing text logs and calculations memories out of the view layout
-   */
   const handleResetMemory = () => {
-    setDisplayValue(""); // Clear screen text entries
-    setEquationHistory(""); // Clear top calculation history
+    setDisplayValue(""); 
+    setEquationHistory(""); 
+    setIsCalculated(false);
   };
 
-  /**
-   * Evaluates the active numeric entry string and flips positive values to negative sequences natively
-   */
   const handleToggleSignModifier = () => {
-    if (!displayValue || displayValue === "Syntax Error" || displayValue === "Math Error") return;
-    
-    // Toggles negative sign back and forth cleanly at the head of the expression string
     setDisplayValue((prev) => {
+      if (!prev || prev === "Syntax Error" || prev === "Math Error" || prev === "0") return "-";
       if (prev.startsWith("-")) return prev.slice(1);
       return "-" + prev;
     });
   };
 
-  /**
-   * Calculates immediate, single-parameter scientific evaluations (Square Roots, Percentage Scales, Trig)
-   * @param {string} mode - Operation target mapping key identifier string.
-   */
   const handleExecuteSingleParamSciCalc = (mode) => {
     try {
-      const currentScalarValue = parseFloat(displayValue); // Convert active display tokens into numbers
-      if (isNaN(currentScalarValue) && displayValue !== "") throw new Error("Null Parse");
+      // 🚀 NEW UX UPGRADE: Treat empty/error screens as '0' to prevent NaN crashes
+      let cleanDisplay = displayValue.trim();
+      if (cleanDisplay === "Syntax Error" || cleanDisplay === "Math Error") cleanDisplay = "0";
+      
+      // Strip hanging trailing operators before processing scientific equations
+      if (["+", "-", "×", "÷"].includes(cleanDisplay.slice(-1))) {
+        cleanDisplay = cleanDisplay.slice(0, -1);
+      }
 
-      let calculatedOutput = 0; // Initialize result buffer
+      const currentScalarValue = cleanDisplay === "" ? 0 : parseFloat(cleanDisplay);
+      if (isNaN(currentScalarValue)) throw new Error("Null Parse");
+
+      let calculatedOutput = 0; 
 
       switch (mode) {
         case "sqrt":
-          if (currentScalarValue < 0) return setDisplayValue("Math Error"); // Defend against imaginary numbers
-          calculatedOutput = Math.sqrt(currentScalarValue || 0); // Perform root calculation
-          setEquationHistory(`√(${displayValue || 0})`); // Format history layout output row
+          if (currentScalarValue < 0) return setDisplayValue("Math Error"); 
+          calculatedOutput = Math.sqrt(currentScalarValue || 0); 
+          setEquationHistory(`√(${cleanDisplay || 0})`); 
           break;
         case "sqr":
-          calculatedOutput = Math.pow(currentScalarValue || 0, 2); // Square current input
-          setEquationHistory(`(${displayValue || 0})²`);
+          calculatedOutput = Math.pow(currentScalarValue || 0, 2); 
+          setEquationHistory(`(${cleanDisplay || 0})²`);
           break;
         case "percent":
-          calculatedOutput = (currentScalarValue || 0) / 100; // Divide by 100 scalar value
-          setEquationHistory(`(${displayValue || 0})%`);
+          calculatedOutput = (currentScalarValue || 0) / 100; 
+          setEquationHistory(`(${cleanDisplay || 0})%`);
           break;
         case "sin":
-          calculatedOutput = Math.sin((currentScalarValue * Math.PI) / 180); // Maps parameters to clean degrees angles
-          setEquationHistory(`sin(${displayValue || 0}°)`);
+          calculatedOutput = Math.sin((currentScalarValue * Math.PI) / 180); 
+          setEquationHistory(`sin(${cleanDisplay || 0}°)`);
           break;
         case "cos":
           calculatedOutput = Math.cos((currentScalarValue * Math.PI) / 180);
-          setEquationHistory(`cos(${displayValue || 0}°)`);
+          setEquationHistory(`cos(${cleanDisplay || 0}°)`);
           break;
         case "tan":
           calculatedOutput = Math.tan((currentScalarValue * Math.PI) / 180);
-          setEquationHistory(`tan(${displayValue || 0}°)`);
+          setEquationHistory(`tan(${cleanDisplay || 0}°)`);
           break;
         case "pi":
-          calculatedOutput = Math.PI; // Inject absolute Pi constant
-          if (displayValue !== "") {
+          calculatedOutput = Math.PI; 
+          if (cleanDisplay !== "" && cleanDisplay !== "0") {
             calculatedOutput = currentScalarValue * Math.PI;
-            setEquationHistory(`${displayValue} × π`);
+            setEquationHistory(`${cleanDisplay} × π`);
           } else {
             setEquationHistory("π");
           }
@@ -149,62 +206,49 @@ export default function Calculator({ isOpen, onClose, onMaximize }) {
           return;
       }
 
-      // Convert result to clean string representations, locking decimals to a maximum 6-digit floating rule
       setDisplayValue(Number(calculatedOutput.toFixed(6)).toString());
+      setIsCalculated(true); // 🚀 NEW UX UPGRADE: Flag as completed calculation
     } catch (sciException) {
       setDisplayValue("Syntax Error");
+      setIsCalculated(true);
     }
   };
 
-  /**
-   * Compiles the complete string token sequence to evaluate arithmetic calculations accurately
-   */
   const handleEvaluateTotalResult = () => {
     try {
-      if (!displayValue.trim()) return; // Abort operations on completely blank text fields
+      if (!displayValue || !displayValue.trim()) return; 
 
-      console.log("[JEMER MATH PARSER] Compiling string formula:", displayValue); // Output analytical telemetry trace
-
-      // ── 🧠 THE "NaN IS NOT A FUNCTION" SECURITY OVERHAUL ──
-      // If a user enters an implicit parenthesis expression like '2(2+2)' as shown in image_55be81.jpg,
-      // JavaScript treats it as a function execution call, causing a crash. 
-      // These regex filters intercept implicit patterns, inserting mathematical asterisks automatically.
       let sanitizedFormulaText = displayValue
-        .replace(/×/g, "*") // Standardize multiplication signs
-        .replace(/÷/g, "/"); // Standardize division signs
+        .replace(/×/g, "*") 
+        .replace(/÷/g, "/"); 
 
-      // Regex filter 1: Injects '*' between a literal number and an opening parenthesis: '2(' -> '2*('
       sanitizedFormulaText = sanitizedFormulaText.replace(/(\d)\(/g, "$1*(");
-      
-      // Regex filter 2: Injects '*' between a closing parenthesis and a literal number: ')2' -> ')*2'
       sanitizedFormulaText = sanitizedFormulaText.replace(/\)(\d)/g, ")*$1");
-      
-      // Regex filter 3: Injects '*' between consecutive standalone parenthesis modules: ')(' -> ')*('
       sanitizedFormulaText = sanitizedFormulaText.replace(/\)\(/g, ")*(");
 
-      // SECURE EVALUATION GATEWAY: Compiles isolated functional expressions to secure application properties
       const sandboxedEvaluator = new Function(`return FormulaEvaluationOutput = (${sanitizedFormulaText});`);
-      const absoluteScalarResult = sandboxedEvaluator(); // Run safe compilation execution
+      const absoluteScalarResult = sandboxedEvaluator(); 
 
-      // Prevent division by literal zero parameters from returning messy infinite primitives
       if (!isFinite(absoluteScalarResult) || isNaN(absoluteScalarResult)) {
         setDisplayValue("Math Error");
+        setIsCalculated(true); // Lock screen state to prevent string contamination
         return;
       }
 
-      setEquationHistory(displayValue); // Lock previous equation formula text string onto upper preview monitor
-      setDisplayValue(Number(absoluteScalarResult.toFixed(6)).toString()); // Apply precise mathematical rounding limits
+      setEquationHistory(displayValue); 
+      setDisplayValue(Number(absoluteScalarResult.toFixed(6)).toString()); 
+      setIsCalculated(true); // 🚀 NEW UX UPGRADE: Triggers the chaining state!
     } catch (syntaxError) {
-      console.error("[MATH PARSING FAULT] Equation layout verification failed:", syntaxError.message); // Catch crash outputs
-      setDisplayValue("Syntax Error"); // Update readout screen with safe exception feedback triggers
+      console.error("[MATH PARSING FAULT] Equation layout verification failed:", syntaxError.message); 
+      setDisplayValue("Syntax Error"); 
+      setIsCalculated(true);
     }
   };
 
-  if (!isOpen) return null; // Terminate mounting maps instantly if visibility toggles are switched off downstream
+  if (!isOpen) return null; 
 
   return (
     <>
-      {/* CSS INTERPOLATION CONTAINER: Establishes hardware-accelerated slide animations to guarantee zero viewport lag */}
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes imageCalcSheetSlide {
           from { transform: translateY(100%); opacity: 0; }
@@ -218,7 +262,6 @@ export default function Calculator({ isOpen, onClose, onMaximize }) {
         .animate-calc-image-dropdown { animation: imageCalcDropdownSlide 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
       `}} />
 
-      {/* 📡 MOBILE TOUCH DISMISS TINT CAPTURE CANVAS */}
       {isMobileView && (
         <div 
           onClick={onClose} 
@@ -226,13 +269,6 @@ export default function Calculator({ isOpen, onClose, onMaximize }) {
         />
       )}
 
-      {/* ────────────────────────────────────────────────────────────────────────────────────────────
-          🏢 MASTER CALCULATOR COMPONENT OVERHAULED WRAPPER (MATCHING IMAGE_55BE81.JPG PERFECTLY)
-          ──────────────────────────────────────────────────────────────────────────────────────────── */}
-      {/* ⚡ HEIGHT LOCKDOWN AND SHADOW DEPTH OVERHAUL:
-          - Mobile is constrained strictly to h-[80vh] with flex alignment to fit everything onto one page without scrolling.
-          - Laptops are constrained to a compact max-h-[calc(100vh-6rem)] viewport grid to eliminate screen trailing bugs.
-          - Light mode gains an industrial 'shadow-[0_24px_64px_rgba(0,0,0,0.16)]' and rich border lines to display edges clearly. */}
       <div
         className={`bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col justify-between z-50 transition-all duration-300 border border-slate-200/90 dark:border-slate-900 shadow-[0_24px_64px_rgba(0,0,0,0.16)] dark:shadow-[0_24px_64px_rgba(0,0,0,0.4)] select-none ${
           isMobileView
@@ -240,18 +276,15 @@ export default function Calculator({ isOpen, onClose, onMaximize }) {
             : "absolute top-18 right-8 w-[305px] max-h-[calc(100vh-6rem)] rounded-[32px] p-4.5 animate-calc-image-dropdown overflow-hidden"
         }`}
       >
-        {/* MOBILE PRESENTATION POSITION GAUGE SLIDER BAR */}
         {isMobileView && (
           <div className="w-10 h-1 bg-slate-200 dark:bg-slate-800 rounded-full mx-auto mb-3 shrink-0" />
         )}
 
-        {/* ── ZONE 1: HIGH-FIDELITY SCROLLING FORMULA DISPLAY LAYER (MATCHING REFERENCE CONTRAST) ── */}
+        {/* ── ZONE 1: HIGH-FIDELITY SCROLLING FORMULA DISPLAY LAYER ── */}
         <div className="w-full flex flex-col items-end justify-end px-2 pt-2 pb-1 shrink-0 font-sans tracking-tight min-h-[76px]">
-          {/* Stacked historic formulas row layer */}
           <div className="text-[12px] font-bold text-slate-400 dark:text-slate-500 max-w-full truncate pr-1 font-mono tracking-normal leading-none min-h-[14px]">
             {equationHistory}
           </div>
-          {/* Main numeric display value string with custom '=' visual anchor prefix from reference image_55be81.jpg */}
           <div className="text-3xl sm:text-4xl font-light text-slate-800 dark:text-slate-100 max-w-full truncate flex items-center justify-end gap-1.5 leading-tight pt-0.5">
             <span className="text-slate-300 dark:text-slate-700 font-normal text-xl sm:text-2xl">=</span>
             <span className="font-sans font-normal tracking-tight">{displayValue || "0"}</span>
@@ -260,25 +293,21 @@ export default function Calculator({ isOpen, onClose, onMaximize }) {
 
         {/* ── ZONE 2: ADVANCED VIEW PRESENTATION LAYER CONTROL STRIP ── */}
         <div className="w-full flex items-center justify-between py-2.5 border-y border-slate-100 dark:border-slate-900/60 shrink-0 my-1.5">
-          
-          {/* INLINE MODERN SLIDING TOGGLE INTEGRATION AS SEEN IN DESIGN CAPTURE IMAGE_55BE81.JPG */}
           <label className="flex items-center gap-2.5 cursor-pointer group relative">
             <input 
               type="checkbox" 
               className="sr-only peer" 
               onChange={() => {
                 console.log("[CALCULATOR SYSTEM] Elevating computational pipeline matrices into full screen view...");
-                if (onMaximize) onMaximize(); // Triggers parent layout module to swap views full screen
+                if (onMaximize) onMaximize(); 
               }}
             />
-            {/* Smooth sliding neomorphic canvas rail background track */}
             <div className="w-8 h-4.5 bg-slate-100 dark:bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[3px] after:left-[2px] after:bg-slate-400 dark:after:bg-slate-300 after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-[#8B3DFF] border border-slate-200/40 dark:border-transparent transition-colors" />
             <span className="text-[9px] font-sans font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300 transition-colors">
               Full Screen View
             </span>
           </label>
 
-          {/* ⇅ CONTECH ACTION PANEL DRAWER TOGGLE CONTROL LINK */}
           <button
             type="button"
             onClick={() => setScientificPanelOpen(!scientificPanelOpen)}
@@ -293,7 +322,6 @@ export default function Calculator({ isOpen, onClose, onMaximize }) {
           </button>
         </div>
 
-        {/* NESTED EXPANSION SCIENTIFIC TOOLBAR MATRIX ROW */}
         {scientificPanelOpen && (
           <div className="w-full grid grid-cols-5 gap-1 pb-2 pt-0.5 animate-fade-in shrink-0">
             <button type="button" onClick={() => handleExecuteSingleParamSciCalc("sin")} className="h-7 rounded-lg text-[9px] font-bold font-mono uppercase bg-slate-50 text-slate-500 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 cursor-pointer focus:outline-none">sin</button>
@@ -305,67 +333,47 @@ export default function Calculator({ isOpen, onClose, onMaximize }) {
         )}
 
         {/* ── ZONE 3: NEOMORPHIC CIRCULAR BUTTON KEYPAD COMPRESSION GRID ── */}
-        {/* ⚡ SIZE UPGRADE: Buttons utilize adaptive grid items to clamp dimensions down tightly.
-            This ensures that 100% of the inputs keypad remains beautifully visible in one view without scrolling. */}
         <div className="flex-1 grid grid-cols-4 gap-2 sm:gap-2.5 items-center justify-items-center min-h-0 overflow-y-auto modal-scroll py-1">
           
-          {/* KEY KEYPAD ROW 1: Amber high-visibility clear button tracking template color tokens */}
-          <button 
-            type="button" 
-            onClick={handleResetMemory} 
-            className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#FFB020] text-white text-base font-bold flex items-center justify-center transition-all active:scale-90 shadow-sm hover:brightness-105 cursor-pointer focus:outline-none"
-          >
-            C
-          </button>
+          <button type="button" onClick={handleResetMemory} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#FFB020] text-white text-base font-bold flex items-center justify-center transition-all active:scale-90 shadow-sm hover:brightness-105 cursor-pointer focus:outline-none">C</button>
           <button type="button" onClick={() => handleAppendToken("(")} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#F2EDE4] text-slate-700 dark:bg-[#2A2824] dark:text-amber-100/80 text-sm font-bold flex items-center justify-center transition-all active:scale-90 shadow-3xs cursor-pointer focus:outline-none">(</button>
           <button type="button" onClick={() => handleAppendToken(")")} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#F2EDE4] text-slate-700 dark:bg-[#2A2824] dark:text-amber-100/80 text-sm font-bold flex items-center justify-center transition-all active:scale-90 shadow-3xs cursor-pointer focus:outline-none">)</button>
-          {/* Operator Action Right Hand Tracker Column: Finished in high-contrast crisp lavender-blue tones */}
           <button type="button" onClick={() => handleAppendToken("÷")} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#EAF0FD] text-[#557AE0] dark:bg-[#1E2538] dark:text-[#8AA4E8] text-base font-bold flex items-center justify-center transition-all active:scale-90 shadow-3xs cursor-pointer focus:outline-none">÷</button>
 
-          {/* KEY KEYPAD ROW 2 */}
           <button type="button" onClick={() => handleExecuteSingleParamSciCalc("sqrt")} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-slate-50 text-slate-600 dark:bg-[#222] dark:text-slate-300 text-sm font-bold flex items-center justify-center transition-all active:scale-90 shadow-4xs cursor-pointer focus:outline-none">√</button>
           <button type="button" onClick={() => handleExecuteSingleParamSciCalc("percent")} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-slate-50 text-slate-600 dark:bg-[#222] dark:text-slate-300 text-sm font-bold flex items-center justify-center transition-all active:scale-90 shadow-4xs cursor-pointer focus:outline-none">%</button>
           <button type="button" onClick={handleToggleSignModifier} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-slate-50 text-slate-600 dark:bg-[#222] dark:text-slate-300 text-sm font-bold flex items-center justify-center transition-all active:scale-90 shadow-4xs cursor-pointer focus:outline-none">±</button>
           <button type="button" onClick={() => handleAppendToken("×")} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#EAF0FD] text-[#557AE0] dark:bg-[#1E2538] dark:text-[#8AA4E8] text-base font-bold flex items-center justify-center transition-all active:scale-90 shadow-3xs cursor-pointer focus:outline-none">×</button>
 
-          {/* KEY KEYPAD ROW 3: High-contrast pure white layout panels boosting edge readability inside light mode screens */}
           <button type="button" onClick={() => handleAppendToken("7")} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white text-slate-800 dark:bg-[#2C2C2C] dark:text-slate-100 text-base font-medium flex items-center justify-center transition-all active:scale-90 shadow-4xs border border-slate-100 dark:border-transparent cursor-pointer focus:outline-none">7</button>
           <button type="button" onClick={() => handleAppendToken("8")} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white text-slate-800 dark:bg-[#2C2C2C] dark:text-slate-100 text-base font-medium flex items-center justify-center transition-all active:scale-90 shadow-4xs border border-slate-100 dark:border-transparent cursor-pointer focus:outline-none">8</button>
           <button type="button" onClick={() => handleAppendToken("9")} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white text-slate-800 dark:bg-[#2C2C2C] dark:text-slate-100 text-base font-medium flex items-center justify-center transition-all active:scale-90 shadow-4xs border border-slate-100 dark:border-transparent cursor-pointer focus:outline-none">9</button>
           <button type="button" onClick={() => handleAppendToken("-")} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#EAF0FD] text-[#557AE0] dark:bg-[#1E2538] dark:text-[#8AA4E8] text-lg font-bold flex items-center justify-center transition-all active:scale-90 shadow-3xs cursor-pointer focus:outline-none">−</button>
 
-          {/* KEY KEYPAD ROW 4 */}
           <button type="button" onClick={() => handleAppendToken("4")} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white text-slate-800 dark:bg-[#2C2C2C] dark:text-slate-100 text-base font-medium flex items-center justify-center transition-all active:scale-90 shadow-4xs border border-slate-100 dark:border-transparent cursor-pointer focus:outline-none">4</button>
           <button type="button" onClick={() => handleAppendToken("5")} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white text-slate-800 dark:bg-[#2C2C2C] dark:text-slate-100 text-base font-medium flex items-center justify-center transition-all active:scale-90 shadow-4xs border border-slate-100 dark:border-transparent cursor-pointer focus:outline-none">5</button>
           <button type="button" onClick={() => handleAppendToken("6")} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white text-slate-800 dark:bg-[#2C2C2C] dark:text-slate-100 text-base font-medium flex items-center justify-center transition-all active:scale-90 shadow-4xs border border-slate-100 dark:border-transparent cursor-pointer focus:outline-none">6</button>
           <button type="button" onClick={() => handleAppendToken("+")} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#EAF0FD] text-[#557AE0] dark:bg-[#1E2538] dark:text-[#8AA4E8] text-base font-bold flex items-center justify-center transition-all active:scale-90 shadow-3xs cursor-pointer focus:outline-none">+</button>
 
-          {/* LAYERED GRIDS BLOCK HOUSING SPLIT OPERATIONS FOR ROW SPANS */}
           <div className="col-span-3 grid grid-cols-3 gap-2 sm:gap-2.5 w-full items-center justify-items-center">
-            {/* ROW 5 NUMERIC SECTIONS */}
             <button type="button" onClick={() => handleAppendToken("1")} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white text-slate-800 dark:bg-[#2C2C2C] dark:text-slate-100 text-base font-medium flex items-center justify-center transition-all active:scale-90 shadow-4xs border border-slate-100 dark:border-transparent cursor-pointer focus:outline-none">1</button>
             <button type="button" onClick={() => handleAppendToken("2")} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white text-slate-800 dark:bg-[#2C2C2C] dark:text-slate-100 text-base font-medium flex items-center justify-center transition-all active:scale-90 shadow-4xs border border-slate-100 dark:border-transparent cursor-pointer focus:outline-none">2</button>
             <button type="button" onClick={() => handleAppendToken("3")} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white text-slate-800 dark:bg-[#2C2C2C] dark:text-slate-100 text-base font-medium flex items-center justify-center transition-all active:scale-90 shadow-4xs border border-slate-100 dark:border-transparent cursor-pointer focus:outline-none">3</button>
 
-            {/* ROW 6 NUMERIC SECTIONS */}
             <button type="button" onClick={() => handleAppendToken(".")} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white text-slate-800 dark:bg-[#2C2C2C] dark:text-slate-100 text-base font-medium flex items-center justify-center transition-all active:scale-90 shadow-4xs border border-slate-100 dark:border-transparent cursor-pointer focus:outline-none">.</button>
             <button type="button" onClick={() => handleAppendToken("0")} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white text-slate-800 dark:bg-[#2C2C2C] dark:text-slate-100 text-base font-medium flex items-center justify-center transition-all active:scale-90 shadow-4xs border border-slate-100 dark:border-transparent cursor-pointer focus:outline-none">0</button>
             
-            {/* ⚡ ICON REPAIR UPGRADE: Swapped text tags for an inline vector backspace arrow icon */}
+            {/* 🚀 NEW UPGRADE: Replaced fragile SVG with bulletproof FontAwesome icon */}
             <button 
               type="button" 
               onClick={handleBackspaceSlice} 
-              className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white text-slate-500 hover:text-slate-800 dark:bg-[#222] dark:text-slate-400 dark:hover:text-slate-200 text-xs flex items-center justify-center transition-all active:scale-90 shadow-4xs cursor-pointer focus:outline-none" 
+              className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white text-slate-500 hover:text-slate-800 dark:bg-[#222] dark:text-slate-400 dark:hover:text-slate-200 text-sm flex items-center justify-center transition-all active:scale-90 shadow-4xs cursor-pointer focus:outline-none" 
               title="Delete trailing character entry token"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414A2 2 0 0010.828 19H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
-              </svg>
+              <i className="fas fa-backspace"></i>
             </button>
           </div>
 
-          {/* 👑 ELONGATED DEEP PURPLE EQUALS COMPUTE PILL ACTION TRIGGER BUTTON
-              Directly emulates the high-end custom look from reference image_55be81.jpg */}
           <div className="col-span-1 h-full flex items-center justify-center w-full min-h-[94px] sm:min-h-[102px] pb-0.5">
             <button
               type="button"
@@ -382,7 +390,7 @@ export default function Calculator({ isOpen, onClose, onMaximize }) {
         {/* ── ZONE 4: BRAND SECURITY REGIONAL FOOTER LABELS STRIP ── */}
         <div className="w-full text-center shrink-0 pt-2 border-t border-slate-100 dark:border-slate-900/60 select-none mt-1.5">
           <p className="text-[9px] font-mono font-bold text-slate-300 dark:text-slate-700 tracking-wider uppercase">
-            Jemer High Precision Core // 2026
+            Jemer pro Calculator
           </p>
         </div>
 

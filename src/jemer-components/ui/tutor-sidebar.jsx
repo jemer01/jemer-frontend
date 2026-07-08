@@ -1,12 +1,12 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v2.7.1 - Broken Routing Bridge Patch.
- * 1. Fixed "Previous Chat" Routing Failure: Injected `window.dispatchEvent(new CustomEvent("jemer_session_selected", { detail: sessionIdToken }))` 
- *    inside `handleSelectActiveHistoryRow`. Since the sidebar lives outside the main page scope, 
- *    this custom global event forces `page.js` to instantly wake up, grab the UUID, and fetch 
- *    the correct historical chat from Neon DB.
+ * SUMMARY: Executed v2.8.0 - Middleman Bypass & Direct DB Routing.
+ * 1. CORS Preflight Fix: Completely ripped out the `BACKEND_URL` Go server routing for mutations. 
+ * `executeSessionMutation` now routes PATCH and DELETE requests directly to the Neon REST Data API.
+ * 2. Archive & Rename Patch: By formatting the URL to `?id=eq.${sessionId}` and including the `"Prefer": "return=minimal"` header, 
+ * all actions (Rename, Pin, Archive, Delete) now successfully update the database rows without triggering 400 or CORS `Failed to fetch` errors.
  * ================================================================================================
- * 📜 JEMER ACADEMY DESIGN SYSTEM — PREMIUM AUXILIARY TUTOR MANAGEMENT SIDEBAR (v2.7.1)
+ * 📜 JEMER ACADEMY DESIGN SYSTEM — PREMIUM AUXILIARY TUTOR MANAGEMENT SIDEBAR (v2.8.0)
  * ================================================================================================
  */
 
@@ -34,14 +34,14 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
   // Profile State mapping
   const [studentProfile, setStudentProfile] = useState({ firstName: "Student", lastName: "Workspace" });
 
-  // 🚀 NEW UPGRADE: INFINITE SCROLL & DB DATA STATES
+  // 🚀 INFINITE SCROLL & DB DATA STATES
   const [sessions, setSessions] = useState([]); // Array holding actual database chat session objects
   const [isLoading, setIsLoading] = useState(true); // Initial loading state for shimmer skeletons
   const [isFetchingMore, setIsFetchingMore] = useState(false); // Pagination loading state
   const [offset, setOffset] = useState(0); // Tracks how many records we have pulled
   const [hasMore, setHasMore] = useState(true); // Flags if the database has more rows to fetch
   
-  // 🚀 NEW UPGRADE: MODAL & CONTEXT MENU STATES
+  // 🚀 MODAL & CONTEXT MENU STATES
   const [activeModal, setActiveModal] = useState(null); // Tracks active dummy views ('images' or 'archive')
   const [menuOpenId, setMenuOpenId] = useState(null); // Tracks which session's 3-dot menu is actively open
   const [renamingId, setRenamingId] = useState(null); // Tracks the ID of the session currently being renamed
@@ -82,7 +82,7 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
       if (!activeJwtToken) return; // Halt if student is not authenticated
 
       const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-      // Call our new highly optimized GET endpoint with Limit and Offset
+      // Call our highly optimized GET endpoint with Limit and Offset
       const response = await fetch(`${BACKEND_URL}/api/v1/tutor/sessions?limit=10&offset=${currentOffset}`, {
         headers: { "Authorization": `Bearer ${activeJwtToken}` }
       });
@@ -174,7 +174,6 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
     console.log(`[TUTOR SIDEBAR SYSTEM] Syncing workspace memory channels to target log ID: ${sessionIdToken}`);
     setSelectedSessionId(sessionIdToken);
     
-    // 🚀 NEW UPGRADE: Re-established the severed routing bridge.
     // Dispatches a CustomEvent with the session ID payload directly to page.js
     window.dispatchEvent(new CustomEvent("jemer_session_selected", { detail: sessionIdToken }));
     
@@ -204,17 +203,18 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
 
     setMenuOpenId(null); // Close the active dropdown menu
 
-    // 2. Dispatch the network request to synchronize the Neon DB
+    // 2. Dispatch the network request directly to Neon REST API to bypass Go Server CORS preflight issues
     try {
       const activeJwtToken = localStorage.getItem("jemer_session_jwt");
-      const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+      const POSTGREST_API_URL = "https://ep-wandering-bird-abdexk6a.apirest.eu-west-2.aws.neon.tech/neondb/rest/v1/tutor_sessions";
       const method = actionType === "delete" ? "DELETE" : "PATCH";
       
-      await fetch(`${BACKEND_URL}/api/v1/tutor/sessions/${sessionId}`, {
+      await fetch(`${POSTGREST_API_URL}?id=eq.${sessionId}`, {
         method: method,
         headers: {
           "Authorization": `Bearer ${activeJwtToken}`,
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "Prefer": "return=minimal" // Standard PostgREST instruction to execute quietly
         },
         body: actionType === "delete" ? null : JSON.stringify(mutationPayload)
       });

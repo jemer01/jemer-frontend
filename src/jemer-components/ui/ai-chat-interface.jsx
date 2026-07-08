@@ -1,21 +1,24 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v4.5.0 - Premium UI/UX Polish & Z-Index Harmonization.
- * 1. Universal CSS Scrollbars: Ripped out native HTML scrollbars. Injected `.jemer-premium-scroll` 
- *    and applied it to the Inline Edit textarea, Feedback Modal textarea, and Reasoning Accordions 
- *    for a pristine, high-end feel.
- * 2. Skeleton Stream Indicator: Replaced the primitive "bouncing dots" with an enterprise-grade 
- *    animated shimmering text skeleton while the AI is generating/thinking.
- * 3. Context Harmonization: Cross-referenced the provided Navbar (z-30) and Sidebar (z-40) to 
- *    ensure the Feedback Modal (z-150) and popovers (z-20) perfectly respect the global stacking context.
+ * SUMMARY: Executed v4.6.0 - Table Math Engine & Portal Feedback Modal.
+ * 1. Markdown Table Rendering: Ripped out the crude `dangerouslySetInnerHTML` for table cells. 
+ * We now recursively route every single table cell back through our premium `MarkdownRenderer` 
+ * so LaTeX/KaTeX renders perfectly inside table grids!
+ * 2. React Portal Modal: Wrapped the Feedback Modal in `createPortal` and attached it to `document.body`. 
+ * This completely breaks it out of the parent container's CSS flow, fixing the scrolling bugs 
+ * and ensuring it locks perfectly to the viewport on all screens without layout clipping.
+ * 3. Glassmorphism UI Polish: Removed the ugly black AI text highlight. Replaced it with a clean, 
+ * frosted-glass quote block featuring subtle branding and optimized mobile flex-padding to 
+ * prevent the mobile keyboard from crushing the SVGs.
  * ================================================================================================
- * 💬 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR CHAT ARENA COMPONENT (v4.5.0)
+ * 💬 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR CHAT ARENA COMPONENT (v4.6.0)
  * ================================================================================================
  */
 
 "use client"; // Enforces client-side processing configurations to safely manage layout hooks and browser document nodes
 
 import React, { useState, useEffect, useRef } from "react"; 
+import { createPortal } from "react-dom"; // 🚀 NEW UPGRADE: Imported to teleport modals out of scrolling containers
 import { useTheme } from "@/jemer-components/context/ThemeContext.jsx"; // Imports the crash-proof global theme hook gateway
 import MarkdownRenderer from "@/jemer-components/ui/markdown-renderer.jsx"; // Imports our master decoupled Markdown and Math rendering engine
 
@@ -89,8 +92,16 @@ export default function AIChatInterface({
   const [feedbackText, setFeedbackText] = useState(""); 
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false); 
 
+  // 🚀 NEW UPGRADE: Mount state tracker to safely execute React Portals on the client without SSR hydration crashing
+  const [mounted, setMounted] = useState(false);
+
   const messagesEndRef = useRef(null);
   const [autoScroll, setAutoScroll] = useState(true);
+
+  // Initialize portal mounting safety variable
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const handleUserInteraction = () => {
@@ -230,7 +241,6 @@ export default function AIChatInterface({
   return (
     <div className="w-full flex flex-col gap-6 sm:gap-8 py-6 select-none animate-fade-in relative">
       
-      {/* 🚀 NEW UPGRADE: Universal Premium Scrollbar & Shimmer Injection */}
       <style dangerouslySetInnerHTML={{__html: `
         /* Premium custom scrollbar eradicating ugly HTML defaults */
         .jemer-premium-scroll::-webkit-scrollbar { width: 5px; height: 6px; }
@@ -279,7 +289,6 @@ export default function AIChatInterface({
                       e.target.style.height = 'auto';
                       e.target.style.height = e.target.scrollHeight + 'px';
                     }}
-                    // 🚀 NEW UPGRADE: Applied the jemer-premium-scroll class to the inline edit textarea
                     className="jemer-premium-scroll w-full bg-transparent text-slate-900 dark:text-slate-100 text-sm sm:text-base font-sans font-medium outline-none resize-none leading-relaxed"
                     style={{ minHeight: "60px", maxHeight: "300px", overflowY: "auto" }}
                     autoFocus
@@ -393,7 +402,6 @@ export default function AIChatInterface({
                 </button>
                 
                 {isReasoningExpanded && (
-                  // 🚀 NEW UPGRADE: Applied the jemer-premium-scroll class to the reasoning accordion box
                   <div className="jemer-premium-scroll mt-2 pl-3 border-l-2 border-slate-300 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 font-mono space-y-1 bg-slate-50/50 dark:bg-slate-900/40 p-3 rounded-r-xl shadow-inner animate-fade-in max-h-[300px] overflow-y-auto">
                     <p className="whitespace-pre-line leading-relaxed break-words font-medium">
                       {internalReasoningText}
@@ -403,7 +411,6 @@ export default function AIChatInterface({
               </div>
             )}
 
-            {/* 🚀 NEW UPGRADE: Premium Shimmer Skeleton Loading Indicator */}
             {isCurrentlyStreaming && !msg.text.trim() && (
               <div className="w-full animate-fade-in space-y-3 mt-1 pl-1 max-w-2xl">
                 <div className="flex items-center gap-2 mb-2">
@@ -433,13 +440,15 @@ export default function AIChatInterface({
                   const bodyLines = tableLines.slice(dataStartIndex).map(line => line.split('|').filter(Boolean).map(c => c.trim()));
 
                   return (
-                    // 🚀 NEW UPGRADE: Replaced custom-table-scroll with our global jemer-premium-scroll
                     <div key={`table-${tIdx}`} className="jemer-premium-scroll w-full overflow-x-auto my-5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm">
                       <table className="w-full text-left border-collapse text-sm min-w-[600px]">
                         <thead className="bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300">
                           <tr>
                             {headers.map((h, i) => (
-                              <th key={i} className="p-3 border-b border-slate-200 dark:border-slate-700/60 font-bold whitespace-nowrap">{h}</th>
+                              <th key={i} className="p-3 border-b border-slate-200 dark:border-slate-700/60 font-bold whitespace-nowrap">
+                                {/* 🚀 NEW UPGRADE: Re-routed header cells through MarkdownRenderer */}
+                                <div className="-m-3"><MarkdownRenderer text={h} /></div>
+                              </th>
                             ))}
                           </tr>
                         </thead>
@@ -447,12 +456,9 @@ export default function AIChatInterface({
                           {bodyLines.map((row, i) => (
                             <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                               {row.map((cell, j) => (
-                                <td key={j} className="p-3 text-slate-600 dark:text-slate-300 font-medium">
-                                  <span dangerouslySetInnerHTML={{
-                                    __html: cell
-                                      .replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-900 dark:text-white font-extrabold">$1</strong>')
-                                      .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
-                                  }} />
+                                <td key={j} className="p-3 text-slate-600 dark:text-slate-300 font-medium align-top">
+                                  {/* 🚀 NEW UPGRADE: Routed data cells through MarkdownRenderer so KaTeX parses smoothly inside grid walls */}
+                                  <div className="-m-3"><MarkdownRenderer text={cell} /></div>
                                 </td>
                               ))}
                             </tr>
@@ -532,80 +538,82 @@ export default function AIChatInterface({
       
       <div ref={messagesEndRef} className="h-1 w-full" />
 
-      {/* 🚀 Z-INDEX HARMONIZATION: Modal locked to z-[150] to clear Navbar (z-30) and Sidebar (z-40) */}
-      {isFeedbackModalOpen && (
-        <div className="fixed inset-0 z-[150] bg-slate-900/30 dark:bg-black/60 backdrop-blur-md flex items-end md:items-center justify-center transition-all duration-300 p-0 md:p-6">
+      {/* 🚀 NEW UPGRADE: React Portal Teleportation Matrix
+          The Feedback Modal is entirely detached from the scrolling page grid and anchored to the body document.
+          This ensures it never gets trapped behind padding, completely eliminating the 'scrolling to type' bug! */}
+      {isFeedbackModalOpen && mounted && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-slate-900/40 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 transition-all duration-300 animate-fade-in">
           
+          {/* Invisible click-away dim layer safely handles closure paths */}
           <div 
             onClick={() => setIsFeedbackModalOpen(false)} 
-            className="absolute inset-0 bg-transparent cursor-pointer" 
+            className="absolute inset-0 cursor-pointer" 
           />
 
-          <div className="w-full md:max-w-xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border-t md:border border-slate-200/50 dark:border-slate-700/50 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] md:shadow-2xl flex flex-col justify-between z-10 select-none font-sans h-[75vh] md:h-auto rounded-t-[40px] md:rounded-[32px] animate-slide-up overflow-hidden">
+          {/* Master Viewport Container (Rebuilt flex flow to guarantee smooth typing when mobile keyboards pop up) */}
+          <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-700/50 shadow-2xl z-10 rounded-3xl flex flex-col overflow-hidden relative max-h-[90vh]">
             
-            <div className="w-full flex justify-center pt-3 pb-1 md:hidden shrink-0">
-               <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full" />
-            </div>
-
-            <form onSubmit={handleSubmitFeedbackPayload} className="flex-1 flex flex-col justify-between h-full w-full">
+            <form onSubmit={handleSubmitFeedbackPayload} className="flex flex-col h-full w-full max-h-[90vh]">
               
-              <div className="px-5 md:px-6 pt-2 pb-4 text-left shrink-0">
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-[14px] flex items-center justify-center shadow-inner ${
-                      activeFeedbackType === "like" 
-                        ? "bg-gradient-to-br from-emerald-100 to-teal-50 text-emerald-600 dark:from-emerald-900/50 dark:to-teal-900/20 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/50" 
-                        : "bg-gradient-to-br from-rose-100 to-red-50 text-rose-600 dark:from-rose-900/50 dark:to-red-900/20 dark:text-rose-400 border border-rose-200/50 dark:border-rose-800/50"
-                    }`}>
-                      <i className={`fas ${activeFeedbackType === "like" ? "fa-thumbs-up" : "fa-thumbs-down"} text-sm`} />
-                    </div>
-                    <div>
-                      <h3 className="text-base font-display font-black text-slate-900 dark:text-white tracking-tight leading-tight">
-                        {activeFeedbackType === "like" ? "Share Your Success Story" : "Help Us Optimize Pacing"}
-                      </h3>
-                      <p className="text-[10px] font-mono font-semibold text-slate-400 tracking-wider uppercase mt-0.5">
-                        Jemer Core Analytics Registry
-                      </p>
-                    </div>
+              {/* HEADER REGION */}
+              <div className="px-6 pt-6 pb-4 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-[14px] flex items-center justify-center shadow-inner shrink-0 ${
+                    activeFeedbackType === "like" 
+                      ? "bg-gradient-to-br from-emerald-100 to-teal-50 text-emerald-600 dark:from-emerald-900/50 dark:to-teal-900/20 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/50" 
+                      : "bg-gradient-to-br from-rose-100 to-red-50 text-rose-600 dark:from-rose-900/50 dark:to-red-900/20 dark:text-rose-400 border border-rose-200/50 dark:border-rose-800/50"
+                  }`}>
+                    <i className={`fas ${activeFeedbackType === "like" ? "fa-thumbs-up" : "fa-thumbs-down"} text-sm`} />
                   </div>
-                  
-                  <button
-                    type="button"
-                    onClick={() => setIsFeedbackModalOpen(false)}
-                    className="w-8 h-8 rounded-full bg-slate-100/80 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors cursor-pointer"
-                  >
-                    <i className="fas fa-times text-xs" />
-                  </button>
+                  <div>
+                    <h3 className="text-base font-display font-black text-slate-900 dark:text-white tracking-tight leading-tight">
+                      {activeFeedbackType === "like" ? "Share Your Success Story" : "Help Us Optimize Pacing"}
+                    </h3>
+                    <p className="text-[10px] font-mono font-semibold text-slate-400 tracking-wider uppercase mt-0.5">
+                      Jemer Core Analytics Registry
+                    </p>
+                  </div>
                 </div>
+                
+                <button
+                  type="button"
+                  onClick={() => setIsFeedbackModalOpen(false)}
+                  className="w-8 h-8 shrink-0 rounded-full bg-slate-100/80 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors cursor-pointer"
+                >
+                  <i className="fas fa-times text-xs" />
+                </button>
               </div>
 
-              <div className="px-5 md:px-6 pb-2 shrink-0">
-                 {/* 🚀 NEW UPGRADE: Applied jemer-premium-scroll to the preview box to handle extremely long AI text beautifully */}
-                 <div className="jemer-premium-scroll p-3.5 bg-slate-50/80 dark:bg-slate-950/50 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 text-xs text-slate-500 dark:text-slate-400 font-mono italic shadow-inner relative max-h-[80px] overflow-y-auto">
-                   <div className="absolute top-2 right-3 text-[8px] font-black uppercase tracking-widest text-slate-300 dark:text-slate-600">AI Snippet</div>
-                   <span className="pr-6 leading-relaxed">"{activeMessageText}"</span>
+              {/* BODY REGION: Flexible layout preventing overflow when typing */}
+              <div className="px-6 flex-1 overflow-y-auto jemer-premium-scroll flex flex-col gap-4 pb-2">
+                 
+                 {/* 🚀 NEW UPGRADE: Replaced ugly black box with premium Glassmorphism UI Quote Block */}
+                 <div className="jemer-premium-scroll p-4 bg-white/40 dark:bg-slate-800/40 backdrop-blur-md rounded-2xl border-l-4 border-l-blue-500 border-y border-r border-slate-200/50 dark:border-slate-700/50 text-xs text-slate-600 dark:text-slate-300 font-sans shadow-sm relative max-h-[120px] overflow-y-auto shrink-0">
+                   <div className="absolute top-2 right-3 text-[9px] font-black uppercase tracking-widest text-blue-500/70 dark:text-blue-400/70">AI Snippet</div>
+                   <p className="pr-6 leading-relaxed italic break-words">"{activeMessageText}"</p>
+                 </div>
+
+                 {/* Text Input Sandbox */}
+                 <div className="flex flex-col flex-1 min-h-[120px]">
+                   <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-2 pl-1 shrink-0">
+                     Qualitative Student Commentary (Optional)
+                   </label>
+                   <textarea
+                     required
+                     value={feedbackText}
+                     onChange={(e) => setFeedbackText(e.target.value)}
+                     placeholder={
+                       activeFeedbackType === "like"
+                         ? "What made this great? Was the analogy perfect? Did the code structure click?"
+                         : "What went sideways? Did the tutor hallucinate parameters, overcomplicate the equation, or drop detail tracks?"
+                     }
+                     className="jemer-premium-scroll w-full flex-1 min-h-[100px] p-4 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700/60 text-slate-900 dark:text-slate-100 text-sm font-medium placeholder-slate-400 rounded-[20px] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-blue-500/20 transition-all leading-relaxed resize-none font-sans shadow-sm"
+                   />
                  </div>
               </div>
 
-              <div className="flex-1 px-5 md:px-6 pb-4 flex flex-col justify-start text-left min-h-0">
-                <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-2 pl-1">
-                  Qualitative Student Commentary (Optional)
-                </label>
-                <textarea
-                  required
-                  value={feedbackText}
-                  onChange={(e) => setFeedbackText(e.target.value)}
-                  placeholder={
-                    activeFeedbackType === "like"
-                      ? "What made this great? Was the analogy perfect? Did the code structure click? Let our strategy team know..."
-                      : "What went sideways? Did the tutor hallucinate parameters, overcomplicate the physics equation, or drop detail tracks? Tell us how to fix it..."
-                  }
-                  // 🚀 NEW UPGRADE: Applied jemer-premium-scroll class to the feedback input box
-                  className="jemer-premium-scroll w-full flex-1 p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 text-slate-900 dark:text-slate-100 text-sm font-medium placeholder-slate-400 rounded-[20px] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-blue-500/20 transition-all leading-relaxed resize-none font-sans shadow-sm"
-                />
-              </div>
-
-              <div className="px-5 md:px-6 py-4 border-t border-slate-100 dark:border-slate-800/50 shrink-0 flex items-center justify-end gap-3 bg-slate-50/50 dark:bg-slate-900/20">
+              {/* FOOTER REGION: Action triggers strictly locked to the bottom boundary */}
+              <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800/50 shrink-0 flex items-center justify-end gap-3 bg-slate-50/50 dark:bg-slate-900/30">
                 <button
                   type="button"
                   onClick={() => setIsFeedbackModalOpen(false)}
@@ -626,7 +634,7 @@ export default function AIChatInterface({
                   {isSubmittingFeedback ? (
                     <>
                       <i className="fas fa-circle-notch fa-spin mr-1" />
-                      <span>Logging Metrics...</span>
+                      <span>Logging...</span>
                     </>
                   ) : (
                     <>
@@ -639,7 +647,8 @@ export default function AIChatInterface({
 
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

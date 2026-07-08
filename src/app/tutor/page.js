@@ -1,15 +1,20 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v4.2.0 - Seamless UI Titling Sync.
- * 1. Delayed Sidebar Sync: Injected a secondary `window.dispatchEvent(new Event("jemer_chat_updated"))` 
- *    exactly when the `data: [DONE]` signal is received from the backend stream. This guarantees the sidebar 
- *    refreshes and fetches the newly generated AI title *after* the background titling goroutine has finished saving it.
+ * SUMMARY: Executed v4.3.0 - Silent Authentication Interceptor & Replay Engine.
+ * 1. Intelligent Token Polling: Upgraded `performSilentTokenRefresh` to parse the actual JWT payload. 
+ * Instead of just waiting for the string to mutate, it now checks if the `exp` timestamp has been safely extended.
+ * Increased polling limits to 5 seconds to accommodate network latency from Neon Auth servers.
+ * 2. Deep Stream Replay: Eradicated the brutal 401 redirect in `handleProcessOutboundPrompt`.
+ * If a stream request hits a 401, the engine now traps the error, executes a synchronous token refresh, 
+ * and seamlessly replays the fetch request. The user experiences a slight delay, but never a redirect!
+ * 3. Safe Failures: If the session is permanently dead, it safely logs the error into the AI chat 
+ * instead of flushing local storage and destroying the viewport.
  * ================================================================================================
- * 🧠 JEMER ACADEMY DASHBOARD FEATURE ENGINE — MASTER AI TUTOR PAGE RUNWAY (v4.2.0)
+ * 🧠 JEMER ACADEMY DASHBOARD FEATURE ENGINE — MASTER AI TUTOR PAGE RUNWAY (v4.3.0)
  * ================================================================================================
  */
 
-"use client";
+"use client"; // Enforces client-side execution to allow browser APIs like localStorage and React hooks
 
 import React, { useState, useEffect, useRef } from "react"; 
 import AITutorIntro from "@/jemer-components/ui/ai-tutor-intro.jsx"; 
@@ -19,6 +24,10 @@ import PersonalizationEngine from "@/jemer-components/ui/personalization.jsx";
 
 // ── 🚀 ADVANCED JWT LIFECYCLE ENGINE & INTERCEPTOR ───────────────────────────────────────────────
 
+/**
+ * Safely decodes a base64 JWT string without external libraries.
+ * We use this to inspect the token's internal expiration (exp) timestamp.
+ */
 const decodeJWTPayload = (token) => {
   try {
     const base64Url = token.split('.')[1];
@@ -28,10 +37,15 @@ const decodeJWTPayload = (token) => {
     }).join(''));
     return JSON.parse(jsonPayload);
   } catch (e) {
-    return null;
+    return null; // Fails safely if the token is malformed
   }
 };
 
+/**
+ * Checks if the current token is dead or will die within the specified threshold.
+ * @param {string} token - The raw JWT string from local storage
+ * @param {number} thresholdSeconds - The buffer time (e.g., 300 seconds = 5 mins) before true expiration
+ */
 const isTokenExpiringSoon = (token, thresholdSeconds = 300) => {
   if (!token) return true; 
   const payload = decodeJWTPayload(token);
@@ -43,11 +57,16 @@ const isTokenExpiringSoon = (token, thresholdSeconds = 300) => {
   return secondsRemaining < thresholdSeconds;
 };
 
+// Global singletons to prevent multiple overlapping refresh requests
 let isRefreshing = false;
 let refreshPromise = null;
 
+/**
+ * Forces the Neon Auth SDK to renew the session and aggressively polls local storage 
+ * until it verifies the new secure token has been securely mounted.
+ */
 const performSilentTokenRefresh = async () => {
-  if (isRefreshing) return refreshPromise;
+  if (isRefreshing) return refreshPromise; // If a refresh is already happening, return the existing promise lock
 
   console.log("🔄 [AUTH ENGINE] Executing silent cryptographic swap via Client SDK...");
   isRefreshing = true;
@@ -58,40 +77,48 @@ const performSilentTokenRefresh = async () => {
 
       if (typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.refreshSession === "function") {
         
+        // Command the Neon SDK to execute a background session renewal
         await window.JemerAuth.refreshSession();
         
         let attempts = 0;
-        const maxAttempts = 60;
+        const maxAttempts = 100; // Increased to 5 seconds (100 * 50ms) to guarantee Neon DB has time to respond
         
         while (attempts < maxAttempts) {
           const currentToken = localStorage.getItem("jemer_session_jwt");
           
-          if (currentToken && currentToken !== oldToken) {
-            console.log("✅ [AUTH ENGINE] Session securely refreshed. Token physical mutation confirmed.");
+          // 🚀 NEW UPGRADE: We now check if the string changed OR if the exact same string has a renewed payload expiration!
+          // This prevents infinite timeouts if Neon Auth retains the token ID but bumps the expiry timestamp.
+          if (currentToken && (currentToken !== oldToken || !isTokenExpiringSoon(currentToken, 300))) {
+            console.log("✅ [AUTH ENGINE] Session securely refreshed. Token matrix successfully extended.");
             return currentToken;
           }
           
-          await new Promise(resolve => setTimeout(resolve, 50));
+          await new Promise(resolve => setTimeout(resolve, 50)); // Wait 50ms before checking the storage again
           attempts++;
         }
         
-        console.warn("⚠️ [AUTH ENGINE] Mutation timeout. SDK did not update localStorage within limits.");
+        console.warn("⚠️ [AUTH ENGINE] Mutation timeout. SDK did not update localStorage within the 5-second boundary.");
       }
       return null;
     } catch (error) {
       console.error("❌ [AUTH ENGINE] Client pipeline disruption during token swap:", error);
       return null;
     } finally {
-      isRefreshing = false;
+      isRefreshing = false; // Always release the lock so future calls can execute
     }
   })();
 
   return refreshPromise;
 };
 
+/**
+ * A specialized fetch wrapper that automatically checks token health before firing.
+ * If the server returns a 401, it intercepts it, refreshes the token, and replays the request seamlessly.
+ */
 const jemerAuthenticatedFetch = async (url, options = {}) => {
   let activeToken = localStorage.getItem("jemer_session_jwt");
   
+  // Pre-flight check: If the token is already stale, renew it before we even waste a network request
   if (isTokenExpiringSoon(activeToken)) {
      console.log("⏳ [AUTH PROXY] Pre-flight TTL limit breached. Executing refresh before transit...");
      const refreshedToken = await performSilentTokenRefresh();
@@ -103,15 +130,18 @@ const jemerAuthenticatedFetch = async (url, options = {}) => {
     headers.set("Authorization", `Bearer ${activeToken}`);
   }
   
+  // Fire the outbound request to the backend
   let response = await fetch(url, { ...options, headers });
 
+  // If the token expired at the exact millisecond in transit, trap the 401 error
   if (response.status === 401) {
      console.warn("⚠️ [AUTH PROXY] 401 Unauthorized intercepted. Initiating emergency synchronous mutation poll...");
      const emergencyToken = await performSilentTokenRefresh();
      
      if (emergencyToken) {
-        console.log("✅ [AUTH PROXY] Emergency swap successful. Replaying exact network request...");
+        console.log("✅ [AUTH PROXY] Emergency swap successful. Replaying exact network request behind the scenes...");
         headers.set("Authorization", `Bearer ${emergencyToken}`);
+        // Re-fire the exact same request with the new fresh token!
         response = await fetch(url, { ...options, headers });
      }
   }
@@ -120,6 +150,7 @@ const jemerAuthenticatedFetch = async (url, options = {}) => {
 };
 
 export default function TutorPage() {
+  // Core UI State Management parameters
   const [chatLog, setChatLog] = useState([]);
   const [injectedText, setInjectedText] = useState("");
 
@@ -131,14 +162,14 @@ export default function TutorPage() {
   const abortControllerRef = useRef(null);
 
   const [activeSessionId, setActiveSessionId] = useState(null); // Defaults to null for fresh chats
-  const [historyOffset, setHistoryOffset] = useState(0); // Tracks pagination jumps
-  const [hasMoreHistory, setHasMoreHistory] = useState(true); // Flags if DB is exhausted
+  const [historyOffset, setHistoryOffset] = useState(0); // Tracks pagination jumps for infinite scroll
+  const [hasMoreHistory, setHasMoreHistory] = useState(true); // Flags if DB history is exhausted
   const [isLoadingHistory, setIsLoadingHistory] = useState(false); // Prevents overlapping fetches
 
-  const chatContainerRef = useRef(null); // Used to snapshot scroll heights
+  const chatContainerRef = useRef(null); // Used to snapshot scroll heights during message insertion
   const topObserverTarget = useRef(null); // Invisible anchor triggering infinite scroll
 
-  // ── 🚀 NEW UPGRADE: CHAT HISTORY FETCHING LOGIC ───────────────────────────────────────────────
+  // ── 🚀 CHAT HISTORY FETCHING LOGIC ───────────────────────────────────────────────
   
   const loadChatHistory = async (sessionId, currentOffset, isReset = false) => {
     if ((!hasMoreHistory && !isReset) || isLoadingHistory) return;
@@ -422,15 +453,14 @@ export default function TutorPage() {
     abortControllerRef.current = new AbortController();
 
     // Synchronize the pagination offset with the live database insert.
-    // Every dispatch pushes 1 User prompt and 1 AI response to the DB. Incrementing offset by 2 
-    // guarantees the reverse IntersectionObserver won't fetch these exact messages again on scroll.
     setHistoryOffset((prevOffset) => prevOffset + 2);
 
     const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
     const ENDPOINT_PATH = `${BACKEND_URL}/api/v1/tutor/stream`;
 
     try {
-      const serverStreamResponse = await jemerAuthenticatedFetch(ENDPOINT_PATH, {
+      // 🚀 Changed `const` to `let` so we can reassign the stream response object if we need to silently replay the fetch
+      let serverStreamResponse = await jemerAuthenticatedFetch(ENDPOINT_PATH, {
         method: "POST", 
         signal: abortControllerRef.current.signal, 
         headers: {
@@ -444,20 +474,49 @@ export default function TutorPage() {
       });
 
       // Instantly dispatch a global event letting the Sidebar know a message was sent.
-      // This allows the sidebar to bump this session optimistically to the top!
       window.dispatchEvent(new Event("jemer_chat_updated"));
 
       if (!serverStreamResponse.ok) {
-        const errorPayloadText = await serverStreamResponse.text();
         
+        // 🚀 NEW UPGRADE: The Deep Replay Matrix
+        // If the request completely fails the proxy and returns a 401 right as the stream starts,
+        // we DO NOT wipe the screen or kick the user to login. We execute one final, aggressive background refresh.
         if (serverStreamResponse.status === 401) {
-          localStorage.removeItem("jemer_session_jwt");
-          localStorage.removeItem("jemer_user_uuid");
-          window.location.href = "/login.html";
-          return;
+          console.warn("⚠️ [STREAM ENGINE] Absolute 401 boundary hit. Pausing stream to force a deep synchronous replay...");
+          
+          const emergencyReplayToken = await performSilentTokenRefresh();
+          
+          if (emergencyReplayToken) {
+            console.log("🔄 [STREAM ENGINE] Safety net token secured! Replaying original prompt silently...");
+            
+            // Re-fire the stream fetch with the guaranteed fresh token
+            serverStreamResponse = await fetch(ENDPOINT_PATH, {
+              method: "POST", 
+              signal: abortControllerRef.current.signal, 
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${emergencyReplayToken}`
+              },
+              body: JSON.stringify({
+                session_id: currentSessionId, 
+                tutor_id: messagePayload.selectedTutor || "jay", 
+                user_prompt: messagePayload.promptText, 
+              }),
+            });
+
+            // If the replay STILL fails, we break out and throw an error to the chat interface. No redirects!
+            if (!serverStreamResponse.ok) {
+               throw new Error("Authentication deeply expired. Your session could not be renewed silently.");
+            }
+          } else {
+            // If we couldn't even get a new token, throw gracefully to the UI
+            throw new Error("Neon Auth integration timeout. Connection to user identity pool lost.");
+          }
+        } else {
+          // Handle standard 500s or 400s
+          const errorPayloadText = await serverStreamResponse.text();
+          throw new Error(`Server Status: ${serverStreamResponse.status}. Details: ${errorPayloadText}`);
         }
-        
-        throw new Error(`Server Status: ${serverStreamResponse.status}. Details: ${errorPayloadText}`);
       }
 
       const streamBodyReader = serverStreamResponse.body.getReader();
@@ -486,9 +545,7 @@ export default function TutorPage() {
                 msgItem.id === aiMessageId ? { ...msgItem, isThinking: false } : msgItem
               )
             );
-            // 🚀 NEW UPGRADE: Secondary Dispatch Sync
-            // Fires precisely when the AI generation completes. This guarantees the sidebar 
-            // refetches the title AFTER the background goroutine has successfully saved it to the DB.
+            // Secondary Dispatch Sync for Sidebar updates
             window.dispatchEvent(new Event("jemer_chat_updated"));
             break;
           }
@@ -555,13 +612,16 @@ export default function TutorPage() {
 
       console.error("❌ Critical streaming communication infrastructure crash occurred:", criticalPipelineCommunicationException);
       
+      // 🚀 NEW UPGRADE: Graceful UI Failure Handling
+      // Even if everything absolutely crashes, we inject the error beautifully into the chat log 
+      // instead of redirecting or breaking the layout. The user keeps all their typed history!
       setChatLog((prevLog) =>
         prevLog.map((msgItem) =>
           msgItem.id === aiMessageId
             ? { 
                 ...msgItem, 
                 isThinking: false, 
-                text: `❌ **Connection Error:** Unable to establish reliable streaming link with Cloud Run.\n\n> *Diagnostics:* ${criticalPipelineCommunicationException.message || "Verify execution states and try again."}` 
+                text: `❌ **Connection Error:** Unable to establish reliable streaming link with backend.\n\n> *Diagnostics:* ${criticalPipelineCommunicationException.message || "Verify execution states and try again."}` 
               }
             : msgItem
         )

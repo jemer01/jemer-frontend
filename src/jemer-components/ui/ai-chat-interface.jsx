@@ -1,17 +1,13 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v4.6.0 - Table Math Engine & Portal Feedback Modal.
- * 1. Markdown Table Rendering: Ripped out the crude `dangerouslySetInnerHTML` for table cells. 
- * We now recursively route every single table cell back through our premium `MarkdownRenderer` 
- * so LaTeX/KaTeX renders perfectly inside table grids!
- * 2. React Portal Modal: Wrapped the Feedback Modal in `createPortal` and attached it to `document.body`. 
- * This completely breaks it out of the parent container's CSS flow, fixing the scrolling bugs 
- * and ensuring it locks perfectly to the viewport on all screens without layout clipping.
- * 3. Glassmorphism UI Polish: Removed the ugly black AI text highlight. Replaced it with a clean, 
- * frosted-glass quote block featuring subtle branding and optimized mobile flex-padding to 
- * prevent the mobile keyboard from crushing the SVGs.
+ * SUMMARY: Executed Phase 5 - Agentic Tool UI Telemetry.
+ * 1. User Prompt File Array: Added a horizontal-scrolling document chip array directly inside 
+ * the user's chat bubble to visually display uploaded workspace files.
+ * 2. Reasoning Intercept Engine: Upgraded the thinking accordion to intercept `[ ⚙️ Using Tool: ...]` 
+ * chunks streaming from the Go backend. It dynamically transforms them into animated, glassmorphism 
+ * UI chips that extract and map the active file names directly from the associated user prompt!
  * ================================================================================================
- * 💬 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR CHAT ARENA COMPONENT (v4.6.0)
+ * 💬 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR CHAT ARENA COMPONENT (v4.7.0)
  * ================================================================================================
  */
 
@@ -92,7 +88,7 @@ export default function AIChatInterface({
   const [feedbackText, setFeedbackText] = useState(""); 
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false); 
 
-  // 🚀 NEW UPGRADE: Mount state tracker to safely execute React Portals on the client without SSR hydration crashing
+  // Mount state tracker to safely execute React Portals on the client without SSR hydration crashing
   const [mounted, setMounted] = useState(false);
 
   const messagesEndRef = useRef(null);
@@ -238,6 +234,44 @@ export default function AIChatInterface({
     }
   };
 
+  // 🚀 NEW UPGRADE: Agentic Interceptor
+  // Slices the raw AI reasoning stream, replacing '[ ⚙️ Using Tool: ... ]' tags with animated interactive chips
+  const renderReasoningWithTools = (reasoningText, activeAttachments) => {
+    if (!reasoningText) return null;
+    
+    // Identifies the exact structural format streamed down from the Go Monolith
+    const toolRegex = /(\[\s*⚙️\s*Using Tool:[^\]]*\])/g;
+    const parts = reasoningText.split(toolRegex);
+    
+    return parts.map((part, i) => {
+      if (part.match(toolRegex)) {
+        const cleanTitle = part.replace(/[\[\]]/g, '').trim();
+        return (
+          <div key={i} className="my-3 p-3 bg-indigo-50/80 dark:bg-indigo-900/20 border border-indigo-200/50 dark:border-indigo-800/50 rounded-xl animate-fade-in shadow-sm select-none">
+             <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400 font-bold text-xs uppercase tracking-wider mb-2">
+               <i className="fas fa-cog fa-spin" />
+               <span>{cleanTitle}</span>
+             </div>
+             {/* If the preceding user prompt had files, dynamically list them inside the tool chip! */}
+             {activeAttachments && activeAttachments.length > 0 && (
+               <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                 {activeAttachments.map((file, fIdx) => (
+                   <span key={fIdx} className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-indigo-100 dark:border-indigo-800/60 px-2 py-1 rounded-md text-[10px] font-medium text-slate-600 dark:text-slate-300 shadow-sm shrink-0">
+                     <svg className="w-3 h-3 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                     </svg>
+                     <span className="truncate max-w-[150px]">{file}</span>
+                   </span>
+                 ))}
+               </div>
+             )}
+          </div>
+        );
+      }
+      return <span key={i}>{part}</span>;
+    });
+  };
+
   return (
     <div className="w-full flex flex-col gap-6 sm:gap-8 py-6 select-none animate-fade-in relative">
       
@@ -340,7 +374,22 @@ export default function AIChatInterface({
                     </button>
                   </div>
 
-                  <div className="max-w-[85%] sm:max-w-[75%] bg-slate-100 dark:bg-slate-800 border border-slate-200/40 dark:border-slate-700/50 rounded-3xl rounded-tr-sm px-5 py-4 text-left shadow-md dark:shadow-[0_8px_16px_rgba(0,0,0,0.3)] group-hover:shadow-lg transition-shadow duration-200">
+                  <div className="max-w-[85%] sm:max-w-[75%] bg-slate-100 dark:bg-slate-800 border border-slate-200/40 dark:border-slate-700/50 rounded-3xl rounded-tr-sm px-5 py-4 text-left shadow-md dark:shadow-[0_8px_16px_rgba(0,0,0,0.3)] group-hover:shadow-lg transition-shadow duration-200 flex flex-col overflow-hidden">
+                    
+                    {/* 🚀 NEW UPGRADE: Horizontal scrolling UI attachment array rendering uploaded workspace files */}
+                    {msg.attachments && msg.attachments.length > 0 && (
+                      <div className="flex overflow-x-auto gap-2 mb-3 pb-2 jemer-premium-scroll w-full border-b border-slate-200/50 dark:border-slate-700/50">
+                        {msg.attachments.map((file, fIdx) => (
+                          <div key={fIdx} className="flex items-center gap-1.5 bg-white/60 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700/60 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 shadow-sm shrink-0">
+                            <svg className="w-3.5 h-3.5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span className="truncate max-w-[150px]">{file}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     <p className="text-sm sm:text-base font-sans font-medium text-slate-800 dark:text-slate-100 leading-relaxed whitespace-pre-wrap break-words">
                       {displayText}
                     </p>
@@ -348,7 +397,7 @@ export default function AIChatInterface({
                     {shouldTruncate && (
                       <button 
                         onClick={(e) => { e.stopPropagation(); togglePromptExpansion(msg.id); }}
-                        className="mt-2 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline focus:outline-none"
+                        className="mt-2 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline focus:outline-none self-start"
                       >
                         {isExpanded ? "Show Less" : "See More"}
                       </button>
@@ -360,6 +409,8 @@ export default function AIChatInterface({
           );
         }
 
+        // Extracts the explicit user prompt immediately preceding this AI message 
+        // to map the files requested during tool execution chunks!
         const associatedUserPrompt = visibleMessages[index - 1] || visibleMessages[0]; 
         const isCurrentlyStreaming = msg.isThinking === true; 
         const internalReasoningText = msg.reasoning || "";
@@ -403,9 +454,10 @@ export default function AIChatInterface({
                 
                 {isReasoningExpanded && (
                   <div className="jemer-premium-scroll mt-2 pl-3 border-l-2 border-slate-300 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 font-mono space-y-1 bg-slate-50/50 dark:bg-slate-900/40 p-3 rounded-r-xl shadow-inner animate-fade-in max-h-[300px] overflow-y-auto">
-                    <p className="whitespace-pre-line leading-relaxed break-words font-medium">
-                      {internalReasoningText}
-                    </p>
+                    {/* 🚀 NEW UPGRADE: Piped the reasoning text through the Agentic Interceptor to catch tools */}
+                    <div className="whitespace-pre-line leading-relaxed break-words font-medium">
+                      {renderReasoningWithTools(internalReasoningText, associatedUserPrompt?.attachments)}
+                    </div>
                   </div>
                 )}
               </div>
@@ -446,7 +498,6 @@ export default function AIChatInterface({
                           <tr>
                             {headers.map((h, i) => (
                               <th key={i} className="p-3 border-b border-slate-200 dark:border-slate-700/60 font-bold whitespace-nowrap">
-                                {/* 🚀 NEW UPGRADE: Re-routed header cells through MarkdownRenderer */}
                                 <div className="-m-3"><MarkdownRenderer text={h} /></div>
                               </th>
                             ))}
@@ -457,7 +508,6 @@ export default function AIChatInterface({
                             <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                               {row.map((cell, j) => (
                                 <td key={j} className="p-3 text-slate-600 dark:text-slate-300 font-medium align-top">
-                                  {/* 🚀 NEW UPGRADE: Routed data cells through MarkdownRenderer so KaTeX parses smoothly inside grid walls */}
                                   <div className="-m-3"><MarkdownRenderer text={cell} /></div>
                                 </td>
                               ))}
@@ -538,24 +588,19 @@ export default function AIChatInterface({
       
       <div ref={messagesEndRef} className="h-1 w-full" />
 
-      {/* 🚀 NEW UPGRADE: React Portal Teleportation Matrix
-          The Feedback Modal is entirely detached from the scrolling page grid and anchored to the body document.
-          This ensures it never gets trapped behind padding, completely eliminating the 'scrolling to type' bug! */}
+      {/* React Portal Teleportation Matrix */}
       {isFeedbackModalOpen && mounted && createPortal(
         <div className="fixed inset-0 z-[9999] bg-slate-900/40 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 transition-all duration-300 animate-fade-in">
           
-          {/* Invisible click-away dim layer safely handles closure paths */}
           <div 
             onClick={() => setIsFeedbackModalOpen(false)} 
             className="absolute inset-0 cursor-pointer" 
           />
 
-          {/* Master Viewport Container (Rebuilt flex flow to guarantee smooth typing when mobile keyboards pop up) */}
           <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-700/50 shadow-2xl z-10 rounded-3xl flex flex-col overflow-hidden relative max-h-[90vh]">
             
             <form onSubmit={handleSubmitFeedbackPayload} className="flex flex-col h-full w-full max-h-[90vh]">
               
-              {/* HEADER REGION */}
               <div className="px-6 pt-6 pb-4 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-[14px] flex items-center justify-center shadow-inner shrink-0 ${
@@ -584,16 +629,13 @@ export default function AIChatInterface({
                 </button>
               </div>
 
-              {/* BODY REGION: Flexible layout preventing overflow when typing */}
               <div className="px-6 flex-1 overflow-y-auto jemer-premium-scroll flex flex-col gap-4 pb-2">
                  
-                 {/* 🚀 NEW UPGRADE: Replaced ugly black box with premium Glassmorphism UI Quote Block */}
                  <div className="jemer-premium-scroll p-4 bg-white/40 dark:bg-slate-800/40 backdrop-blur-md rounded-2xl border-l-4 border-l-blue-500 border-y border-r border-slate-200/50 dark:border-slate-700/50 text-xs text-slate-600 dark:text-slate-300 font-sans shadow-sm relative max-h-[120px] overflow-y-auto shrink-0">
                    <div className="absolute top-2 right-3 text-[9px] font-black uppercase tracking-widest text-blue-500/70 dark:text-blue-400/70">AI Snippet</div>
                    <p className="pr-6 leading-relaxed italic break-words">"{activeMessageText}"</p>
                  </div>
 
-                 {/* Text Input Sandbox */}
                  <div className="flex flex-col flex-1 min-h-[120px]">
                    <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-2 pl-1 shrink-0">
                      Qualitative Student Commentary (Optional)
@@ -612,7 +654,6 @@ export default function AIChatInterface({
                  </div>
               </div>
 
-              {/* FOOTER REGION: Action triggers strictly locked to the bottom boundary */}
               <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800/50 shrink-0 flex items-center justify-end gap-3 bg-slate-50/50 dark:bg-slate-900/30">
                 <button
                   type="button"

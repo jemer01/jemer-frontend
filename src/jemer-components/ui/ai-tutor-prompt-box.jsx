@@ -1,19 +1,22 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed Phase 1 - Prompt Box Stream Controller.
- * 1. Stream Props: Injected `isStreaming` and `onStopStream` into the component signature.
- * 2. UI Lockout: The textarea completely disables itself, drops opacity, and ignores 'Enter' keys while the AI is generating.
- * 3. Morphing Button: The Send button dynamically transforms into a "Stop" button featuring a custom bouncing 3-dot "replying" animation.
+ * SUMMARY: Executed Phase 2 - Direct Cloudflare R2 Upload Pipeline.
+ * 1. Max 10 Files Shield: Implemented strict truncation in `processIncomingAttachments` to prevent abuse.
+ * 2. Pre-Signed Direct Upload: Upgraded `handleDispatchPromptMessage` to fetch secure R2 URLs from the Go backend 
+ * and perform direct PUT requests, keeping the Go RAM completely empty.
+ * 3. AI Context Injection: The resulting Cloudflare Object Keys are dynamically appended to the user prompt 
+ * as a hidden system string so the AI model knows exactly what file keys to pass to the tool registry.
+ * 4. Uploading State UI: Added a seamless "Uploading..." fallback to the Send button during the network transfer.
  * ================================================================================================
- * 🤖 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR PROMPT BOX CORE ENGINE (v2.5.0 FULL UPGRADE)
+ * 🤖 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR PROMPT BOX CORE ENGINE (v2.6.0 FULL UPGRADE)
  * ================================================================================================
  */
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { useTheme } from "@/jemer-components/context/ThemeContext.jsx";
 
-// 🚀 UPGRADE: Added isStreaming and onStopStream to the component signature
-export default function AITutorPromptBox({ onSendMessage, injectedPromptText, isStreaming, onStopStream }) {
+// 🚀 UPGRADE: Added sessionId to the component signature so we can route the Pre-Signed URL correctly
+export default function AITutorPromptBox({ onSendMessage, injectedPromptText, isStreaming, onStopStream, sessionId = "new-session" }) {
   // Pull high-contrast active theme details from the centralized theme application layer context 
   const { theme } = useTheme();
   
@@ -37,6 +40,9 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
   
   // Custom dropdown display toggles for configuring active image synthesis properties
   const [imageGenDropdownOpen, setImageGenDropdownOpen] = useState(false);
+
+  // 🚀 NEW UPGRADE: Tracks the network transfer state to prevent double-clicks and update the button UI
+  const [isUploading, setIsUploading] = useState(false);
 
   // Hardcoded textbook profile identities assigning unique behavioral traits to available instruction targets
   const tutorProfiles = [
@@ -209,6 +215,14 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
       }
     });
 
+    // 🚀 NEW UPGRADE: Enforce Max 10 Files constraint securely
+    const totalUpcomingFiles = attachedFiles.length + verifiedBuffer.length;
+    if (totalUpcomingFiles > 10) {
+      alert("Maximum 10 files allowed per request. Truncating excess files to protect memory constraints.");
+      const allowedSpace = 10 - attachedFiles.length;
+      verifiedBuffer.splice(allowedSpace);
+    }
+
     if (verifiedBuffer.length > 0) {
       setAttachedFiles((prev) => [...prev, ...verifiedBuffer]);
     }
@@ -222,13 +236,68 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
     setAttachedFiles((prev) => prev.filter((item) => item.uid !== fileUidToken));
   };
 
-  // Assembles structured transaction state items and forwards payloads up to orchestration layers
-  const handleDispatchPromptMessage = () => {
+  // 🚀 NEW UPGRADE: Directly handles the Pre-Signed URL Fetch and Cloudflare R2 PUT logic
+  const handleDispatchPromptMessage = async () => {
     if (!textPrompt.trim() && attachedFiles.length === 0) return;
+    
+    let objectKeys = [];
+
+    if (attachedFiles.length > 0) {
+      setIsUploading(true);
+      try {
+        // Automatically scan localStorage for any existing Neon authentication tokens
+        const token = localStorage.getItem("token") || localStorage.getItem("access_token") || localStorage.getItem("jemer_token") || "";
+        const authHeaders = { "Content-Type": "application/json" };
+        if (token) authHeaders["Authorization"] = `Bearer ${token}`;
+
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
+        for (const fileItem of attachedFiles) {
+          // 1. Fetch the temporary Pre-Signed Upload URL from the Go Monolith
+          const presignRes = await fetch(`${baseUrl}/api/v1/tutor/sessions/${sessionId}/upload-url`, {
+            method: "POST",
+            headers: authHeaders,
+            body: JSON.stringify({ filename: fileItem.name })
+          });
+
+          if (!presignRes.ok) throw new Error(`Failed to secure upload URL for ${fileItem.name}`);
+          const { upload_url, object_key } = await presignRes.json();
+
+          // 2. Transmit the raw binary payload directly to Cloudflare R2 (Bypassing Go RAM)
+          const r2Res = await fetch(upload_url, {
+            method: "PUT",
+            body: fileItem.rawHandle,
+            headers: {
+              "Content-Type": fileItem.rawHandle.type || "application/octet-stream"
+            }
+          });
+
+          if (!r2Res.ok) throw new Error(`Failed to push ${fileItem.name} to Cloudflare Edge`);
+          
+          objectKeys.push(object_key);
+        }
+      } catch (error) {
+        console.error("❌ [UPLOAD FAULT]:", error);
+        alert(`File Upload Failed: ${error.message}`);
+        setIsUploading(false);
+        return; // Abort the stream payload if the files fail to upload
+      }
+      setIsUploading(false);
+    }
+
+    // 🚀 NEW UPGRADE: Inject the R2 Object Keys directly into the prompt so the AI reads them
+    let finalPromptText = textPrompt.trim();
+    if (!finalPromptText && objectKeys.length > 0) {
+      finalPromptText = "Please analyze the attached files.";
+    }
+    
+    if (objectKeys.length > 0) {
+      finalPromptText += `\n\n[SYSTEM: The user has attached the following files to this message. Use the 'read_workspace_files' tool to read them:\n${objectKeys.join("\n")}]`;
+    }
+
     const finalDataPayload = {
-      promptText: textPrompt.trim(),
+      promptText: finalPromptText,
       selectedTutor: activeTutor.id,
-      attachments: attachedFiles,
       toolingContext: {
         imageGeneration: imageGenMode,
         deepResearch: deepResearchActive,
@@ -380,23 +449,23 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
           </div>
         )}
 
-        {/* 🚀 UPGRADE: UI Lockout - Disables the textarea entirely during active generation streams */}
+        {/* UI Lockout - Disables the textarea entirely during active generation streams OR file uploads */}
         <div className="w-full">
           <textarea
             ref={textareaRef}
             value={textPrompt}
             onChange={(e) => setTextPrompt(e.target.value)}
-            disabled={isStreaming}
+            disabled={isStreaming || isUploading}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                if (!isStreaming) {
+                if (!isStreaming && !isUploading) {
                   handleDispatchPromptMessage();
                 }
               }
             }}
-            placeholder={isStreaming ? "Tutor is replying..." : hasSentFirstMessage ? "Reply Tutor..." : "What can I Teach you today?"}
-            className={`prompt-textarea w-full bg-transparent text-slate-900 dark:text-slate-100 font-sans font-medium text-base sm:text-lg placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none resize-none leading-relaxed transition-all duration-200 ${isStreaming ? "opacity-40 cursor-not-allowed" : ""}`}
+            placeholder={isUploading ? "Uploading files..." : isStreaming ? "Tutor is replying..." : hasSentFirstMessage ? "Reply Tutor..." : "What can I Teach you today?"}
+            className={`prompt-textarea w-full bg-transparent text-slate-900 dark:text-slate-100 font-sans font-medium text-base sm:text-lg placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none resize-none leading-relaxed transition-all duration-200 ${(isStreaming || isUploading) ? "opacity-40 cursor-not-allowed" : ""}`}
             style={{ minHeight: "42px", maxHeight: "200px", overflowY: "hidden" }}
             rows={1}
           />
@@ -420,7 +489,8 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
                 <button
                   type="button"
                   onClick={() => handlePurgeAttachedFile(file.uid)}
-                  className="text-slate-400 hover:text-red-400 transition-colors ml-1 cursor-pointer focus:outline-none p-0.5 hover:bg-slate-700 rounded"
+                  disabled={isUploading}
+                  className={`text-slate-400 hover:text-red-400 transition-colors ml-1 focus:outline-none p-0.5 hover:bg-slate-700 rounded ${isUploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                   title="Remove file"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -443,8 +513,8 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
                   setPlusMenuOpen(!plusMenuOpen);
                   setTutorMenuOpen(false);
                 }}
-                disabled={isStreaming}
-                className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all duration-200 cursor-pointer focus:outline-none ${isStreaming ? "opacity-50 pointer-events-none" : ""} ${
+                disabled={isStreaming || isUploading}
+                className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all duration-200 cursor-pointer focus:outline-none ${(isStreaming || isUploading) ? "opacity-50 pointer-events-none" : ""} ${
                   plusMenuOpen 
                     ? "bg-slate-900 border-slate-900 text-white dark:bg-white dark:border-white dark:text-slate-900" 
                     : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
@@ -481,7 +551,7 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
                       </svg>
                       <div className="flex flex-col">
                         <span className="font-semibold">Upload files</span>
-                        <span className="text-[10px] text-slate-400">Documents, PDFs, text</span>
+                        <span className="text-[10px] text-slate-400">Documents, PDFs, text (Max 10)</span>
                       </div>
                     </button>
                   </div>
@@ -625,8 +695,8 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
                   setTutorMenuOpen(!tutorMenuOpen);
                   setPlusMenuOpen(false);
                 }}
-                disabled={isStreaming}
-                className={`h-10 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 px-3.5 text-sm font-semibold transition-all duration-200 cursor-pointer focus:outline-none shadow-sm ${isStreaming ? "opacity-50 pointer-events-none" : "active:scale-98"}`}
+                disabled={isStreaming || isUploading}
+                className={`h-10 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 px-3.5 text-sm font-semibold transition-all duration-200 cursor-pointer focus:outline-none shadow-sm ${(isStreaming || isUploading) ? "opacity-50 pointer-events-none" : "active:scale-98"}`}
               >
                 <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
                 <span>{activeTutor.name}</span>
@@ -769,8 +839,17 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
           </div>
 
           <div className="flex items-center gap-2">
-            {/* 🚀 UPGRADE: Morphing Action Button - Shows Replying dots + Stop icon during streams */}
-            {isStreaming ? (
+            {/* 🚀 UPGRADE: Tri-State Morphing Action Button - Handles Uploading, Streaming, and Ready states */}
+            {isUploading ? (
+              <button
+                type="button"
+                disabled
+                className="h-10 px-5 rounded-full bg-slate-500 dark:bg-slate-600 text-white font-sans font-bold text-sm flex items-center justify-center gap-2 shadow-none cursor-not-allowed transition-all"
+              >
+                <i className="fas fa-circle-notch fa-spin text-[12px]" />
+                <span>Uploading...</span>
+              </button>
+            ) : isStreaming ? (
               <button
                 type="button"
                 onClick={onStopStream}

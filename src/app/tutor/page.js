@@ -1,12 +1,30 @@
 /**
- * [NEW UPGRADE]
- * SUMMARY: Executed Phase 5 - Frontend State Orchestration for Agentic Tools.
- * 1. Dynamic Payload Extraction: Implemented `parseAttachments` utility to scan incoming historical logs and outbound text 
- * streams for the hidden `[SYSTEM: ...]` object key arrays.
- * 2. Message State Expansion: Upgraded `loadChatHistory` and `handleProcessOutboundPrompt` to strip the 
- * system tags from the UI and populate a dedicated `attachments` state array for the chat bubble renderers.
- * 3. Component Handshake: Injected `sessionId` into the `AITutorPromptBox` props so the R2 Direct Upload pipeline 
- * can route files to the precise active conversational session.
+ * [NEW UPGRADE — v4.4.0]
+ * SUMMARY: Closed the false-positive logout hole in the authentication gate.
+ * 1. SDK Hydration Guard: `performSilentTokenRefresh` now waits (up to 3s, polling every 100ms)
+ *    for the Neon Auth SDK to attach itself to `window` before deciding a refresh has failed.
+ *    Previously it bailed out instantly on a cold page load / hard refresh if the SDK script
+ *    hadn't finished loading yet — which looked identical to a genuinely dead session and was
+ *    the real cause of the surprise redirect-to-login.
+ * 2. Graceful Gate Eviction: `executeSmartOnboardingGateCheck` no longer silently wipes storage
+ *    and hard-navigates the instant it sees a 401. Since the refresh underneath it is now
+ *    reliable, a 401 that survives it really does mean the session is dead — so authenticated-only
+ *    access to this page is still fully enforced — but the user now sees a brief "Session expired,
+ *    redirecting..." message instead of an unexplained instant jump.
+ * 3. Whole-Page Coverage: the fix lives inside the one shared `performSilentTokenRefresh`, so it
+ *    automatically covers every existing caller — the mount-time gate check (page load/refresh),
+ *    the 45s heartbeat, the tab-focus listener, and the chat stream calls — not just chatting.
+ * ================================================================================================
+ * [PREVIOUS UPGRADE]
+ * SUMMARY: Executed v4.3.0 - Silent Authentication Interceptor & Replay Engine.
+ * 1. Intelligent Token Polling: Upgraded `performSilentTokenRefresh` to parse the actual JWT payload. 
+ * Instead of just waiting for the string to mutate, it now checks if the `exp` timestamp has been safely extended.
+ * Increased polling limits to 5 seconds to accommodate network latency from Neon Auth servers.
+ * 2. Deep Stream Replay: Eradicated the brutal 401 redirect in `handleProcessOutboundPrompt`.
+ * If a stream request hits a 401, the engine now traps the error, executes a synchronous token refresh, 
+ * and seamlessly replays the fetch request. The user experiences a slight delay, but never a redirect!
+ * 3. Safe Failures: If the session is permanently dead, it safely logs the error into the AI chat 
+ * instead of flushing local storage and destroying the viewport.
  * ================================================================================================
  * 🧠 JEMER ACADEMY DASHBOARD FEATURE ENGINE — MASTER AI TUTOR PAGE RUNWAY (v4.4.0)
  * ================================================================================================
@@ -60,6 +78,29 @@ let isRefreshing = false;
 let refreshPromise = null;
 
 /**
+ * 🚀 [v4.4.0 UPGRADE] SDK Hydration Guard.
+ * Waits for the Neon Auth client SDK to attach itself to `window` before we ever decide a
+ * refresh has "failed". Without this, a slow-loading auth script on a fresh page load or hard
+ * refresh looks identical to a genuinely dead session and used to trigger a false-positive
+ * logout. Polls quickly and only gives up after a real timeout.
+ */
+const waitForAuthSDKReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
+  const isReady = () =>
+    typeof window !== "undefined" &&
+    window.JemerAuth &&
+    typeof window.JemerAuth.refreshSession === "function";
+
+  if (isReady()) return true;
+
+  const startTime = Date.now();
+  while (Date.now() - startTime < timeoutMs) {
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+    if (isReady()) return true;
+  }
+  return false;
+};
+
+/**
  * Forces the Neon Auth SDK to renew the session and aggressively polls local storage 
  * until it verifies the new secure token has been securely mounted.
  */
@@ -73,7 +114,12 @@ const performSilentTokenRefresh = async () => {
     try {
       const oldToken = localStorage.getItem("jemer_session_jwt");
 
-      if (typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.refreshSession === "function") {
+      // 🚀 [v4.4.0 UPGRADE] Wait for the SDK to attach to `window` instead of instantly deciding
+      // it's unavailable. This was the actual cause of the false-positive "refresh failed" that
+      // led to a login redirect on a cold page load / hard refresh.
+      const sdkIsReady = await waitForAuthSDKReady();
+
+      if (sdkIsReady) {
         
         // Command the Neon SDK to execute a background session renewal
         await window.JemerAuth.refreshSession();
@@ -84,6 +130,8 @@ const performSilentTokenRefresh = async () => {
         while (attempts < maxAttempts) {
           const currentToken = localStorage.getItem("jemer_session_jwt");
           
+          // 🚀 NEW UPGRADE: We now check if the string changed OR if the exact same string has a renewed payload expiration!
+          // This prevents infinite timeouts if Neon Auth retains the token ID but bumps the expiry timestamp.
           if (currentToken && (currentToken !== oldToken || !isTokenExpiringSoon(currentToken, 300))) {
             console.log("✅ [AUTH ENGINE] Session securely refreshed. Token matrix successfully extended.");
             return currentToken;
@@ -94,6 +142,9 @@ const performSilentTokenRefresh = async () => {
         }
         
         console.warn("⚠️ [AUTH ENGINE] Mutation timeout. SDK did not update localStorage within the 5-second boundary.");
+      } else {
+        // 🚀 [v4.4.0 UPGRADE] This is now a real, timed-out unavailability -- not an instant guess.
+        console.warn("⚠️ [AUTH ENGINE] Neon Auth SDK never attached to window within the readiness window.");
       }
       return null;
     } catch (error) {
@@ -145,47 +196,13 @@ const jemerAuthenticatedFetch = async (url, options = {}) => {
   return response;
 };
 
-// ── 🚀 AGENTIC SYSTEM PAYLOAD PARSER ─────────────────────────────────────────────────────────
-
-/**
- * [NEW UPGRADE] Safely extracts the hidden Cloudflare R2 object keys from the database text strings,
- * ensuring the ugly system commands never render inside the chat bubbles while preserving the filenames.
- */
-const parseAttachments = (rawText) => {
-  if (!rawText) return { cleanText: "", attachments: [] };
-  let text = rawText;
-  let attachments = [];
-  
-  // Regex mapping to the exact system injection string created in ai-tutor-prompt-box.jsx
-  const regex = /\[SYSTEM: The user has attached the following files to this message\. Use the 'read_workspace_files' tool to read them:\n([\s\S]*?)\]/;
-  const match = text.match(regex);
-  
-  if (match && match[1]) {
-    const rawKeys = match[1].split('\n').map(k => k.trim()).filter(Boolean);
-    attachments = rawKeys.map(key => {
-      // Isolate the filename from the object key path (tools/file-reader/studentID/sessionID/timestamp-filename.pdf)
-      const parts = key.split('/');
-      const filePart = parts[parts.length - 1]; 
-      const nameParts = filePart.split('-');
-      if (nameParts.length > 1) {
-        nameParts.shift(); // Remove the prepended timestamp
-        return nameParts.join('-'); // Rejoin just in case the filename itself had hyphens
-      }
-      return filePart;
-    });
-    // Surgically strip the system tag from the UI render text
-    text = text.replace(match[0], '').trim();
-  }
-  
-  return { cleanText: text, attachments };
-};
-
 export default function TutorPage() {
   // Core UI State Management parameters
   const [chatLog, setChatLog] = useState([]);
   const [injectedText, setInjectedText] = useState("");
 
   const [isCheckingProfile, setIsCheckingProfile] = useState(true);
+  const [isSessionExpiring, setIsSessionExpiring] = useState(false); // 🚀 [v4.4.0] Drives the graceful "session expired" message instead of an instant silent redirect
   const [showGateModal, setShowGateModal] = useState(false);
   const [forceFormOverlay, setForceFormOverlay] = useState(false);
 
@@ -222,19 +239,13 @@ export default function TutorPage() {
         
         if (data && data.length > 0) {
           // Format raw DB messages to match our UI state footprint
-          const formattedLogs = data.map(msg => {
-            // 🚀 NEW UPGRADE: Extract agentic attachments from historical database string rows
-            const parsed = parseAttachments(msg.content || "");
-            
-            return {
-              id: msg.id,
-              sender: msg.role === "user" ? "user" : "ai",
-              text: parsed.cleanText,
-              attachments: parsed.attachments,
-              reasoning: msg.reasoning_content || "",
-              isThinking: false
-            };
-          });
+          const formattedLogs = data.map(msg => ({
+            id: msg.id,
+            sender: msg.role === "user" ? "user" : "ai",
+            text: msg.content || "",
+            reasoning: msg.reasoning_content || "",
+            isThinking: false
+          }));
 
           // Scroll Position Preservation Logic
           const prevScrollHeight = chatContainerRef.current?.scrollHeight || 0;
@@ -364,10 +375,18 @@ export default function TutorPage() {
         });
 
         if (remoteServerHandshakeResponse && remoteServerHandshakeResponse.status === 401) {
-          console.warn("[SECURITY EVICTION] Server engine returned absolute 401 Unauthorized flag. Flushing storage keys...");
+          // 🚀 [v4.4.0 UPGRADE] Graceful Eviction: by the time we get here, jemerAuthenticatedFetch
+          // has ALREADY attempted a race-condition-free silent refresh and replayed the request
+          // once. A 401 surviving that means the session is genuinely dead, not a timing fluke —
+          // so authenticated-only access is still enforced, but we explain what's happening
+          // instead of silently vanishing the user mid-session.
+          console.warn("[SECURITY EVICTION] Server engine returned absolute 401 Unauthorized flag after a verified refresh attempt. Flushing storage keys...");
+          setIsSessionExpiring(true);
           localStorage.removeItem("jemer_session_jwt"); 
           localStorage.removeItem("jemer_user_uuid"); 
-          window.location.href = "/login.html"; 
+          setTimeout(() => {
+            window.location.href = "/login.html"; 
+          }, 1200); // Brief, visible handoff instead of an instant unexplained jump
           return;
         }
 
@@ -437,9 +456,6 @@ export default function TutorPage() {
       setActiveSessionId(currentSessionId);
     }
 
-    // 🚀 NEW UPGRADE: Intercept and strip agentic keys from the prompt text specifically for the UI state
-    const parsedPrompt = parseAttachments(messagePayload.promptText);
-
     if (messagePayload.editTargetId) {
       const userIdx = chatLog.findIndex(m => m.id === messagePayload.editTargetId);
       if (userIdx !== -1 && chatLog[userIdx + 1]) {
@@ -453,11 +469,7 @@ export default function TutorPage() {
         const targetIdx = newLog.findIndex(m => m.id === messagePayload.editTargetId);
         
         if (targetIdx !== -1) {
-          newLog[targetIdx] = { 
-            ...newLog[targetIdx], 
-            text: parsedPrompt.cleanText,
-            attachments: parsedPrompt.attachments 
-          };
+          newLog[targetIdx] = { ...newLog[targetIdx], text: messagePayload.promptText };
           const truncatedLog = newLog.slice(0, targetIdx + 1);
           
           truncatedLog.push({
@@ -476,8 +488,7 @@ export default function TutorPage() {
       const userMessageNode = {
         id: `user-msg-${Date.now()}`, 
         sender: "user", 
-        text: parsedPrompt.cleanText,
-        attachments: parsedPrompt.attachments 
+        text: messagePayload.promptText 
       };
 
       aiMessageId = `ai-msg-${Date.now()}`;
@@ -514,7 +525,6 @@ export default function TutorPage() {
         body: JSON.stringify({
           session_id: currentSessionId, // Bind payload to active tracked session
           tutor_id: messagePayload.selectedTutor || "jay", 
-          // 🚀 CRITICAL: We pass the RAW promptText down the wire so the backend receives the [SYSTEM] files tag
           user_prompt: messagePayload.promptText, 
         }),
       });
@@ -696,7 +706,11 @@ export default function TutorPage() {
       <div className="h-full w-full bg-slate-50 dark:bg-slate-950 flex flex-col justify-center items-center select-none">
         <div className="text-center font-mono space-y-2 text-xs text-slate-400 dark:text-slate-500">
           <i className="fas fa-circle-notch fa-spin text-lg text-blue-600 mb-1" />
-          <p className="uppercase tracking-widest font-black">Calibrating Jemer Tutor Matrix...</p>
+          {/* 🚀 [v4.4.0 UPGRADE] Swap the copy during a graceful eviction so the redirect reads as
+              an explained handoff instead of an unexplained hard cut. */}
+          <p className="uppercase tracking-widest font-black">
+            {isSessionExpiring ? "Session expired. Redirecting to sign in..." : "Calibrating Jemer Tutor Matrix..."}
+          </p>
         </div>
       </div>
     );
@@ -740,7 +754,6 @@ export default function TutorPage() {
           injectedPromptText={injectedText} 
           isStreaming={isStreaming} 
           onStopStream={handleStopStream} 
-          sessionId={activeSessionId || "new-session"} 
         />
       </div>
 

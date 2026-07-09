@@ -1,5 +1,17 @@
 /**
- * [NEW UPGRADE — v4.4.0]
+ * [NEW UPGRADE — v4.5.0]
+ * SUMMARY: Fixed the actual root cause — `window.JemerAuth.refreshSession` didn't exist.
+ * The v4.4.0 patch correctly diagnosed a false-positive-looking failure, but the real problem was
+ * deeper: `refreshSession` was never implemented anywhere in auth.js, so every silent-refresh
+ * attempt was doomed regardless of timing. Fixed at the source: `refreshSession()` has been added
+ * to `JemerAuthEngine` in auth.js (reusing the existing, proven `/token` fallback route). This file
+ * only needed one small companion change: `performSilentTokenRefresh` now reads the explicit
+ * `{ success, message }` result `refreshSession()` returns and bails out immediately on a real
+ * failure, instead of polling localStorage for the full 5 seconds for a token that was never
+ * going to arrive. Everything else from v4.4.0 (the SDK readiness wait, the graceful gate
+ * eviction, the whole-page coverage) is unchanged and still active.
+ * ================================================================================================
+ * [PREVIOUS UPGRADE — v4.4.0]
  * SUMMARY: Closed the false-positive logout hole in the authentication gate.
  * 1. SDK Hydration Guard: `performSilentTokenRefresh` now waits (up to 3s, polling every 100ms)
  *    for the Neon Auth SDK to attach itself to `window` before deciding a refresh has failed.
@@ -26,7 +38,7 @@
  * 3. Safe Failures: If the session is permanently dead, it safely logs the error into the AI chat 
  * instead of flushing local storage and destroying the viewport.
  * ================================================================================================
- * 🧠 JEMER ACADEMY DASHBOARD FEATURE ENGINE — MASTER AI TUTOR PAGE RUNWAY (v4.4.0)
+ * 🧠 JEMER ACADEMY DASHBOARD FEATURE ENGINE — MASTER AI TUTOR PAGE RUNWAY (v4.5.0)
  * ================================================================================================
  */
 
@@ -122,7 +134,16 @@ const performSilentTokenRefresh = async () => {
       if (sdkIsReady) {
         
         // Command the Neon SDK to execute a background session renewal
-        await window.JemerAuth.refreshSession();
+        const refreshOutcome = await window.JemerAuth.refreshSession();
+
+        // 🚀 [v4.5.0 UPGRADE] refreshSession() now exists on JemerAuth and returns an explicit
+        // { success, message } result. If it explicitly failed (e.g. session cookie is genuinely
+        // gone), bail out immediately instead of polling localStorage for a token that we already
+        // know was never written.
+        if (refreshOutcome && refreshOutcome.success === false) {
+          console.warn("⚠️ [AUTH ENGINE] JemerAuth.refreshSession() reported explicit failure:", refreshOutcome.message);
+          return null;
+        }
         
         let attempts = 0;
         const maxAttempts = 100; // Increased to 5 seconds (100 * 50ms) to guarantee Neon DB has time to respond

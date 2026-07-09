@@ -1,5 +1,18 @@
 /**
  * ================================================================================================
+ * [NEW UPGRADE — V2.9]
+ * SUMMARY: Added the missing silent session-refresh capability.
+ * The /tutor page's auto-refresh logic was calling `window.JemerAuth.refreshSession()`, but that
+ * method never existed on this module — every call was silently failing. This patch adds a real
+ * `refreshSession()` to JemerAuthEngine, reusing the exact `/token` GET fallback route already
+ * proven inside `signInStudent` / `verifyRegistrationToken` (backed by the Better Auth session
+ * cookie via `credentials: "include"`). It fetches a fresh Postgres JWT and commits it via
+ * `SessionManager.saveToken()` so any page polling localStorage for a renewed token picks it up
+ * immediately. Nothing else in this file was changed.
+ * ================================================================================================
+ */
+/**
+ * ================================================================================================
  * 🚀 JEMER ACADEMY MASTER AUTHENTICATION & DATA SYNCHRONIZATION ENGINE (V2.8 - ERROR ACCESSIBILITY)
  * ================================================================================================
  * Description: Universal, single-file client-side identity module for Jemer Academy.
@@ -491,6 +504,53 @@
      */
     getUserIdentifier: function () {
       return SessionManager.getUserUuid(); // Pull active identification string from storage
+    },
+
+    /**
+     * [NEW UPGRADE — V2.9 SILENT SESSION REFRESH]
+     * Silently renews the active Postgres JWT without forcing a full sign-in. Reuses the exact
+     * `/token` GET fallback route already proven inside `signInStudent` / `verifyRegistrationToken` —
+     * this endpoint is backed by the Better Auth session cookie (forwarded automatically via
+     * `credentials: "include"` in dispatchAuthRequest). Exposed so page-level auto-refresh timers
+     * (e.g. the /tutor page's heartbeat) can call `window.JemerAuth.refreshSession()` directly.
+     * @returns {Promise<Object>} Success/failure state and the refreshed JWT if available.
+     */
+    refreshSession: async function () {
+      try {
+        console.log("[JEMER AUTH LIFECYCLE] Silently refreshing session token via /token endpoint...");
+
+        // Reuse the proven /token fallback route — backed by the active Better Auth session cookie
+        const sessionPayload = await dispatchAuthRequest("/token", null, "GET");
+
+        // Same JWT-extraction waterfall priority order used elsewhere in this file
+        const refreshedToken =
+          sessionPayload?.postgresJwtToken || // Priority 1: Real JWT captured from set-auth-jwt response header
+          sessionPayload?.token || // Priority 2: Direct JWT field from /token endpoint { "token": "eyJ..." }
+          sessionPayload?.data?.session?.access_token || // Priority 3: Neon Auth SDK response format (data wrapper)
+          discoverJwtDeep(sessionPayload); // Priority 4: Deep scan fallback across response tree
+
+        if (!refreshedToken) {
+          throw new Error("Session refresh completed, but no valid JWT was returned by the /token endpoint.");
+        }
+
+        // Commit the freshly renewed JWT so subsequent authorized requests pick it up immediately
+        SessionManager.saveToken(refreshedToken);
+        console.log("[JEMER AUTH LIFECYCLE] Silent session refresh success: JWT renewed and committed.");
+
+        return {
+          success: true,
+          token: refreshedToken
+        };
+
+      } catch (error) {
+        // A failure here means the underlying session cookie is genuinely gone or expired —
+        // not a network fluke — so we surface it clearly instead of swallowing it silently.
+        console.error("[JEMER AUTH REJECTION] Silent session refresh failed:", error.message);
+        return {
+          success: false,
+          message: error.message
+        };
+      }
     },
 
     /**

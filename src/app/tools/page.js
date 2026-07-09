@@ -1,14 +1,15 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v2.0 Page Header Enhancement.
- * 1. Premium Intro Upgrade: Replaced the plain text block with a high-fidelity startup dashboard header featuring a pulsing status badge and gradient typography.
+ * SUMMARY: Executed v2.1 First-Time Onboarding Integration.
+ * 1. Modal Injection: Safely imported and mounted `<ToolsOnboardingModal />` without converting `page.js` into a client component, thereby preserving your SEO `metadata` config flawlessly.
  * ================================================================================================
- * 🧠 JEMER ACADEMY ECOSYSTEM — LEARNING TOOLS PAGE ROUTER (v2.0)
+ * 🧠 JEMER ACADEMY ECOSYSTEM — LEARNING TOOLS PAGE ROUTER (v2.1)
  * ================================================================================================
  */
 
 import React from "react"; // Standard React import
 import ToolsWidgets from "@/jemer-components/ui/tools-widgets.jsx"; // Imports our custom interactive grid interface
+import ToolsOnboardingModal from "@/jemer-components/ui/tools-onboarding-modal.jsx"; // Imports the new onboarding flow
 
 export const metadata = {
   title: "Learning Tools | Jemer Academy",
@@ -18,8 +19,11 @@ export const metadata = {
 export default function LearningToolsPage() {
   return (
     // Outer boundary wrapper ensuring smooth fade-in animations on route load
-    <div className="w-full max-w-7xl mx-auto flex flex-col gap-6 lg:gap-10 animate-fade-in">
+    <div className="w-full max-w-7xl mx-auto flex flex-col gap-6 lg:gap-10 animate-fade-in relative">
       
+      {/* 🚀 ONBOARDING MODAL OVERLAY INJECTION */}
+      <ToolsOnboardingModal />
+
       {/* ── HIGH-FIDELITY HEADER REGION ── */}
       <header className="flex flex-col gap-3 lg:gap-4 relative z-10 mb-2">
         {/* Pulsing Ecosystem Badge */}
@@ -41,7 +45,6 @@ export default function LearningToolsPage() {
       </header>
 
       {/* ── INTERACTIVE WIDGET GRID REGION ── */}
-      {/* Mounts the immersive glassmorphism grid architecture directly into the flow */}
       <section className="w-full h-full">
         <ToolsWidgets />
       </section>

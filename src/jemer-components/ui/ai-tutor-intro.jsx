@@ -1,11 +1,11 @@
 /**
+ * [NEW UPGRADE]
+ * SUMMARY: Executed v2.0 Mobile UI Redesign for Common Prompts.
+ * 1. Compact Mobile Layout: Completely overhauled the mobile prompt cards. Instead of taking up massive vertical space with minimum heights of 140px, they now collapse into sleek, highly-professional horizontal list items (min-height 68px) explicitly designed for slim screens.
+ * 2. Intelligent DOM Rendering: Utilized `sm:hidden` and `hidden sm:flex` to render a native mobile chevron-list UI on phones, while perfectly preserving your original premium grid card UI on tablets and desktops.
+ * 3. Spacing Optimization: Tightened the mobile grid gap to `gap-2.5` (10px) to make the list feel like a cohesive, native iOS settings menu, while maintaining the larger `gap-4` for desktop spacing.
  * ================================================================================================
- * 🧠 JEMER ACADEMY DESIGN SYSTEM — SPECIALIZED AI TUTOR INTRO CANOPY ENGINE (v1.0)
- * ================================================================================================
- * Description: Adaptive landing dashboard screen greeting returning students.
- * Performance Tier: 0ms Latency Cache-First Hydration Engine preventing layout text jumps.
- * Design Focus: High-contrast responsive typography handling dark and light workspace canvas modes.
- * Compliance: 100% comprehensive line-by-line developer documentation for absolute clarity.
+ * 🧠 JEMER ACADEMY DESIGN SYSTEM — SPECIALIZED AI TUTOR INTRO CANOPY ENGINE (v2.0)
  * ================================================================================================
  */
 
@@ -138,39 +138,71 @@ export default function AITutorIntro({ onSelectPrompt }) {
       </div>
 
       {/* ── ZONE 3: RESPONSIVE CURRICULUM PROMPT GRID CARD BLOCKS ── */}
-      {/* Renders 4 balanced grid systems side-by-side on large devices, stepping down cleanly to vertical layout rows on mobile */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mt-4 w-full">
+      {/* 🚀 UPGRADE: Swapped mobile gap from gap-4 to gap-2.5 so the slim mobile rows lock together cleanly like an iOS menu */}
+      <div className="grid gap-2.5 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mt-4 w-full">
         {internationalCurriculumPrompts.map((card, index) => (
           <button
             key={index}
             type="button"
             onClick={() => handleSuggestionSelection(card.promptText)}
-            className="group w-full bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 hover:border-blue-900/40 dark:hover:border-blue-500/40 rounded-2xl p-4 text-left flex flex-col justify-between items-start transition-all duration-200 hover:shadow-md cursor-pointer active:scale-[0.98] focus:outline-none min-h-[140px] sm:min-h-[160px] relative overflow-hidden"
+            // 🚀 UPGRADE: Set min-h-[68px] on mobile to prevent massive stretching, preserved sm:min-h-[160px] for desktop
+            className="group w-full bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 hover:border-blue-900/40 dark:hover:border-blue-500/40 rounded-2xl p-3 sm:p-4 text-left flex flex-col justify-center sm:justify-between items-start transition-all duration-200 hover:shadow-md cursor-pointer active:scale-[0.98] focus:outline-none min-h-[68px] sm:min-h-[160px] relative overflow-hidden"
             title={`Auto inject "${card.label}" starter prompt sequence`}
           >
-            {/* Upper Frame: Houses descriptive title metrics and custom branch taxonomy strings */}
-            <div className="space-y-2.5 w-full">
-              <div className="flex items-center justify-between w-full">
-                {/* Categorization field marker token configured with specialized monospace configurations */}
-                <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 block truncate max-w-[80%]">
-                  {card.branch}
-                </span>
-                {/* Dynamic vector icon container node mapping chosen domain graphics handles */}
-                <div className="p-1.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl group-hover:bg-blue-50 dark:group-hover:bg-blue-950/40 transition-colors shrink-0">
+            
+            {/* 📱 MOBILE EXCLUSIVE LAYOUT: Compact horizontal row (Unmounts entirely on sm+ screens) */}
+            <div className="flex sm:hidden flex-row items-center justify-between w-full gap-3">
+              <div className="flex flex-row items-center gap-3 min-w-0 flex-1">
+                {/* Icon wrapper tightly sized for mobile flow */}
+                <div className="p-2 bg-slate-50 dark:bg-slate-800/60 rounded-[10px] shrink-0 group-hover:bg-blue-50 dark:group-hover:bg-blue-950/40 transition-colors">
                   {card.iconGlyph}
+                </div>
+                {/* Text stack truncates naturally to prevent vertical stretching */}
+                <div className="flex flex-col min-w-0 flex-1">
+                  <h3 className="text-[13px] font-sans font-extrabold text-slate-800 dark:text-slate-200 tracking-tight leading-tight group-hover:text-blue-900 dark:group-hover:text-blue-400 transition-colors truncate">
+                    {card.label}
+                  </h3>
+                  <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 block truncate mt-0.5">
+                    {card.branch}
+                  </span>
                 </div>
               </div>
               
-              {/* Short explicit design prompt headers display statement labels */}
-              <h3 className="text-xs sm:text-sm font-sans font-extrabold text-slate-800 dark:text-slate-200 tracking-tight leading-snug group-hover:text-blue-900 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
-                {card.label}
-              </h3>
+              {/* Native iOS-style chevron indicator hinting at the tap-forward affordance */}
+              <div className="shrink-0 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors ml-1">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
             </div>
 
-            {/* Lower Frame: Displays blurred preview string fields hinting at underlying full text vectors */}
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium leading-normal line-clamp-2 mt-3 block border-t border-slate-50 dark:border-slate-800/30 pt-2 w-full group-hover:text-slate-500 dark:group-hover:text-slate-400 transition-colors">
-              &quot;{card.promptText}&quot;
-            </p>
+            {/* 🖥️ DESKTOP EXCLUSIVE LAYOUT: Original Expanded Grid Card (Unmounts entirely on mobile screens) */}
+            <div className="hidden sm:flex flex-col justify-between h-full w-full">
+              {/* Upper Frame: Houses descriptive title metrics and custom branch taxonomy strings */}
+              <div className="space-y-2.5 w-full">
+                <div className="flex items-center justify-between w-full">
+                  {/* Categorization field marker token configured with specialized monospace configurations */}
+                  <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 block truncate max-w-[80%]">
+                    {card.branch}
+                  </span>
+                  {/* Dynamic vector icon container node mapping chosen domain graphics handles */}
+                  <div className="p-1.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl group-hover:bg-blue-50 dark:group-hover:bg-blue-950/40 transition-colors shrink-0">
+                    {card.iconGlyph}
+                  </div>
+                </div>
+                
+                {/* Short explicit design prompt headers display statement labels */}
+                <h3 className="text-xs sm:text-sm font-sans font-extrabold text-slate-800 dark:text-slate-200 tracking-tight leading-snug group-hover:text-blue-900 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
+                  {card.label}
+                </h3>
+              </div>
+
+              {/* Lower Frame: Displays blurred preview string fields hinting at underlying full text vectors */}
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium leading-normal line-clamp-2 mt-3 block border-t border-slate-50 dark:border-slate-800/30 pt-2 w-full group-hover:text-slate-500 dark:group-hover:text-slate-400 transition-colors">
+                &quot;{card.promptText}&quot;
+              </p>
+            </div>
+
           </button>
         ))}
       </div>

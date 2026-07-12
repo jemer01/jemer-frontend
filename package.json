@@ -13,6 +13,7 @@
     "@neondatabase/neon-js": "^0.6.2-beta",
     "@neondatabase/serverless": "^1.1.0",
     "autoprefixer": "^10.5.0",
+    "cropperjs": "^2.1.1",
     "gsap": "^3.15.0",
     "katex": "^0.17.0",
     "mathjs": "^15.2.0",
@@ -20,6 +21,7 @@
     "plotly.js-dist-min": "^3.6.0",
     "prismjs": "^1.30.0",
     "react": "19.2.4",
+    "react-cropper": "^2.3.3",
     "react-dom": "19.2.4"
   },
   "devDependencies": {

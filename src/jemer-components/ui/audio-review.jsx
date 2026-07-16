@@ -1,10 +1,12 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v2.1 Action Buttons Hotfix.
- * 1. Routing Clarity Fix: Replaced the "Discard" button with a clear "Cancel" button featuring a back arrow (`fa-arrow-left`). This explicitly tells the user it routes back to the Record intro stage without any destructive ambiguity.
- * 2. Process Button Confirmation: Ensured the right button is explicitly labeled "Process" and triggers the dummy AI loading sequence (`onGenerate`) perfectly.
+ * SUMMARY: Fixed mobile viewport clipping by removing overflow-hidden from the
+ *          glass card. Added a dummy processing state to the Process button
+ *          (spinner + delay) since AI is not yet connected. Added subtle card
+ *          hover lift and shadow for a more premium feel. All existing playback
+ *          logic, refs, state, and Tailwind tokens are preserved untouched.
  * ================================================================================================
- * 🎧 JEMER ACADEMY DESIGN SYSTEM — AUDIO REVIEW ENGINE (v2.1)
+ * 🎧 JEMER ACADEMY DESIGN SYSTEM — AUDIO REVIEW ENGINE (v2.2)
  * ================================================================================================
  */
 
@@ -18,6 +20,9 @@ export default function AudioReview({ audioData, onDiscard, onGenerate }) {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   
+  // ── UI STATE ──
+  const [isProcessing, setIsProcessing] = useState(false);
+
   // ── DOM REFS ──
   const audioRef = useRef(null);
 
@@ -71,6 +76,15 @@ export default function AudioReview({ audioData, onDiscard, onGenerate }) {
     setCurrentTime(newTime);
   };
 
+  // Dummy processing handler — simulates AI work before navigating to results
+  const handleProcess = () => {
+    setIsProcessing(true);
+    setTimeout(() => {
+      setIsProcessing(false);
+      onGenerate();
+    }, 1500);
+  };
+
   // Time Formatter (MM:SS)
   const formatTime = (timeInSeconds) => {
     if (isNaN(timeInSeconds)) return "00:00";
@@ -82,7 +96,7 @@ export default function AudioReview({ audioData, onDiscard, onGenerate }) {
   const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className="w-full flex flex-col items-center justify-center min-h-[calc(100vh-80px)] p-6 lg:p-12 animate-fade-in bg-slate-50 dark:bg-[#0A0A0A] rounded-[2rem] shadow-inner relative overflow-hidden">
+    <div className="w-full flex flex-col items-center justify-center min-h-[calc(100vh-80px)] p-6 lg:p-12 animate-fade-in bg-slate-50 dark:bg-[#0A0A0A] rounded-[2rem] shadow-inner relative">
       
       {/* 🚀 CSS INJECTION: Custom Pro Scrubber & Glows */}
       <style dangerouslySetInnerHTML={{__html: `
@@ -140,7 +154,7 @@ export default function AudioReview({ audioData, onDiscard, onGenerate }) {
       />
 
       {/* 🏛️ MASTER GLASSMORPHIC CONTAINER */}
-      <div className="w-full max-w-md bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border border-white dark:border-slate-700/60 rounded-[2.5rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col relative z-10">
+      <div className="w-full max-w-md bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border border-white dark:border-slate-700/60 rounded-[2.5rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] flex flex-col relative z-10 transition-all duration-500 hover:shadow-[0_25px_70px_-15px_rgba(0,0,0,0.15)] dark:hover:shadow-[0_25px_70px_-15px_rgba(0,0,0,0.6)] hover:-translate-y-1">
         
         {/* Inner glow ring for extra depth */}
         <div className="absolute inset-0 rounded-[2.5rem] ring-1 ring-white/50 dark:ring-white/10 pointer-events-none"></div>
@@ -234,11 +248,28 @@ export default function AudioReview({ audioData, onDiscard, onGenerate }) {
           
           {/* Process Button */}
           <button 
-            onClick={onGenerate}
-            className="flex items-center justify-center gap-2 py-3.5 px-4 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black text-[11px] uppercase tracking-wider shadow-lg hover:shadow-xl dark:shadow-white/10 transition-all active:scale-95"
+            onClick={handleProcess}
+            disabled={isProcessing}
+            className={`flex items-center justify-center gap-2 py-3.5 px-4 rounded-full font-black text-[11px] uppercase tracking-wider shadow-lg transition-all active:scale-95 ${
+              isProcessing
+                ? "bg-slate-700 dark:bg-slate-300 text-white dark:text-slate-900 cursor-wait"
+                : "bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:shadow-xl dark:shadow-white/10"
+            }`}
           >
-            <span>Process</span>
-            <i className="fas fa-arrow-right text-[10px]"></i>
+            {isProcessing ? (
+              <>
+                <svg className="animate-spin h-3 w-3 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Processing…</span>
+              </>
+            ) : (
+              <>
+                <span>Process</span>
+                <i className="fas fa-arrow-right text-[10px]"></i>
+              </>
+            )}
           </button>
         </div>
 

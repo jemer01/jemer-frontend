@@ -11,11 +11,11 @@
 "use client";
 
 import React, { useState } from "react";
-import SnapCamera from "@/jemer-components/ui/snap-camera.jsx";
-import SnapCropper from "@/jemer-components/ui/snap-cropper.jsx";
-import SnapResults from "@/jemer-components/ui/snap-results.jsx";
-import SnapChat from "@/jemer-components/ui/snap-chat.jsx";
-import SnapHistory from "@/jemer-components/ui/snap-history.jsx";
+import SnapCamera from "@/jemer-components/snap/snap-camera.jsx";
+import SnapCropper from "@/jemer-components/snap/snap-cropper.jsx";
+import SnapResults from "@/jemer-components/snap/snap-results.jsx";
+import SnapChat from "@/jemer-components/snap/snap-chat.jsx";
+import SnapHistory from "@/jemer-components/snap/snap-history.jsx";
 
 export default function SnapPage() {
   // State Controller: 'camera' | 'cropper' | 'results' | 'chat'

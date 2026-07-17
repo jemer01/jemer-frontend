@@ -12,12 +12,12 @@
 
 import React, { useState } from "react";
 // We will build these components in the next steps. Importing them now to lock the architecture.
-import AudioRecord from "@/jemer-components/ui/audio-record.jsx";
-import AudioReview from "@/jemer-components/ui/audio-review.jsx";
-import AudioLoadingSpinner from "@/jemer-components/ui/audio-loading-spinner.jsx";
-import AudioResults from "@/jemer-components/ui/audio-results.jsx";
-import AudioChat from "@/jemer-components/ui/audio-chat.jsx";
-import AudioHistory from "@/jemer-components/ui/audio-history.jsx";
+import AudioRecord from "@/jemer-components/audiobooks/audio-record.jsx";
+import AudioReview from "@/jemer-components/audiobooks/audio-review.jsx";
+import AudioLoadingSpinner from "@/jemer-components/audiobooks/audio-loading-spinner.jsx";
+import AudioResults from "@/jemer-components/audiobooks/audio-results.jsx";
+import AudioChat from "@/jemer-components/audiobooks/audio-chat.jsx";
+import AudioHistory from "@/jemer-components/audiobooks/audio-history.jsx";
 
 export default function AudioBooksPage() {
   // ── SPA ROUTING STATES ──

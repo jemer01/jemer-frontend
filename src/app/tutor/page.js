@@ -45,10 +45,10 @@
 "use client"; // Enforces client-side execution to allow browser APIs like localStorage and React hooks
 
 import React, { useState, useEffect, useRef } from "react"; 
-import AITutorIntro from "@/jemer-components/ui/ai-tutor-intro.jsx"; 
-import AIChatInterface from "@/jemer-components/ui/ai-chat-interface.jsx"; 
-import AITutorPromptBox from "@/jemer-components/ui/ai-tutor-prompt-box.jsx"; 
-import PersonalizationEngine from "@/jemer-components/ui/personalization.jsx"; 
+import AITutorIntro from "@/jemer-components/tutor/ai-tutor-intro.jsx"; 
+import AIChatInterface from "@/jemer-components/tutor/ai-chat-interface.jsx"; 
+import AITutorPromptBox from "@/jemer-components/tutor/ai-tutor-prompt-box.jsx"; 
+import PersonalizationEngine from "@/jemer-components/tutor/personalization.jsx"; 
 
 // ── 🚀 ADVANCED JWT LIFECYCLE ENGINE & INTERCEPTOR ───────────────────────────────────────────────
 

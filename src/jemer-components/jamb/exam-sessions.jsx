@@ -10,21 +10,18 @@
  * 4. QUESTION MATRIX PALETTE: Color-coded status grid ($1$ to $N$) for Answered, Unanswered, Current, and Flagged items.
  * 5. ACTION CONTROLS: Includes "Previous", "Next", "Flag Question", and "Submit Exam" triggers with confirmation state.
  * ================================================================================================
- * 🆕 NEW UPGRADES SUMMARY (v1.1 - MOBILE & UX REFINEMENTS)
+ * 🆕 NEW UPGRADES SUMMARY (v1.2 - SUBMISSION DATA EXPORT INTEGRATION)
  * ================================================================================================
- * 1. BOTTOM CUT-OUT FIX (BALANCED): Added a moderate bottom padding (`pb-8 lg:pb-12`) and `overflow-x-hidden` 
- *    to prevent layout clipping without leaving a huge blank space at the bottom.
- * 2. PREMIUM CSS SCROLLBARS: Removed all ugly HTML sideway/vertical scrollbars by injecting `.custom-exam-scrollbar`
- *    and applying it to the subject tabs, passage view, and question matrix grid.
- * 3. TIMER EXPIRY AUTO-SUBMIT MODAL: Replaced the basic browser `alert()` with a beautiful, non-intrusive 
- *    10-second countdown modal that automatically submits the exam when time expires.
- * 4. MOBILE NAVIGATION BAR LAYOUT: Wrapped the countdown timer and submit button in a flex container 
- *    (`flex justify-between w-full sm:w-auto`) so they sit side-by-side on mobile screens instead of stacking.
+ * 1. DYNAMIC SESSION DATA PAYLOAD: Created a `handleFinalSubmit` function to package the candidate's 
+ *    actual exam data (`userAnswers`, `remainingSeconds`, and the generated `questionsRepo`).
+ * 2. ON-EXIT TRIGGER UPGRADE: Upgraded all three submission points (the 10-second auto-submit effect, 
+ *    the manual confirmation modal, and the time-expired modal) to pass this real data payload into 
+ *    the `onExit` callback so the `exam-results.jsx` dashboard can process real grades instead of dummy data.
  * ================================================================================================
  */
 
 // Import core React hooks for local state, memoized filters, and timer effects
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 
 /**
  * DUMMY QUESTION GENERATOR FUNCTION
@@ -107,7 +104,7 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
   // State 6: Submission confirmation modal visibility toggle
   const [showSubmitModal, setShowSubmitModal] = useState(false);
 
-  // 🆕 UPGRADE 3: State 7: Auto-submit countdown timer for when exam duration expires
+  // State 7: Auto-submit countdown timer for when exam duration expires
   const [autoSubmitCountdown, setAutoSubmitCountdown] = useState(null);
 
   // Generate mock questions repository based on configured subjects
@@ -122,6 +119,20 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
   const currentQuestion = currentSubjectQuestions[activeQuestionIndex];
 
   /**
+   * 🆕 UPGRADE 1: CENTRALIZED SUBMISSION HANDLER
+   * Packages the exact user data and passes it to the parent orchestrator via onExit
+   */
+  const handleFinalSubmit = useCallback(() => {
+    if (onExit) {
+      onExit({
+        userAnswers,       // Object containing all candidate choices
+        remainingSeconds,  // Unused time on the clock
+        questionsRepo      // Passed along so the results engine knows the correct answers
+      });
+    }
+  }, [onExit, userAnswers, remainingSeconds, questionsRepo]);
+
+  /**
    * TIMER EFFECT 1: EXAM DURATION TIMER
    * Decrements remaining time every 1 second until timer hits zero.
    */
@@ -132,7 +143,7 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
       setRemainingSeconds((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          // 🆕 UPGRADE 3: Trigger 10-second auto-submit modal instead of abrupt alert
+          // Trigger 10-second auto-submit modal instead of abrupt alert
           setAutoSubmitCountdown(10);
           setShowSubmitModal(false); // Close manual modal if open
           return 0;
@@ -145,14 +156,15 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
   }, [remainingSeconds]);
 
   /**
-   * 🆕 UPGRADE 3: TIMER EFFECT 2: AUTO-SUBMIT COUNTDOWN
+   * TIMER EFFECT 2: AUTO-SUBMIT COUNTDOWN
    * Handles the 10-second grace period before forced submission.
    */
   useEffect(() => {
     if (autoSubmitCountdown === null) return;
 
     if (autoSubmitCountdown <= 0) {
-      if (onExit) onExit();
+      // 🆕 UPGRADE 2: Use the new handleFinalSubmit instead of empty onExit()
+      handleFinalSubmit();
       return;
     }
 
@@ -161,7 +173,7 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [autoSubmitCountdown, onExit]);
+  }, [autoSubmitCountdown, handleFinalSubmit]);
 
   /**
    * Formats remaining total seconds into dynamic HH:MM:SS format
@@ -233,10 +245,10 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
   }, [userAnswers]);
 
   return (
-    // 🆕 UPGRADE 1: Adjusted padding `pb-8 lg:pb-12` and `overflow-x-hidden` to prevent layout cut without huge gaps
+    // Adjusted padding `pb-8 lg:pb-12` and `overflow-x-hidden` to prevent layout cut without huge gaps
     <div className="w-full max-w-7xl mx-auto space-y-6 animate-fade-in pb-8 lg:pb-12 overflow-x-hidden">
       
-      {/* 🆕 UPGRADE 2: Injected premium CSS webkit scrollbar styling */}
+      {/* Injected premium CSS webkit scrollbar styling */}
       <style dangerouslySetInnerHTML={{__html: `
         .custom-exam-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
         .custom-exam-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -264,7 +276,7 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
           </div>
         </div>
 
-        {/* 🆕 UPGRADE 4: Wrapped Timer and Submit Button in Flex Row for Mobile Side-by-Side UI */}
+        {/* Wrapped Timer and Submit Button in Flex Row for Mobile Side-by-Side UI */}
         <div className="flex items-center justify-between w-full sm:w-auto gap-3">
           {/* Live Digital Countdown Timer */}
           <div className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl bg-slate-900 text-emerald-400 font-mono font-black text-base sm:text-lg border border-slate-800 shadow-inner shrink-0">
@@ -288,7 +300,7 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
       {/* ────────────────────────────────────────────────────────────────────────────────────────
           SUBJECT TABS NAVIGATION BAR
          ──────────────────────────────────────────────────────────────────────────────────────── */}
-      {/* 🆕 UPGRADE 2: Added `custom-exam-scrollbar` to replace default sideway scrolling */}
+      {/* Added `custom-exam-scrollbar` to replace default sideway scrolling */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-exam-scrollbar">
         {activeSubjects.map((subject) => {
           const isActive = subject.id === activeSubjectId;
@@ -357,7 +369,7 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
               </div>
 
               {/* Comprehension Passage (If available for English) */}
-              {/* 🆕 UPGRADE 2: Added `custom-exam-scrollbar` to passage view */}
+              {/* Added `custom-exam-scrollbar` to passage view */}
               {currentQuestion.passage && (
                 <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed max-h-48 overflow-y-auto custom-exam-scrollbar">
                   <p className="font-bold text-slate-900 dark:text-white mb-1">Passage Instruction:</p>
@@ -461,7 +473,7 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
             </div>
 
             {/* Matrix Grid of Number Badges */}
-            {/* 🆕 UPGRADE 2: Added `custom-exam-scrollbar` to matrix grid */}
+            {/* Added `custom-exam-scrollbar` to matrix grid */}
             <div className="grid grid-cols-5 sm:grid-cols-8 lg:grid-cols-5 gap-2 max-h-72 overflow-y-auto p-1 custom-exam-scrollbar">
               {currentSubjectQuestions.map((q, idx) => {
                 const key = `${activeSubjectId}-${q.id}`;
@@ -534,7 +546,8 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
               <button
                 onClick={() => {
                   setShowSubmitModal(false);
-                  if (onExit) onExit();
+                  // 🆕 UPGRADE 2: Use handleFinalSubmit trigger
+                  handleFinalSubmit();
                 }}
                 className="w-full py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md transition-colors"
               >
@@ -547,7 +560,7 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
       )}
 
       {/* ────────────────────────────────────────────────────────────────────────────────────────
-          🆕 UPGRADE 3: AUTO-SUBMIT TIMER EXPIRED MODAL
+          AUTO-SUBMIT TIMER EXPIRED MODAL
          ──────────────────────────────────────────────────────────────────────────────────────── */}
       {autoSubmitCountdown !== null && (
         <div className="fixed inset-0 z-[60] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
@@ -569,7 +582,8 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
             <button
               onClick={() => {
                 setAutoSubmitCountdown(null);
-                if (onExit) onExit();
+                // 🆕 UPGRADE 2: Use handleFinalSubmit trigger
+                handleFinalSubmit();
               }}
               className="w-full py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md transition-colors"
             >

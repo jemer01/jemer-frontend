@@ -19,6 +19,16 @@
  * 5. PREMIUM UI/UX: Fully mobile-responsive, utilizes custom WebKit scrollbars (`.custom-exam-scrollbar`), 
  *    and seamlessly matches the existing Jemer Academy dark/light mode design system.
  * ================================================================================================
+ * 🆕 NEW UPGRADES SUMMARY (v1.2 - PLOTLY METRICS & MOBILE UI REFINEMENTS)
+ * ================================================================================================
+ * 1. NEW PLOTLY SPEED & READINESS GAUGE CHART: Added a 3rd interactive Plotly indicator card 
+ *    ("Speed & Target Readiness Index") below the Bar and Pie charts to completely eliminate empty 
+ *    white space and balance the layout with the left score column.
+ * 2. MOBILE BAR CHART FULL-WIDTH FIX: Optimized Plotly layout configurations (`automargin: true`, 
+ *    tick font scaling, responsive container wrappers) to force the Bar Chart to span 100% full width on mobile screens.
+ * 3. TEXT OVERFLOW & RESPONSIVE POLISH: Fixed word clipping and text overflows on mobile devices 
+ *    by adding `min-w-0`, `truncate`, and responsive table cell padding (`p-2.5 sm:p-4`).
+ * ================================================================================================
  */
 
 import React, { useState, useMemo } from "react";
@@ -116,14 +126,14 @@ export default function ExamResults({ config, sessionData, onRestart }) {
   }, [gradedData]);
 
   // PLOTLY GRAPH CONFIGURATIONS
-  // 1. Bar Chart: Subject Performance
+  // 1. Bar Chart: Subject Performance (🆕 Mobile Full-Width Responsive Fix)
   const barChartData = [
     {
       x: gradedData.subjectBreakdown.map((s) => s.name.substring(0, 10) + (s.name.length > 10 ? "..." : "")),
       y: gradedData.subjectBreakdown.map((s) => s.scaledScore),
       type: "bar",
       marker: { color: "#10b981", borderRadius: 4 },
-      text: gradedData.subjectBreakdown.map((s) => `${s.scaledScore}/100`),
+      text: gradedData.subjectBreakdown.map((s) => `${s.scaledScore}`),
       textposition: "auto",
       hoverinfo: "x+y",
     },
@@ -131,12 +141,23 @@ export default function ExamResults({ config, sessionData, onRestart }) {
 
   const barChartLayout = {
     autosize: true,
-    margin: { t: 20, b: 40, l: 40, r: 20 },
+    margin: { t: 20, b: 40, l: 30, r: 15 },
     paper_bgcolor: "transparent",
     plot_bgcolor: "transparent",
     font: { color: "#64748b", family: "inherit" },
-    xaxis: { fixedrange: true, showgrid: false },
-    yaxis: { fixedrange: true, range: [0, 105], showgrid: true, gridcolor: "rgba(148, 163, 184, 0.1)" },
+    xaxis: { 
+      fixedrange: true, 
+      showgrid: false, 
+      automargin: true,
+      tickfont: { size: 10, color: "#64748b" } 
+    },
+    yaxis: { 
+      fixedrange: true, 
+      range: [0, 105], 
+      showgrid: true, 
+      gridcolor: "rgba(148, 163, 184, 0.1)",
+      tickfont: { size: 10 }
+    },
   };
 
   // 2. Pie Chart: Overall Accuracy
@@ -161,6 +182,35 @@ export default function ExamResults({ config, sessionData, onRestart }) {
     legend: { orientation: "h", y: -0.2, x: 0.5, xanchor: "center" },
   };
 
+  // 🆕 UPGRADE 1: 3. Gauge Chart: Speed & Target Readiness Index (Fills empty space in right column)
+  const gaugeChartData = [
+    {
+      type: "indicator",
+      mode: "gauge+number",
+      value: Math.round((gradedData.totalScaled / 400) * 100),
+      number: { suffix: "%", font: { color: "#10b981", size: 26, family: "inherit" } },
+      title: { text: "UTME Readiness Index", font: { size: 11, color: "#64748b" } },
+      gauge: {
+        axis: { range: [0, 100], tickwidth: 1, tickcolor: "#64748b" },
+        bar: { color: "#10b981" },
+        bgcolor: "transparent",
+        borderwidth: 0,
+        steps: [
+          { range: [0, 50], color: "rgba(244, 63, 94, 0.12)" },
+          { range: [50, 75], color: "rgba(245, 158, 11, 0.12)" },
+          { range: [75, 100], color: "rgba(16, 185, 129, 0.12)" },
+        ],
+      },
+    },
+  ];
+
+  const gaugeChartLayout = {
+    autosize: true,
+    margin: { t: 25, b: 15, l: 25, r: 25 },
+    paper_bgcolor: "transparent",
+    font: { color: "#64748b", family: "inherit" },
+  };
+
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 sm:space-y-8 animate-fade-in pb-12 lg:pb-16 overflow-x-hidden">
       
@@ -173,37 +223,37 @@ export default function ExamResults({ config, sessionData, onRestart }) {
       `}} />
 
       {/* ────────────────────────────────────────────────────────────────────────────────────────
-          SECTION 1: CANDIDATE OVERVIEW HERO BANNER
+          SECTION 1: CANDIDATE OVERVIEW HERO BANNER (🆕 Text Overflow Fixes Added)
          ──────────────────────────────────────────────────────────────────────────────────────── */}
-      <div className="relative rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-emerald-900 via-slate-900 to-teal-950 text-white overflow-hidden shadow-2xl border border-emerald-500/20">
+      <div className="relative rounded-3xl p-5 sm:p-8 bg-gradient-to-br from-emerald-900 via-slate-900 to-teal-950 text-white overflow-hidden shadow-2xl border border-emerald-500/20">
         {/* Ambient background glows */}
         <div className="absolute -top-32 -right-32 w-96 h-96 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-20 -left-20 w-72 h-72 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="space-y-3">
+        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 w-full">
+          <div className="space-y-3 min-w-0 w-full md:w-auto">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
               JAMB CBT Session Completed
             </div>
-            <h1 className="text-3xl sm:text-4xl font-display font-black tracking-tight text-white">
+            <h1 className="text-2xl sm:text-4xl font-display font-black tracking-tight text-white truncate">
               Candidate: <span className="text-emerald-400">John Jonathan</span>
             </h1>
-            <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-slate-300">
-              <span className="flex items-center gap-1.5">
-                <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs font-medium text-slate-300">
+              <span className="flex items-center gap-1.5 shrink-0">
+                <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
                 </svg>
                 Reg: 202698547210
               </span>
-              <span className="flex items-center gap-1.5">
-                <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <span className="flex items-center gap-1.5 shrink-0">
+                <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 Time Used: 1 hr 45 mins
               </span>
-              <span className="flex items-center gap-1.5">
-                <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <span className="flex items-center gap-1.5 shrink-0">
+                <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                 </svg>
                 {gradedData.subjectBreakdown.length} Subjects
@@ -213,7 +263,7 @@ export default function ExamResults({ config, sessionData, onRestart }) {
 
           <button
             onClick={onRestart}
-            className="px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs shadow-md backdrop-blur-sm transition-all active:scale-95 shrink-0"
+            className="w-full sm:w-auto px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs shadow-md backdrop-blur-sm transition-all active:scale-95 shrink-0 text-center"
           >
             Start New Exam
           </button>
@@ -223,49 +273,49 @@ export default function ExamResults({ config, sessionData, onRestart }) {
       {/* ────────────────────────────────────────────────────────────────────────────────────────
           SECTION 2: SCORE BOARD & PLOTLY ANALYTICS ENGINE
          ──────────────────────────────────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* LEFT COLUMN: Total Score & Breakdown Table */}
         <div className="lg:col-span-5 flex flex-col gap-6">
           
           {/* Main Massive Score Card */}
-          <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center text-center relative overflow-hidden">
+          <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center text-center relative overflow-hidden">
             <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-400" />
             <h2 className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">
               Aggregate UTME Score
             </h2>
             <div className="flex items-baseline gap-2">
-              <span className="text-7xl font-display font-black text-slate-900 dark:text-white tracking-tighter">
+              <span className="text-6xl sm:text-7xl font-display font-black text-slate-900 dark:text-white tracking-tighter">
                 {gradedData.totalScaled}
               </span>
-              <span className="text-2xl font-bold text-slate-400">/ 400</span>
+              <span className="text-xl sm:text-2xl font-bold text-slate-400">/ 400</span>
             </div>
             <div className="mt-4 px-4 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-bold border border-emerald-200 dark:border-emerald-800/50">
               {gradedData.totalScaled >= 250 ? "Excellent Performance 🚀" : "Average Performance 👍"}
             </div>
           </div>
 
-          {/* Detailed Breakdown Table */}
+          {/* Detailed Breakdown Table (🆕 Mobile Padding Polish) */}
           <div className="p-1 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
             <div className="overflow-x-auto custom-exam-scrollbar">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse min-w-[300px]">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                    <th className="p-4 text-xs font-black uppercase text-slate-500 dark:text-slate-400">Subject</th>
-                    <th className="p-4 text-xs font-black uppercase text-slate-500 dark:text-slate-400 text-center">Raw</th>
-                    <th className="p-4 text-xs font-black uppercase text-slate-500 dark:text-slate-400 text-right">JAMB Scaled</th>
+                    <th className="p-3 sm:p-4 text-[11px] sm:text-xs font-black uppercase text-slate-500 dark:text-slate-400">Subject</th>
+                    <th className="p-3 sm:p-4 text-[11px] sm:text-xs font-black uppercase text-slate-500 dark:text-slate-400 text-center">Raw</th>
+                    <th className="p-3 sm:p-4 text-[11px] sm:text-xs font-black uppercase text-slate-500 dark:text-slate-400 text-right">JAMB Scaled</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                   {gradedData.subjectBreakdown.map((sub) => (
                     <tr key={sub.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                      <td className="p-4 text-sm font-bold text-slate-900 dark:text-white">
+                      <td className="p-3 sm:p-4 text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate max-w-[140px]">
                         {sub.name}
                       </td>
-                      <td className="p-4 text-xs font-mono font-medium text-slate-500 text-center">
-                        {sub.rawScore} / {sub.maxRaw}
+                      <td className="p-3 sm:p-4 text-[11px] sm:text-xs font-mono font-medium text-slate-500 text-center">
+                        {sub.rawScore}/{sub.maxRaw}
                       </td>
-                      <td className="p-4 text-sm font-black font-mono text-emerald-600 dark:text-emerald-400 text-right">
+                      <td className="p-3 sm:p-4 text-xs sm:text-sm font-black font-mono text-emerald-600 dark:text-emerald-400 text-right">
                         {sub.scaledScore}
                       </td>
                     </tr>
@@ -276,17 +326,55 @@ export default function ExamResults({ config, sessionData, onRestart }) {
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Plotly Data Visualization */}
-        <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-6">
-          {/* Bar Chart Card: Subject Performance */}
-          <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[320px]">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" /> Subject Mastery
+        {/* RIGHT COLUMN: Plotly Data Visualization Stack */}
+        <div className="lg:col-span-7 flex flex-col gap-6">
+          
+          {/* Top Row: Bar Chart & Pie Chart */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            
+            {/* Bar Chart Card: Subject Performance (🆕 Mobile Full-Width Responsive Container) */}
+            <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[280px] sm:h-[300px] w-full min-w-0">
+              <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" /> Subject Mastery
+              </h3>
+              <div className="flex-1 w-full h-full min-h-0 relative">
+                <Plot
+                  data={barChartData}
+                  layout={barChartLayout}
+                  config={{ displayModeBar: false, responsive: true }}
+                  style={{ width: "100%", height: "100%", position: "absolute" }}
+                  useResizeHandler={true}
+                />
+              </div>
+            </div>
+
+            {/* Pie Chart Card: Accuracy Breakdown */}
+            <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[280px] sm:h-[300px] w-full min-w-0">
+              <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0" /> Overall Accuracy
+              </h3>
+              <div className="flex-1 w-full h-full min-h-0 relative">
+                <Plot
+                  data={pieChartData}
+                  layout={pieChartLayout}
+                  config={{ displayModeBar: false, responsive: true }}
+                  style={{ width: "100%", height: "100%", position: "absolute" }}
+                  useResizeHandler={true}
+                />
+              </div>
+            </div>
+
+          </div>
+
+          {/* 🆕 UPGRADE 1: Plotly Gauge Indicator Metric (Completely fills empty space at bottom of right column) */}
+          <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center h-[200px] sm:h-[220px] w-full min-w-0 relative">
+            <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white absolute top-4 left-5 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-teal-500 shrink-0" /> Speed & Readiness Index
             </h3>
-            <div className="flex-1 w-full h-full min-h-0 relative">
+            <div className="w-full h-full pt-4 relative flex items-center justify-center">
               <Plot
-                data={barChartData}
-                layout={barChartLayout}
+                data={gaugeChartData}
+                layout={gaugeChartLayout}
                 config={{ displayModeBar: false, responsive: true }}
                 style={{ width: "100%", height: "100%", position: "absolute" }}
                 useResizeHandler={true}
@@ -294,21 +382,6 @@ export default function ExamResults({ config, sessionData, onRestart }) {
             </div>
           </div>
 
-          {/* Pie Chart Card: Accuracy Breakdown */}
-          <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[320px]">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-indigo-500" /> Overall Accuracy
-            </h3>
-            <div className="flex-1 w-full h-full min-h-0 relative">
-              <Plot
-                data={pieChartData}
-                layout={pieChartLayout}
-                config={{ displayModeBar: false, responsive: true }}
-                style={{ width: "100%", height: "100%", position: "absolute" }}
-                useResizeHandler={true}
-              />
-            </div>
-          </div>
         </div>
 
       </div>
@@ -319,17 +392,17 @@ export default function ExamResults({ config, sessionData, onRestart }) {
       <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-indigo-50 via-purple-50 to-indigo-50 dark:from-indigo-950/40 dark:via-purple-900/20 dark:to-indigo-950/40 border border-indigo-200 dark:border-indigo-800/50 shadow-sm relative overflow-hidden flex flex-col md:flex-row items-start md:items-center gap-6">
         
         {/* Glowing Icon */}
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30 shrink-0 relative z-10">
-          <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30 shrink-0 relative z-10">
+          <svg className="w-7 h-7 sm:w-8 sm:h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
         </div>
 
-        <div className="relative z-10 flex-1 space-y-2">
-          <h3 className="text-lg font-black text-indigo-900 dark:text-indigo-300">
+        <div className="relative z-10 flex-1 space-y-2 min-w-0">
+          <h3 className="text-base sm:text-lg font-black text-indigo-900 dark:text-indigo-300">
             Jemer Tutor AI Insight
           </h3>
-          <p className="text-sm text-indigo-950/80 dark:text-indigo-200/80 font-medium leading-relaxed">
+          <p className="text-xs sm:text-sm text-indigo-950/80 dark:text-indigo-200/80 font-medium leading-relaxed break-words">
             "Excellent overall aggregate, John! Your mastery in Mathematics and Physics is outstanding. However, we noticed a slight pacing issue in Use of English where 15 questions were rushed in the final 10 minutes. I recommend utilizing the Rapid Drill mode to improve reading comprehension speed before your actual UTME."
           </p>
         </div>
@@ -369,12 +442,12 @@ export default function ExamResults({ config, sessionData, onRestart }) {
                       </div>
 
                       {/* Question Text & Feedback */}
-                      <div className="flex-1 space-y-3">
-                        <p className="text-sm font-bold text-slate-900 dark:text-white leading-relaxed">
+                      <div className="flex-1 space-y-3 min-w-0">
+                        <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-relaxed break-words">
                           {q.questionText}
                         </p>
                         
-                        <div className="flex flex-wrap items-center gap-4 text-xs font-mono font-bold">
+                        <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs font-mono font-bold">
                           {/* User Choice Tag */}
                           <div className={`px-3 py-1.5 rounded-lg flex items-center gap-2 border ${
                             q.isCorrect 
@@ -383,9 +456,9 @@ export default function ExamResults({ config, sessionData, onRestart }) {
                           }`}>
                             <span>Your Answer: {q.userAnswer || "None"}</span>
                             {q.isCorrect ? (
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                             ) : (
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                             )}
                           </div>
 
@@ -393,7 +466,7 @@ export default function ExamResults({ config, sessionData, onRestart }) {
                           {!q.isCorrect && (
                             <div className="px-3 py-1.5 rounded-lg bg-emerald-500 text-white flex items-center gap-2 shadow-sm">
                               <span>Correct Answer: {q.correctAnswer}</span>
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                             </div>
                           )}
                         </div>

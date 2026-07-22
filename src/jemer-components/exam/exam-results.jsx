@@ -2,32 +2,22 @@
 
 /**
  * ================================================================================================
- * 🆕 COMPONENT SUMMARY: EXAM RESULTS & ANALYTICS DASHBOARD (v1.0)
+ * 🆕 NEW UPGRADES SUMMARY (v1.3 - WAEC DYNAMIC INTEGRATION & GRADING ENGINE)
  * ================================================================================================
- * 1. CANDIDATE OVERVIEW: Hero section displaying user details (John Jonathan), exam mode, subjects taken, 
- *    and overall time spent, styled with JAMB-themed emerald gradients.
- * 2. SCORE BOARD & PLOTLY ANALYTICS: 
- *    - Centralized Scaled Score out of 400 (Standard UTME grading).
- *    - Detailed performance table showing raw vs. scaled scores per subject.
- *    - Dynamic, SSR-safe Plotly.js integration featuring a Bar Chart (Subject Performance) 
- *      and a Pie Chart (Accuracy Breakdown).
- * 3. JEMER TUTOR INSIGHTS: A dedicated AI feedback card with premium purple/indigo styling 
- *    offering mock strategic advice on the candidate's performance.
- * 4. INTERACTIVE CORRECTIONS ENGINE: Hidden by default for a clean UI. Users can toggle a beautifully 
- *    styled accordion to review every question, comparing their choices against the correct answers 
- *    with intuitive red/green color coding.
- * 5. PREMIUM UI/UX: Fully mobile-responsive, utilizes custom WebKit scrollbars (`.custom-exam-scrollbar`), 
- *    and seamlessly matches the existing Jemer Academy dark/light mode design system.
- * ================================================================================================
- * 🆕 NEW UPGRADES SUMMARY (v1.2 - PLOTLY METRICS & MOBILE UI REFINEMENTS)
- * ================================================================================================
- * 1. NEW PLOTLY SPEED & READINESS GAUGE CHART: Added a 3rd interactive Plotly indicator card 
- *    ("Speed & Target Readiness Index") below the Bar and Pie charts to completely eliminate empty 
- *    white space and balance the layout with the left score column.
- * 2. MOBILE BAR CHART FULL-WIDTH FIX: Optimized Plotly layout configurations (`automargin: true`, 
- *    tick font scaling, responsive container wrappers) to force the Bar Chart to span 100% full width on mobile screens.
- * 3. TEXT OVERFLOW & RESPONSIVE POLISH: Fixed word clipping and text overflows on mobile devices 
- *    by adding `min-w-0`, `truncate`, and responsive table cell padding (`p-2.5 sm:p-4`).
+ * 1. DYNAMIC A1-F9 WAEC GRADING: Added `getWaecGrade` utility to convert percentages into official 
+ *    WASSCE grades (A1 to F9). The metrics engine now calculates Distinctions and Credits.
+ * 2. EXPANDED PERFORMANCE TABLE: Dynamically alters the table columns based on mode. 
+ *    - JAMB: Shows Raw Score and Scaled Score.
+ *    - WAEC: Expands to show Raw Score, Percentage (%), and Official Grade (A1-F9). 
+ *    Table accommodates up to 9 subjects seamlessly with custom scrollbars.
+ * 3. DYNAMIC HERO SCORE CARD: 
+ *    - JAMB displays the standard Aggregate out of 400.
+ *    - WAEC displays the Average Percentage globally, accompanied by a breakdown pill showing 
+ *      the total number of Distinctions and Credits achieved.
+ * 4. SEAMLESS THEMING & PLOTLY UPDATES: Colors across the Hero Banner, AI Tutor, Table accents, 
+ *    and Plotly charts shift automatically to WAEC Deep Blue (`#2563eb`) when `mode="waec"`.
+ * 5. PROMPT TEXT REPLACEMENTS: Replaced UTME/JAMB specific jargon with WASSCE terminology throughout 
+ *    the analytics dashboard and AI remarks.
  * ================================================================================================
  */
 
@@ -39,46 +29,80 @@ const Plot = dynamic(() => import("react-plotly.js"), {
   ssr: false,
   loading: () => (
     <div className="h-64 w-full flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-700 animate-pulse">
-      <div className="w-8 h-8 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin mb-3"></div>
+      <div className="w-8 h-8 rounded-full border-4 border-blue-500 border-t-transparent animate-spin mb-3"></div>
       <span className="text-xs font-bold text-slate-500">Loading Analytics Engine...</span>
     </div>
   ),
 });
 
 /**
+ * Utility function to calculate official WAEC Grades based on raw percentage
+ */
+const getWaecGrade = (percentage) => {
+  if (percentage >= 75) return "A1";
+  if (percentage >= 70) return "B2";
+  if (percentage >= 65) return "B3";
+  if (percentage >= 60) return "C4";
+  if (percentage >= 55) return "C5";
+  if (percentage >= 50) return "C6";
+  if (percentage >= 45) return "D7";
+  if (percentage >= 40) return "E8";
+  return "F9";
+};
+
+/**
  * ExamResults Component
  * 
  * @param {Object} props
+ * @param {string} props.mode - Identifies if the results should process as 'jamb' or 'waec'
  * @param {Object} props.config - Saved configuration payload from Stage 1 (subjects, duration)
  * @param {Object} props.sessionData - User answers and timing data from Stage 3
  * @param {Function} props.onRestart - Callback to return to the customization screen
  */
-export default function ExamResults({ config, sessionData, onRestart }) {
+export default function ExamResults({ mode = "jamb", config, sessionData, onRestart }) {
+  const isWaecMode = mode === "waec";
+  
+  // Dynamic theme colors for Plotly charts
+  const primaryChartColor = isWaecMode ? "#2563eb" : "#10b981"; // blue-600 vs emerald-500
+  const secondaryChartColor = isWaecMode ? "#4f46e5" : "#14b8a6"; // indigo-600 vs teal-500
+  const dangerChartColor = "#f43f5e"; // rose-500
+  const neutralChartColor = "#94a3b8"; // slate-400
+
   // State: Controls visibility of the question corrections engine
   const [showReview, setShowReview] = useState(false);
 
   // MOCK GRADING ENGINE: Generate dummy results based on selected subjects to populate the dashboard
   const gradedData = useMemo(() => {
     const subjects = config?.subjects || [
-      { id: "english", name: "Use of English", count: 60 },
-      { id: "mathematics", name: "Mathematics", count: 40 },
-      { id: "physics", name: "Physics", count: 40 },
-      { id: "chemistry", name: "Chemistry", count: 40 },
+      { id: "english", name: isWaecMode ? "English" : "Use of English", count: isWaecMode ? 80 : 60 },
+      { id: "mathematics", name: "Mathematics", count: isWaecMode ? 50 : 40 },
+      { id: "physics", name: "Physics", count: isWaecMode ? 50 : 40 },
+      { id: "chemistry", name: "Chemistry", count: isWaecMode ? 50 : 40 },
     ];
 
     let totalRaw = 0;
     let totalMaxRaw = 0;
     let totalScaled = 0; // Total JAMB Score over 400
+    let totalPercentageSum = 0; // For WAEC Average
+    let distinctionsCount = 0;
+    let creditsCount = 0;
 
     const subjectBreakdown = subjects.map((sub) => {
       // Simulate a random score between 40% and 95%
       const rawScore = Math.floor(sub.count * (Math.random() * 0.55 + 0.4));
-      const percentage = rawScore / sub.count;
-      const scaledScore = Math.round(percentage * 100); // Scale to 100 per subject
+      const percentage = (rawScore / sub.count) * 100;
+      const scaledScore = Math.round(percentage); // Scale to 100 per subject (JAMB uses this to total 400)
+      const roundedPct = Math.round(percentage);
+      
+      const grade = getWaecGrade(roundedPct);
+      
+      if (["A1", "B2", "B3"].includes(grade)) distinctionsCount++;
+      else if (["C4", "C5", "C6"].includes(grade)) creditsCount++;
 
       totalRaw += rawScore;
       totalMaxRaw += sub.count;
       totalScaled += scaledScore;
+      totalPercentageSum += roundedPct;
 
       return {
         id: sub.id,
@@ -86,9 +110,13 @@ export default function ExamResults({ config, sessionData, onRestart }) {
         rawScore,
         maxRaw: sub.count,
         scaledScore,
-        percentage: Math.round(percentage * 100),
+        percentage: roundedPct,
+        grade,
       };
     });
+
+    const averagePercentage = Math.round(totalPercentageSum / subjects.length);
+    const overallReadiness = isWaecMode ? averagePercentage : Math.round((totalScaled / 400) * 100);
 
     // Mock global stats for pie chart
     const totalCorrect = totalRaw;
@@ -97,12 +125,16 @@ export default function ExamResults({ config, sessionData, onRestart }) {
 
     return {
       subjectBreakdown,
-      totalScaled, // Out of 400
+      totalScaled, // Out of 400 (JAMB)
+      averagePercentage, // (WAEC)
+      distinctionsCount,
+      creditsCount,
+      overallReadiness,
       totalCorrect,
       totalWrong,
       totalSkipped,
     };
-  }, [config]);
+  }, [config, isWaecMode]);
 
   // MOCK REVIEW DATA: Generate a sample list of answered questions for the corrections section
   const reviewQuestions = useMemo(() => {
@@ -126,14 +158,14 @@ export default function ExamResults({ config, sessionData, onRestart }) {
   }, [gradedData]);
 
   // PLOTLY GRAPH CONFIGURATIONS
-  // 1. Bar Chart: Subject Performance (🆕 Mobile Full-Width Responsive Fix)
+  // 1. Bar Chart: Subject Performance (Dynamically colored)
   const barChartData = [
     {
       x: gradedData.subjectBreakdown.map((s) => s.name.substring(0, 10) + (s.name.length > 10 ? "..." : "")),
-      y: gradedData.subjectBreakdown.map((s) => s.scaledScore),
+      y: gradedData.subjectBreakdown.map((s) => isWaecMode ? s.percentage : s.scaledScore),
       type: "bar",
-      marker: { color: "#10b981", borderRadius: 4 },
-      text: gradedData.subjectBreakdown.map((s) => `${s.scaledScore}`),
+      marker: { color: primaryChartColor, borderRadius: 4 },
+      text: gradedData.subjectBreakdown.map((s) => isWaecMode ? `${s.percentage}%` : `${s.scaledScore}`),
       textposition: "auto",
       hoverinfo: "x+y",
     },
@@ -167,7 +199,7 @@ export default function ExamResults({ config, sessionData, onRestart }) {
       labels: ["Correct", "Incorrect", "Unanswered"],
       type: "pie",
       hole: 0.6,
-      marker: { colors: ["#10b981", "#f43f5e", "#94a3b8"] },
+      marker: { colors: [primaryChartColor, dangerChartColor, neutralChartColor] },
       textinfo: "percent",
       hoverinfo: "label+value",
     },
@@ -182,23 +214,23 @@ export default function ExamResults({ config, sessionData, onRestart }) {
     legend: { orientation: "h", y: -0.2, x: 0.5, xanchor: "center" },
   };
 
-  // 🆕 UPGRADE 1: 3. Gauge Chart: Speed & Target Readiness Index (Fills empty space in right column)
+  // 3. Gauge Chart: Speed & Target Readiness Index
   const gaugeChartData = [
     {
       type: "indicator",
       mode: "gauge+number",
-      value: Math.round((gradedData.totalScaled / 400) * 100),
-      number: { suffix: "%", font: { color: "#10b981", size: 26, family: "inherit" } },
-      title: { text: "UTME Readiness Index", font: { size: 11, color: "#64748b" } },
+      value: gradedData.overallReadiness,
+      number: { suffix: "%", font: { color: primaryChartColor, size: 26, family: "inherit" } },
+      title: { text: isWaecMode ? "WASSCE Readiness Index" : "UTME Readiness Index", font: { size: 11, color: "#64748b" } },
       gauge: {
         axis: { range: [0, 100], tickwidth: 1, tickcolor: "#64748b" },
-        bar: { color: "#10b981" },
+        bar: { color: primaryChartColor },
         bgcolor: "transparent",
         borderwidth: 0,
         steps: [
           { range: [0, 50], color: "rgba(244, 63, 94, 0.12)" },
           { range: [50, 75], color: "rgba(245, 158, 11, 0.12)" },
-          { range: [75, 100], color: "rgba(16, 185, 129, 0.12)" },
+          { range: [75, 100], color: isWaecMode ? "rgba(37, 99, 235, 0.12)" : "rgba(16, 185, 129, 0.12)" },
         ],
       },
     },
@@ -214,46 +246,57 @@ export default function ExamResults({ config, sessionData, onRestart }) {
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 sm:space-y-8 animate-fade-in pb-12 lg:pb-16 overflow-x-hidden">
       
-      {/* Premium CSS Webkit Scrollbar Injection */}
+      {/* Premium CSS Webkit Scrollbar Injection (Dynamically themed) */}
       <style dangerouslySetInnerHTML={{__html: `
         .custom-exam-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-exam-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-exam-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(16, 185, 129, 0.4); border-radius: 10px; }
-        .custom-exam-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(16, 185, 129, 0.7); }
+        .custom-exam-scrollbar::-webkit-scrollbar-thumb { 
+          background-color: ${isWaecMode ? 'rgba(37, 99, 235, 0.4)' : 'rgba(16, 185, 129, 0.4)'}; 
+          border-radius: 10px; 
+        }
+        .custom-exam-scrollbar::-webkit-scrollbar-thumb:hover { 
+          background-color: ${isWaecMode ? 'rgba(37, 99, 235, 0.7)' : 'rgba(16, 185, 129, 0.7)'}; 
+        }
       `}} />
 
       {/* ────────────────────────────────────────────────────────────────────────────────────────
-          SECTION 1: CANDIDATE OVERVIEW HERO BANNER (🆕 Text Overflow Fixes Added)
+          SECTION 1: CANDIDATE OVERVIEW HERO BANNER (Dynamically Themed)
          ──────────────────────────────────────────────────────────────────────────────────────── */}
-      <div className="relative rounded-3xl p-5 sm:p-8 bg-gradient-to-br from-emerald-900 via-slate-900 to-teal-950 text-white overflow-hidden shadow-2xl border border-emerald-500/20">
+      <div className={`relative rounded-3xl p-5 sm:p-8 bg-gradient-to-br text-white overflow-hidden shadow-2xl border ${
+        isWaecMode 
+          ? "from-blue-900 via-slate-900 to-indigo-950 border-blue-500/20" 
+          : "from-emerald-900 via-slate-900 to-teal-950 border-emerald-500/20"
+      }`}>
         {/* Ambient background glows */}
-        <div className="absolute -top-32 -right-32 w-96 h-96 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-20 -left-20 w-72 h-72 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className={`absolute -top-32 -right-32 w-96 h-96 rounded-full blur-3xl pointer-events-none ${isWaecMode ? "bg-blue-500/20" : "bg-emerald-500/20"}`} />
+        <div className={`absolute -bottom-20 -left-20 w-72 h-72 rounded-full blur-3xl pointer-events-none ${isWaecMode ? "bg-indigo-500/10" : "bg-teal-500/10"}`} />
 
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 w-full">
           <div className="space-y-3 min-w-0 w-full md:w-auto">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-              JAMB CBT Session Completed
+            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider font-mono border ${
+              isWaecMode ? "bg-blue-500/20 text-blue-300 border-blue-500/30" : "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+            }`}>
+              <span className={`w-2 h-2 rounded-full shrink-0 ${isWaecMode ? "bg-blue-400" : "bg-emerald-400"}`} />
+              {isWaecMode ? "WASSCE Session Completed" : "JAMB CBT Session Completed"}
             </div>
             <h1 className="text-2xl sm:text-4xl font-display font-black tracking-tight text-white truncate">
-              Candidate: <span className="text-emerald-400">John Jonathan</span>
+              Candidate: <span className={isWaecMode ? "text-blue-400" : "text-emerald-400"}>John Jonathan</span>
             </h1>
             <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs font-medium text-slate-300">
               <span className="flex items-center gap-1.5 shrink-0">
-                <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className={`w-4 h-4 shrink-0 ${isWaecMode ? "text-blue-500" : "text-emerald-500"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
                 </svg>
                 Reg: 202698547210
               </span>
               <span className="flex items-center gap-1.5 shrink-0">
-                <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className={`w-4 h-4 shrink-0 ${isWaecMode ? "text-blue-500" : "text-emerald-500"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Time Used: 1 hr 45 mins
+                Time Used: {isWaecMode ? "Subject Varied" : "1 hr 45 mins"}
               </span>
               <span className="flex items-center gap-1.5 shrink-0">
-                <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className={`w-4 h-4 shrink-0 ${isWaecMode ? "text-blue-500" : "text-emerald-500"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                 </svg>
                 {gradedData.subjectBreakdown.length} Subjects
@@ -278,24 +321,38 @@ export default function ExamResults({ config, sessionData, onRestart }) {
         {/* LEFT COLUMN: Total Score & Breakdown Table */}
         <div className="lg:col-span-5 flex flex-col gap-6">
           
-          {/* Main Massive Score Card */}
+          {/* Main Massive Score Card (Dynamic based on Mode) */}
           <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center text-center relative overflow-hidden">
-            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-400" />
+            <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${
+              isWaecMode ? "from-blue-500 to-indigo-400" : "from-emerald-500 to-teal-400"
+            }`} />
+            
             <h2 className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">
-              Aggregate UTME Score
+              {isWaecMode ? "WASSCE Global Aggregate" : "Aggregate UTME Score"}
             </h2>
+            
             <div className="flex items-baseline gap-2">
               <span className="text-6xl sm:text-7xl font-display font-black text-slate-900 dark:text-white tracking-tighter">
-                {gradedData.totalScaled}
+                {isWaecMode ? gradedData.averagePercentage : gradedData.totalScaled}
               </span>
-              <span className="text-xl sm:text-2xl font-bold text-slate-400">/ 400</span>
+              <span className="text-xl sm:text-2xl font-bold text-slate-400">
+                {isWaecMode ? "%" : "/ 400"}
+              </span>
             </div>
-            <div className="mt-4 px-4 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-bold border border-emerald-200 dark:border-emerald-800/50">
-              {gradedData.totalScaled >= 250 ? "Excellent Performance 🚀" : "Average Performance 👍"}
+
+            <div className={`mt-4 px-4 py-1.5 rounded-full text-xs font-bold border ${
+              isWaecMode 
+                ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800/50"
+                : "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50"
+            }`}>
+              {isWaecMode 
+                ? `${gradedData.distinctionsCount} Distinctions | ${gradedData.creditsCount} Credits`
+                : (gradedData.totalScaled >= 250 ? "Excellent Performance 🚀" : "Average Performance 👍")
+              }
             </div>
           </div>
 
-          {/* Detailed Breakdown Table (🆕 Mobile Padding Polish) */}
+          {/* Detailed Breakdown Table (Expanded for WAEC up to 9 subjects) */}
           <div className="p-1 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
             <div className="overflow-x-auto custom-exam-scrollbar">
               <table className="w-full text-left border-collapse min-w-[300px]">
@@ -303,7 +360,16 @@ export default function ExamResults({ config, sessionData, onRestart }) {
                   <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                     <th className="p-3 sm:p-4 text-[11px] sm:text-xs font-black uppercase text-slate-500 dark:text-slate-400">Subject</th>
                     <th className="p-3 sm:p-4 text-[11px] sm:text-xs font-black uppercase text-slate-500 dark:text-slate-400 text-center">Raw</th>
-                    <th className="p-3 sm:p-4 text-[11px] sm:text-xs font-black uppercase text-slate-500 dark:text-slate-400 text-right">JAMB Scaled</th>
+                    
+                    {/* Dynamic Columns based on mode */}
+                    {isWaecMode ? (
+                      <>
+                        <th className="p-3 sm:p-4 text-[11px] sm:text-xs font-black uppercase text-slate-500 dark:text-slate-400 text-center">Score</th>
+                        <th className="p-3 sm:p-4 text-[11px] sm:text-xs font-black uppercase text-slate-500 dark:text-slate-400 text-right">Grade</th>
+                      </>
+                    ) : (
+                      <th className="p-3 sm:p-4 text-[11px] sm:text-xs font-black uppercase text-slate-500 dark:text-slate-400 text-right">JAMB Scaled</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -315,9 +381,26 @@ export default function ExamResults({ config, sessionData, onRestart }) {
                       <td className="p-3 sm:p-4 text-[11px] sm:text-xs font-mono font-medium text-slate-500 text-center">
                         {sub.rawScore}/{sub.maxRaw}
                       </td>
-                      <td className="p-3 sm:p-4 text-xs sm:text-sm font-black font-mono text-emerald-600 dark:text-emerald-400 text-right">
-                        {sub.scaledScore}
-                      </td>
+                      
+                      {/* Dynamic Cells based on mode */}
+                      {isWaecMode ? (
+                        <>
+                          <td className="p-3 sm:p-4 text-xs sm:text-sm font-black font-mono text-slate-700 dark:text-slate-300 text-center">
+                            {sub.percentage}%
+                          </td>
+                          <td className={`p-3 sm:p-4 text-xs sm:text-sm font-black font-mono text-right ${
+                            ["A1", "B2", "B3"].includes(sub.grade) ? "text-blue-600 dark:text-blue-400" :
+                            ["C4", "C5", "C6"].includes(sub.grade) ? "text-emerald-600 dark:text-emerald-400" :
+                            "text-amber-600 dark:text-amber-400"
+                          }`}>
+                            {sub.grade}
+                          </td>
+                        </>
+                      ) : (
+                        <td className="p-3 sm:p-4 text-xs sm:text-sm font-black font-mono text-emerald-600 dark:text-emerald-400 text-right">
+                          {sub.scaledScore}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -332,10 +415,11 @@ export default function ExamResults({ config, sessionData, onRestart }) {
           {/* Top Row: Bar Chart & Pie Chart */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             
-            {/* Bar Chart Card: Subject Performance (🆕 Mobile Full-Width Responsive Container) */}
+            {/* Bar Chart Card: Subject Performance */}
             <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[280px] sm:h-[300px] w-full min-w-0">
               <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" /> Subject Mastery
+                <span className={`w-2 h-2 rounded-full shrink-0 ${isWaecMode ? "bg-blue-500" : "bg-emerald-500"}`} /> 
+                Subject Mastery
               </h3>
               <div className="flex-1 w-full h-full min-h-0 relative">
                 <Plot
@@ -351,7 +435,8 @@ export default function ExamResults({ config, sessionData, onRestart }) {
             {/* Pie Chart Card: Accuracy Breakdown */}
             <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[280px] sm:h-[300px] w-full min-w-0">
               <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0" /> Overall Accuracy
+                <span className={`w-2 h-2 rounded-full shrink-0 ${isWaecMode ? "bg-indigo-500" : "bg-indigo-500"}`} /> 
+                Overall Accuracy
               </h3>
               <div className="flex-1 w-full h-full min-h-0 relative">
                 <Plot
@@ -366,10 +451,11 @@ export default function ExamResults({ config, sessionData, onRestart }) {
 
           </div>
 
-          {/* 🆕 UPGRADE 1: Plotly Gauge Indicator Metric (Completely fills empty space at bottom of right column) */}
+          {/* Gauge Chart: Speed & Target Readiness Index */}
           <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center h-[200px] sm:h-[220px] w-full min-w-0 relative">
             <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white absolute top-4 left-5 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-teal-500 shrink-0" /> Speed & Readiness Index
+              <span className={`w-2 h-2 rounded-full shrink-0 ${isWaecMode ? "bg-blue-400" : "bg-teal-500"}`} /> 
+              Speed & Readiness Index
             </h3>
             <div className="w-full h-full pt-4 relative flex items-center justify-center">
               <Plot
@@ -403,13 +489,16 @@ export default function ExamResults({ config, sessionData, onRestart }) {
             Jemer Tutor AI Insight
           </h3>
           <p className="text-xs sm:text-sm text-indigo-950/80 dark:text-indigo-200/80 font-medium leading-relaxed break-words">
-            "Excellent overall aggregate, John! Your mastery in Mathematics and Physics is outstanding. However, we noticed a slight pacing issue in Use of English where 15 questions were rushed in the final 10 minutes. I recommend utilizing the Rapid Drill mode to improve reading comprehension speed before your actual UTME."
+            {isWaecMode 
+              ? `"Excellent performance across your ${gradedData.subjectBreakdown.length} WASSCE subjects, John! Achieving ${gradedData.distinctionsCount} Distinctions is outstanding. However, we noticed a slight pacing issue in English where 15 questions were rushed in the final 10 minutes. I recommend utilizing the Rapid Drill mode to improve reading comprehension speed."`
+              : `"Excellent overall aggregate, John! Your mastery in Mathematics and Physics is outstanding. However, we noticed a slight pacing issue in Use of English where 15 questions were rushed in the final 10 minutes. I recommend utilizing the Rapid Drill mode to improve reading comprehension speed before your actual UTME."`
+            }
           </p>
         </div>
       </div>
 
       {/* ────────────────────────────────────────────────────────────────────────────────────────
-          SECTION 4: CORRECTIONS & REVIEW ENGINE
+          SECTION 4: CORRECTIONS & REVIEW ENGINE (Dynamically Themed tags)
          ──────────────────────────────────────────────────────────────────────────────────────── */}
       <div className="space-y-4">
         {/* Toggle Button */}
@@ -451,7 +540,9 @@ export default function ExamResults({ config, sessionData, onRestart }) {
                           {/* User Choice Tag */}
                           <div className={`px-3 py-1.5 rounded-lg flex items-center gap-2 border ${
                             q.isCorrect 
-                              ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800" 
+                              ? (isWaecMode 
+                                  ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800" 
+                                  : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800")
                               : "bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800"
                           }`}>
                             <span>Your Answer: {q.userAnswer || "None"}</span>
@@ -464,7 +555,9 @@ export default function ExamResults({ config, sessionData, onRestart }) {
 
                           {/* Correct Answer Tag (Only shows if user was wrong) */}
                           {!q.isCorrect && (
-                            <div className="px-3 py-1.5 rounded-lg bg-emerald-500 text-white flex items-center gap-2 shadow-sm">
+                            <div className={`px-3 py-1.5 rounded-lg text-white flex items-center gap-2 shadow-sm ${
+                              isWaecMode ? "bg-blue-500" : "bg-emerald-500"
+                            }`}>
                               <span>Correct Answer: {q.correctAnswer}</span>
                               <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                             </div>

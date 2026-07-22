@@ -1,50 +1,50 @@
+// app/waec/page.js
 "use client"; // Enforces client-side rendering to allow dynamic React state management for the 4-stage exam flow
 
 /**
  * ================================================================================================
- * 🆕 NEW UPGRADES SUMMARY (v1.1 - RESULTS DASHBOARD INTEGRATION)
+ * 🆕 NEW UPGRADES SUMMARY (v1.0 - WAEC ORCHESTRATOR)
  * ================================================================================================
- * 1. 4TH EXAM STAGE: Added 'results' to the state machine to handle the post-exam analytics view.
- * 2. NEW COMPONENT IMPORT: Imported `ExamResults` from `@/jemer-components/jamb/exam-results`.
- * 3. SESSION DATA STATE: Added `sessionData` state to catch and store the payload from the exam session.
- * 4. ON-EXIT TRIGGER UPDATE: Modified `handleExitExam` to accept data and transition to 'results' 
- *    instead of immediately clearing config and returning to 'customization'.
- * 5. RESTART HANDLER: Added `handleRestartExam` to clear config/data and return to stage 1.
+ * 1. WAEC MASTER STATE MACHINE: Created the `/waec` page orchestrator utilizing the identical 
+ *    highly-optimized 4-stage flow from the JAMB UI (Customization -> Loading -> Session -> Results).
+ * 2. DYNAMIC MODE PROP: Hardcoded the `mode="waec"` prop into all 4 imported Jemer components. 
+ *    This will act as our trigger to switch themes (Green -> Deep Blue), logic (max 9 subjects instead of 4), 
+ *    and grading (A1-F9 instead of out of 400) when we upgrade the core components next.
+ * 3. COMPONENT REUSE: Successfully points to `@/jemer-components/exam/` to reuse our core CBT engine.
  * ================================================================================================
  */
 
 // Import core React hooks for local state management
 import React, { useState } from "react";
 
-// Import the core JAMB CBT components from the /jemer-components directory
+// Import the core JAMB/WAEC CBT components from the /jemer-components directory
 import ExamCustomization from "@/jemer-components/exam/exam-customization"; // Configurator & Subject Selector (Stage 1)
-import ExamLoadingSpinner from "@/jemer-components/exam/exam-loading-spinner"; // Animated flight-check loading screen (Stage 2)
+import ExamLoadingSpinner from "@/jemer-components/exam/exam-loading-spinner"; // Animated loading screen (Stage 2)
 import ExamSessions from "@/jemer-components/exam/exam-sessions"; // Real CBT simulation environment (Stage 3)
-// 🆕 NEW: Import the results dashboard component (Stage 4)
-import ExamResults from "@/jemer-components/exam/exam-results"; 
+import ExamResults from "@/jemer-components/exam/exam-results"; // Post-exam analytics dashboard (Stage 4)
 
 /**
- * JambExamPage Component (Route: /jamb)
+ * WaecExamPage Component (Route: /waec)
  * 
- * Master Orchestrator for the JAMB CBT Gateway.
+ * Master Orchestrator for the WAEC WASSCE CBT Gateway.
  * Manages the seamless 4-stage state machine:
- *   Stage 1: 'customization' -> Subject selection, duration config, question distribution, and year configuration.
- *   Stage 2: 'loading'       -> High-engagement prep screen compiling 180 questions across 4 subjects.
- *   Stage 3: 'session'       -> Active CBT test environment with active countdown timers and question matrix.
- *   Stage 4: 'results'       -> Post-exam Plotly analytics dashboard and answer review engine.
+ *   Stage 1: 'customization' -> Subject selection (up to 9), duration config (per subject), and year setup.
+ *   Stage 2: 'loading'       -> High-engagement prep screen compiling WAEC questions.
+ *   Stage 3: 'session'       -> Active CBT test environment tailored for WAEC requirements.
+ *   Stage 4: 'results'       -> Post-exam A1-F9 grading analytics and corrections review engine.
  */
-export default function JambExamPage() {
+export default function WaecExamPage() {
   // Local State 1: Tracks current stage of the exam workflow ('customization' | 'loading' | 'session' | 'results')
   const [examStage, setExamStage] = useState("customization");
 
   // Local State 2: Stores the validated configuration payload passed from the configurator
   const [examConfig, setExamConfig] = useState(null);
 
-  // 🆕 NEW: Local State 3: Stores actual performance data passed from the exam session
+  // Local State 3: Stores actual performance data passed from the exam session
   const [sessionData, setSessionData] = useState(null);
 
   /**
-   * Called when the user completes configuration and clicks "Start JAMB Simulation" in Stage 1.
+   * Called when the user completes configuration and clicks "Start Simulation" in Stage 1.
    * Stores user choices and advances to the pre-check loading screen.
    * 
    * @param {Object} config - The final user selection object containing subjects, duration, years, etc.
@@ -66,7 +66,7 @@ export default function JambExamPage() {
   };
 
   /**
-   * 🆕 UPGRADED: Called when the user submits or exits the active exam session in Stage 3.
+   * Called when the user submits or exits the active exam session in Stage 3.
    * Receives real test data, stores it, and transitions to the Stage 4 Analytics Dashboard.
    * 
    * @param {Object} data - Contains userAnswers, remainingSeconds, and questionsRepo
@@ -79,7 +79,7 @@ export default function JambExamPage() {
   };
 
   /**
-   * 🆕 NEW: Called from the Results Dashboard to restart the entire workflow.
+   * Called from the Results Dashboard to restart the entire workflow.
    */
   const handleRestartExam = () => {
     // Clear stored config and session data
@@ -96,8 +96,8 @@ export default function JambExamPage() {
       {/* STAGE 1: EXAM CUSTOMIZATION & SETUP ENGINE */}
       {examStage === "customization" && (
         <ExamCustomization 
-          // Identifies gateway mode as JAMB to enforce mandatory Use of English + 3 subjects rule
-          mode="jamb" 
+          // 🆕 TRIGGER: Identifies gateway mode as WAEC to enforce up to 9 subjects & blue theme
+          mode="waec" 
           // Callback handler triggered when user submits valid exam setup
           onStart={handleStartCustomization} 
         />
@@ -106,8 +106,8 @@ export default function JambExamPage() {
       {/* STAGE 2: HIGH-ENGAGEMENT PRE-CHECK LOADING SPINNER */}
       {examStage === "loading" && (
         <ExamLoadingSpinner 
-          // Identifies gateway mode as JAMB for custom loading messages
-          mode="jamb" 
+          // 🆕 TRIGGER: Identifies gateway mode as WAEC for custom loading messages & blue theme
+          mode="waec" 
           // Passes saved user choices to calibrate simulation status indicators
           config={examConfig} 
           // Callback handler triggered when loading reaches 100%
@@ -118,22 +118,24 @@ export default function JambExamPage() {
       {/* STAGE 3: ACTIVE CBT EXAM SESSION INTERFACE */}
       {examStage === "session" && (
         <ExamSessions 
-          // Identifies gateway mode as JAMB for CBT visual theme
-          mode="jamb" 
-          // Passes full configuration payload (subjects, questions, timer) to power exam session
+          // 🆕 TRIGGER: Identifies gateway mode as WAEC for CBT visual blue theme
+          mode="waec" 
+          // Passes full configuration payload to power exam session
           config={examConfig} 
-          // 🆕 UPGRADED: Callback handler to pass data and terminate session
+          // Callback handler to pass data and terminate session
           onExit={handleExitExam} 
         />
       )}
 
-      {/* 🆕 NEW: STAGE 4: EXAM RESULTS & ANALYTICS DASHBOARD */}
+      {/* STAGE 4: EXAM RESULTS & ANALYTICS DASHBOARD */}
       {examStage === "results" && (
         <ExamResults 
-          // Passes original config for subjects and scaling bounds
+          // Passes original config for subjects and scaling bounds (now tracking A1-F9)
           config={examConfig} 
-          // Passes actual test output data (answers, time, questions)
+          // Passes actual test output data
           sessionData={sessionData} 
+          // 🆕 TRIGGER: Passing the mode so the dashboard renders the blue theme and custom WAEC layout
+          mode="waec"
           // Callback to restart the exam simulation completely
           onRestart={handleRestartExam} 
         />

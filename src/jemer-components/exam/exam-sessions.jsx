@@ -2,21 +2,19 @@
 
 /**
  * ================================================================================================
- * 🆕 COMPONENT SUMMARY: MOCK JAMB CBT EXAM INTERFACE (v1.0)
+ * 🆕 NEW UPGRADES SUMMARY (v1.3 - WAEC DYNAMIC INTEGRATION)
  * ================================================================================================
- * 1. REAL-TIME COUNTDOWN TIMER: Live digital timer calculating remaining time based on configured duration.
- * 2. MULTI-SUBJECT NAVIGATION: Seamless tab navigation across selected JAMB subjects (Use of English, Math, etc.).
- * 3. INTERACTIVE QUESTION CARD: Supports radio choice selection ($A$, $B$, $C$, $D$), question stem, and passage view.
- * 4. QUESTION MATRIX PALETTE: Color-coded status grid ($1$ to $N$) for Answered, Unanswered, Current, and Flagged items.
- * 5. ACTION CONTROLS: Includes "Previous", "Next", "Flag Question", and "Submit Exam" triggers with confirmation state.
- * ================================================================================================
- * 🆕 NEW UPGRADES SUMMARY (v1.2 - SUBMISSION DATA EXPORT INTEGRATION)
- * ================================================================================================
- * 1. DYNAMIC SESSION DATA PAYLOAD: Created a `handleFinalSubmit` function to package the candidate's 
- *    actual exam data (`userAnswers`, `remainingSeconds`, and the generated `questionsRepo`).
- * 2. ON-EXIT TRIGGER UPGRADE: Upgraded all three submission points (the 10-second auto-submit effect, 
- *    the manual confirmation modal, and the time-expired modal) to pass this real data payload into 
- *    the `onExit` callback so the `exam-results.jsx` dashboard can process real grades instead of dummy data.
+ * 1. DYNAMIC THEMING: Implemented `isWaecMode` checks across all active exam UI elements. The 
+ *    live digital timer, active subject tabs, selected question options, next button, and the 
+ *    interactive question matrix palette seamlessly switch from JAMB Emerald to WAEC Deep Blue.
+ * 2. DYNAMIC TEXT & COPY: Replaced hardcoded "JAMB CBT" strings in the candidate badge, submit 
+ *    confirmation modal, and dummy question generator with dynamic interpolations that display 
+ *    "WASSCE Mock" / "WASSCE" when in WAEC mode.
+ * 3. CUSTOM SCROLLBARS: Upgraded the `.custom-exam-scrollbar` inline styling to dynamically 
+ *    adopt the blue-600 rgba tint for a cohesive WAEC experience.
+ * 4. LOGIC PRESERVATION: 100% of the underlying exam state mechanisms, submission payloads 
+ *    (`handleFinalSubmit`), and auto-submit timers remain completely intact to ensure the 
+ *    backend data structure is uniform for both modes.
  * ================================================================================================
  */
 
@@ -28,9 +26,10 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
  * Generates sample test questions for selected subjects to enable immediate interactive testing.
  * 
  * @param {Array} subjects - Array of subject objects configured during Stage 1
+ * @param {boolean} isWaecMode - Boolean flag to determine dynamic terminology
  * @returns {Object} Mapping of subject IDs to question arrays
  */
-function generateDummyQuestions(subjects) {
+function generateDummyQuestions(subjects, isWaecMode) {
   const result = {};
 
   subjects?.forEach((subject) => {
@@ -45,7 +44,7 @@ function generateDummyQuestions(subjects) {
           subject.id === "english" && i <= 5
             ? "Read the passage carefully and answer the question that follows: Technology has revolutionized modern education by giving students instant access to global knowledge bases..."
             : null,
-        questionText: `Sample JAMB Question ${i} for ${subject.name}: Which of the following statements correctly describes the fundamental principles governing this topic?`,
+        questionText: `Sample ${isWaecMode ? "WASSCE" : "JAMB"} Question ${i} for ${subject.name}: Which of the following statements correctly describes the fundamental principles governing this topic?`,
         options: [
           { letter: "A", text: "It remains constant under standard temperature and pressure conditions." },
           { letter: "B", text: "It increases proportionally with an increase in external system velocity." },
@@ -65,23 +64,26 @@ function generateDummyQuestions(subjects) {
  * ExamSessions Component
  * 
  * @param {Object} props
- * @param {string} props.mode - Gateway mode identifier ('jamb')
+ * @param {string} props.mode - Gateway mode identifier ('jamb' | 'waec')
  * @param {Object} props.config - Saved configuration payload containing subjects, timers, and year setup
  * @param {Function} props.onExit - Callback function to terminate or exit the active exam session
  */
 export default function ExamSessions({ mode = "jamb", config, onExit }) {
+  // Boolean check for dynamic styling and terminology
+  const isWaecMode = mode === "waec";
+
   // Extract subjects array from configuration (or fallback to default list if testing isolated)
   const activeSubjects = useMemo(() => {
     if (config?.subjects && config.subjects.length > 0) {
       return config.subjects;
     }
     return [
-      { id: "english", name: "Use of English", count: 60 },
-      { id: "mathematics", name: "Mathematics", count: 40 },
-      { id: "physics", name: "Physics", count: 40 },
-      { id: "chemistry", name: "Chemistry", count: 40 },
+      { id: "english", name: isWaecMode ? "English" : "Use of English", count: isWaecMode ? 80 : 60 },
+      { id: "mathematics", name: "Mathematics", count: isWaecMode ? 50 : 40 },
+      { id: "physics", name: "Physics", count: isWaecMode ? 50 : 40 },
+      { id: "chemistry", name: "Chemistry", count: isWaecMode ? 50 : 40 },
     ];
-  }, [config]);
+  }, [config, isWaecMode]);
 
   // State 1: Active active subject ID (default to the first subject, usually English)
   const [activeSubjectId, setActiveSubjectId] = useState(activeSubjects[0]?.id || "english");
@@ -97,7 +99,9 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
 
   // State 5: Live remaining time in seconds (calculated from durationMinutes)
   const [remainingSeconds, setRemainingSeconds] = useState(() => {
-    const totalMins = config?.durationMinutes || 120;
+    // Note: Configured duration is passed down accurately from customization stage 
+    // whether it's total combined (JAMB) or per subject total (WAEC).
+    const totalMins = config?.durationMinutes || (isWaecMode ? 60 : 120);
     return totalMins * 60;
   });
 
@@ -109,8 +113,8 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
 
   // Generate mock questions repository based on configured subjects
   const questionsRepo = useMemo(() => {
-    return generateDummyQuestions(activeSubjects);
-  }, [activeSubjects]);
+    return generateDummyQuestions(activeSubjects, isWaecMode);
+  }, [activeSubjects, isWaecMode]);
 
   // Active question list for the currently selected subject tab
   const currentSubjectQuestions = questionsRepo[activeSubjectId] || [];
@@ -119,7 +123,7 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
   const currentQuestion = currentSubjectQuestions[activeQuestionIndex];
 
   /**
-   * 🆕 UPGRADE 1: CENTRALIZED SUBMISSION HANDLER
+   * CENTRALIZED SUBMISSION HANDLER
    * Packages the exact user data and passes it to the parent orchestrator via onExit
    */
   const handleFinalSubmit = useCallback(() => {
@@ -163,7 +167,6 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
     if (autoSubmitCountdown === null) return;
 
     if (autoSubmitCountdown <= 0) {
-      // 🆕 UPGRADE 2: Use the new handleFinalSubmit instead of empty onExit()
       handleFinalSubmit();
       return;
     }
@@ -248,12 +251,17 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
     // Adjusted padding `pb-8 lg:pb-12` and `overflow-x-hidden` to prevent layout cut without huge gaps
     <div className="w-full max-w-7xl mx-auto space-y-6 animate-fade-in pb-8 lg:pb-12 overflow-x-hidden">
       
-      {/* Injected premium CSS webkit scrollbar styling */}
+      {/* Injected premium CSS webkit scrollbar styling (Dynamically Themed) */}
       <style dangerouslySetInnerHTML={{__html: `
         .custom-exam-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
         .custom-exam-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-exam-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(16, 185, 129, 0.4); border-radius: 10px; }
-        .custom-exam-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(16, 185, 129, 0.7); }
+        .custom-exam-scrollbar::-webkit-scrollbar-thumb { 
+          background-color: ${isWaecMode ? 'rgba(37, 99, 235, 0.4)' : 'rgba(16, 185, 129, 0.4)'}; 
+          border-radius: 10px; 
+        }
+        .custom-exam-scrollbar::-webkit-scrollbar-thumb:hover { 
+          background-color: ${isWaecMode ? 'rgba(37, 99, 235, 0.7)' : 'rgba(16, 185, 129, 0.7)'}; 
+        }
       `}} />
 
       {/* ────────────────────────────────────────────────────────────────────────────────────────
@@ -263,12 +271,14 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
         
         {/* Candidate Identifier Info */}
         <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white font-black flex items-center justify-center text-sm shadow-sm shrink-0">
+          <div className={`w-10 h-10 rounded-xl text-white font-black flex items-center justify-center text-sm shadow-sm shrink-0 ${
+            isWaecMode ? "bg-blue-600" : "bg-emerald-600"
+          }`}>
             JM
           </div>
           <div className="flex flex-col">
             <span className="text-xs font-bold text-slate-900 dark:text-white line-clamp-1">
-              Candidate: John Jonathan (JAMB CBT)
+              Candidate: John Jonathan ({isWaecMode ? "WASSCE Mock" : "JAMB CBT"})
             </span>
             <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
               Reg No: 202698547210
@@ -279,8 +289,12 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
         {/* Wrapped Timer and Submit Button in Flex Row for Mobile Side-by-Side UI */}
         <div className="flex items-center justify-between w-full sm:w-auto gap-3">
           {/* Live Digital Countdown Timer */}
-          <div className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl bg-slate-900 text-emerald-400 font-mono font-black text-base sm:text-lg border border-slate-800 shadow-inner shrink-0">
-            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <div className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl bg-slate-900 font-mono font-black text-base sm:text-lg border border-slate-800 shadow-inner shrink-0 ${
+            isWaecMode ? "text-blue-400" : "text-emerald-400"
+          }`}>
+            <svg className={`w-4 h-4 sm:w-5 sm:h-5 animate-pulse ${
+              isWaecMode ? "text-blue-400" : "text-emerald-400"
+            }`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <span>{formattedTimeLeft}</span>
@@ -300,7 +314,6 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
       {/* ────────────────────────────────────────────────────────────────────────────────────────
           SUBJECT TABS NAVIGATION BAR
          ──────────────────────────────────────────────────────────────────────────────────────── */}
-      {/* Added `custom-exam-scrollbar` to replace default sideway scrolling */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-exam-scrollbar">
         {activeSubjects.map((subject) => {
           const isActive = subject.id === activeSubjectId;
@@ -308,6 +321,13 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
           const subjectAnswered = Object.keys(userAnswers).filter((k) =>
             k.startsWith(`${subject.id}-`)
           ).length;
+
+          // Dynamic Active Styling
+          const activeTabClass = isWaecMode 
+            ? "bg-blue-600 text-white border-blue-600 shadow-md"
+            : "bg-emerald-600 text-white border-emerald-600 shadow-md";
+            
+          const inactiveTabClass = "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800";
 
           return (
             <button
@@ -317,9 +337,7 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
                 setActiveQuestionIndex(0); // Reset index to 0 when switching subjects
               }}
               className={`px-4 py-3 rounded-2xl font-bold text-xs whitespace-nowrap transition-all duration-200 flex items-center gap-2 border ${
-                isActive
-                  ? "bg-emerald-600 text-white border-emerald-600 shadow-md"
-                  : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
+                isActive ? activeTabClass : inactiveTabClass
               }`}
             >
               <span>{subject.name}</span>
@@ -346,7 +364,9 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
               
               {/* Question Header Status */}
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-                <span className="text-xs font-mono font-black uppercase text-emerald-600 dark:text-emerald-400">
+                <span className={`text-xs font-mono font-black uppercase ${
+                  isWaecMode ? "text-blue-600 dark:text-blue-400" : "text-emerald-600 dark:text-emerald-400"
+                }`}>
                   Question {activeQuestionIndex + 1} of {currentSubjectQuestions.length}
                 </span>
 
@@ -368,8 +388,7 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
                 </button>
               </div>
 
-              {/* Comprehension Passage (If available for English) */}
-              {/* Added `custom-exam-scrollbar` to passage view */}
+              {/* Comprehension Passage */}
               {currentQuestion.passage && (
                 <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed max-h-48 overflow-y-auto custom-exam-scrollbar">
                   <p className="font-bold text-slate-900 dark:text-white mb-1">Passage Instruction:</p>
@@ -388,20 +407,26 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
                   const selectedKey = `${activeSubjectId}-${currentQuestion.id}`;
                   const isSelected = userAnswers[selectedKey] === option.letter;
 
+                  // Dynamic selected styles
+                  const selectedOptionClass = isWaecMode
+                    ? "bg-blue-50 dark:bg-blue-950/40 border-blue-500 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20"
+                    : "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500/20";
+                    
+                  const unselectedOptionClass = "bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700";
+
+                  const selectedLetterClass = isWaecMode ? "bg-blue-600 text-white" : "bg-emerald-600 text-white";
+                  const unselectedLetterClass = "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300";
+
                   return (
                     <div
                       key={option.letter}
                       onClick={() => handleSelectOption(option.letter)}
                       className={`p-4 rounded-2xl border transition-all duration-200 flex items-start gap-3 cursor-pointer select-none ${
-                        isSelected
-                          ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500/20"
-                          : "bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700"
+                        isSelected ? selectedOptionClass : unselectedOptionClass
                       }`}
                     >
                       <div className={`w-7 h-7 rounded-xl font-mono font-black text-xs flex items-center justify-center shrink-0 transition-colors ${
-                        isSelected
-                          ? "bg-emerald-600 text-white"
-                          : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                        isSelected ? selectedLetterClass : unselectedLetterClass
                       }`}>
                         {option.letter}
                       </div>
@@ -426,7 +451,9 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
                 <button
                   onClick={handleNextQuestion}
                   disabled={activeQuestionIndex === currentSubjectQuestions.length - 1}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-emerald-500 transition-colors shadow-sm"
+                  className={`px-5 py-2.5 rounded-xl text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm ${
+                    isWaecMode ? "bg-blue-600 hover:bg-blue-500" : "bg-emerald-600 hover:bg-emerald-500"
+                  }`}
                 >
                   Next →
                 </button>
@@ -455,7 +482,7 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
             {/* Status Color Key Legend */}
             <div className="grid grid-cols-2 gap-2 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                <span className={`w-2.5 h-2.5 rounded-full ${isWaecMode ? "bg-blue-500" : "bg-emerald-500"}`} />
                 <span>Answered</span>
               </div>
               <div className="flex items-center gap-1.5">
@@ -467,13 +494,12 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
                 <span>Unanswered</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full ring-2 ring-emerald-500 bg-transparent" />
+                <span className={`w-2.5 h-2.5 rounded-full ring-2 bg-transparent ${isWaecMode ? "ring-blue-500" : "ring-emerald-500"}`} />
                 <span>Active</span>
               </div>
             </div>
 
             {/* Matrix Grid of Number Badges */}
-            {/* Added `custom-exam-scrollbar` to matrix grid */}
             <div className="grid grid-cols-5 sm:grid-cols-8 lg:grid-cols-5 gap-2 max-h-72 overflow-y-auto p-1 custom-exam-scrollbar">
               {currentSubjectQuestions.map((q, idx) => {
                 const key = `${activeSubjectId}-${q.id}`;
@@ -482,16 +508,24 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
                 const isCurrent = idx === activeQuestionIndex;
 
                 let badgeStyle = "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400";
-                if (isAnswered) badgeStyle = "bg-emerald-600 text-white font-bold";
-                if (isFlagged) badgeStyle = "bg-amber-500 text-white font-bold";
+                
+                if (isAnswered) {
+                  badgeStyle = isWaecMode ? "bg-blue-600 text-white font-bold" : "bg-emerald-600 text-white font-bold";
+                }
+                if (isFlagged) {
+                  badgeStyle = "bg-amber-500 text-white font-bold";
+                }
+
+                // Dynamic outline ring for active item
+                const activeRingStyle = isCurrent 
+                  ? (isWaecMode ? "ring-2 ring-offset-2 ring-blue-500 dark:ring-offset-slate-900" : "ring-2 ring-offset-2 ring-emerald-500 dark:ring-offset-slate-900")
+                  : "";
 
                 return (
                   <button
                     key={q.id}
                     onClick={() => setActiveQuestionIndex(idx)}
-                    className={`h-9 rounded-xl text-xs font-mono transition-all flex items-center justify-center ${badgeStyle} ${
-                      isCurrent ? "ring-2 ring-offset-2 ring-emerald-500 dark:ring-offset-slate-900" : ""
-                    }`}
+                    className={`h-9 rounded-xl text-xs font-mono transition-all flex items-center justify-center ${badgeStyle} ${activeRingStyle}`}
                   >
                     {idx + 1}
                   </button>
@@ -529,7 +563,7 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
 
             <div className="space-y-2">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                Submit Your JAMB Exam?
+                Submit Your {isWaecMode ? "WASSCE" : "JAMB"} Exam?
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                 You have answered <span className="font-bold text-slate-900 dark:text-white">{totalAnsweredCount}</span> out of <span className="font-bold text-slate-900 dark:text-white">{totalQuestionsAllSubjects}</span> total questions. Are you sure you want to end this session?
@@ -546,7 +580,6 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
               <button
                 onClick={() => {
                   setShowSubmitModal(false);
-                  // 🆕 UPGRADE 2: Use handleFinalSubmit trigger
                   handleFinalSubmit();
                 }}
                 className="w-full py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md transition-colors"
@@ -582,7 +615,6 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
             <button
               onClick={() => {
                 setAutoSubmitCountdown(null);
-                // 🆕 UPGRADE 2: Use handleFinalSubmit trigger
                 handleFinalSubmit();
               }}
               className="w-full py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md transition-colors"

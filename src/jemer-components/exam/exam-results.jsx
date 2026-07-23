@@ -2,18 +2,17 @@
 
 /**
  * ================================================================================================
- * 🆕 NEW UPGRADES SUMMARY (v1.4 - EXAM PRACTICE DYNAMIC INTEGRATION)
+ * 🆕 NEW UPGRADES SUMMARY (v1.5 - STUDY ROOM DYNAMIC INTEGRATION)
  * ================================================================================================
- * 1. ORANGE THEMING: Injected Orange/Amber (`#f97316`) theme for `mode="practice"` across Hero, 
- *    Plotly charts, badges, table highlights, AI Tutor, and custom scrollbars.
- * 2. SINGLE-SUBJECT GRADING: Adapts the WAEC A1-F9 grading logic strictly for the 1 selected 
- *    practice subject. The Hero Score Card dynamically showcases this single subject's percentage 
- *    and exact WAEC-style grade.
- * 3. NO-BLANK-SPACE LAYOUT: Kept the identical grid structure but ensured that a 1-row table 
- *    doesn't break the visual weight balance compared to the right-side analytics column.
- * 4. DYNAMIC TEXT & INSIGHTS: Replaced UTME/WASSCE jargon with "Practice Session", "Practice 
- *    Readiness Index", and customized the AI Tutor to provide singular subject feedback.
- * 5. CONCISE COMMENTS: Cleaned up older verbose comments to optimize token usage.
+ * 1. EDTECH PURPLE THEME: Fully injected the Purple/Fuchsia (`purple-600`, `#9333ea`) theme for 
+ *    `mode="study"` across Hero banners, Plotly charts, badges, table highlights, and scrollbars.
+ * 2. SINGLE-SUBJECT GRADING (A1-F9): Linked Study Room to the same 1-subject WAEC grading 
+ *    engine used in Practice mode. The Hero Score Card displays the singular mastery percentage.
+ * 3. INTELLIGENT ANALYTICS REVISION: Adapted the Gauge chart to read "Study Mastery Index" 
+ *    focusing on knowledge retention rather than exam speed. Balanced the 1-row table perfectly 
+ *    with the right-side charts to ensure zero blank layout spaces.
+ * 4. AI TUTOR FEEDBACK: The Tutor's remarks dynamically reference the new AI explanations 
+ *    ("Make sure to review the detailed AI explanations below for the X questions you missed").
  * ================================================================================================
  */
 
@@ -45,9 +44,11 @@ const getWaecGrade = (percentage) => {
 export default function ExamResults({ mode = "jamb", config, sessionData, onRestart }) {
   const isWaecMode = mode === "waec";
   const isPracticeMode = mode === "practice";
+  const isStudyMode = mode === "study";
+  const isSingleSubjectMode = isPracticeMode || isStudyMode;
   
   // Dynamic theme colors for Plotly charts
-  const primaryChartColor = isPracticeMode ? "#f97316" : isWaecMode ? "#2563eb" : "#10b981"; 
+  const primaryChartColor = isStudyMode ? "#9333ea" : isPracticeMode ? "#f97316" : isWaecMode ? "#2563eb" : "#10b981"; 
   const dangerChartColor = "#f43f5e"; 
   const neutralChartColor = "#94a3b8"; 
 
@@ -55,7 +56,7 @@ export default function ExamResults({ mode = "jamb", config, sessionData, onRest
 
   const gradedData = useMemo(() => {
     // Default subject mapping based on mode
-    const defaultSubjects = isPracticeMode 
+    const defaultSubjects = isSingleSubjectMode 
       ? [{ id: "english", name: "English Language", count: 40 }]
       : isWaecMode 
         ? [
@@ -108,7 +109,7 @@ export default function ExamResults({ mode = "jamb", config, sessionData, onRest
     });
 
     const averagePercentage = Math.round(totalPercentageSum / subjects.length);
-    const overallReadiness = isPracticeMode 
+    const overallReadiness = isSingleSubjectMode 
       ? subjectBreakdown[0].percentage 
       : isWaecMode 
         ? averagePercentage 
@@ -129,7 +130,7 @@ export default function ExamResults({ mode = "jamb", config, sessionData, onRest
       totalWrong,
       totalSkipped,
     };
-  }, [config, isWaecMode, isPracticeMode]);
+  }, [config, isWaecMode, isSingleSubjectMode]);
 
   const reviewQuestions = useMemo(() => {
     return gradedData.subjectBreakdown.map((sub) => ({
@@ -155,10 +156,10 @@ export default function ExamResults({ mode = "jamb", config, sessionData, onRest
   const barChartData = [
     {
       x: gradedData.subjectBreakdown.map((s) => s.name.substring(0, 10) + (s.name.length > 10 ? "..." : "")),
-      y: gradedData.subjectBreakdown.map((s) => (isWaecMode || isPracticeMode) ? s.percentage : s.scaledScore),
+      y: gradedData.subjectBreakdown.map((s) => isSingleSubjectMode || isWaecMode ? s.percentage : s.scaledScore),
       type: "bar",
       marker: { color: primaryChartColor, borderRadius: 4 },
-      text: gradedData.subjectBreakdown.map((s) => (isWaecMode || isPracticeMode) ? `${s.percentage}%` : `${s.scaledScore}`),
+      text: gradedData.subjectBreakdown.map((s) => isSingleSubjectMode || isWaecMode ? `${s.percentage}%` : `${s.scaledScore}`),
       textposition: "auto",
       hoverinfo: "x+y",
     },
@@ -193,7 +194,7 @@ export default function ExamResults({ mode = "jamb", config, sessionData, onRest
       type: "indicator", mode: "gauge+number",
       value: gradedData.overallReadiness,
       number: { suffix: "%", font: { color: primaryChartColor, size: 26, family: "inherit" } },
-      title: { text: isPracticeMode ? "Practice Readiness Index" : isWaecMode ? "WASSCE Readiness Index" : "UTME Readiness Index", font: { size: 11, color: "#64748b" } },
+      title: { text: isStudyMode ? "Study Mastery Index" : isPracticeMode ? "Practice Readiness Index" : isWaecMode ? "WASSCE Readiness Index" : "UTME Readiness Index", font: { size: 11, color: "#64748b" } },
       gauge: {
         axis: { range: [0, 100], tickwidth: 1, tickcolor: "#64748b" },
         bar: { color: primaryChartColor },
@@ -201,7 +202,7 @@ export default function ExamResults({ mode = "jamb", config, sessionData, onRest
         steps: [
           { range: [0, 50], color: "rgba(244, 63, 94, 0.12)" },
           { range: [50, 75], color: "rgba(245, 158, 11, 0.12)" },
-          { range: [75, 100], color: isPracticeMode ? "rgba(249, 115, 22, 0.12)" : isWaecMode ? "rgba(37, 99, 235, 0.12)" : "rgba(16, 185, 129, 0.12)" },
+          { range: [75, 100], color: isStudyMode ? "rgba(147, 51, 234, 0.12)" : isPracticeMode ? "rgba(249, 115, 22, 0.12)" : isWaecMode ? "rgba(37, 99, 235, 0.12)" : "rgba(16, 185, 129, 0.12)" },
         ],
       },
     },
@@ -216,51 +217,53 @@ export default function ExamResults({ mode = "jamb", config, sessionData, onRest
         .custom-exam-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-exam-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-exam-scrollbar::-webkit-scrollbar-thumb { 
-          background-color: ${isPracticeMode ? 'rgba(249, 115, 22, 0.4)' : isWaecMode ? 'rgba(37, 99, 235, 0.4)' : 'rgba(16, 185, 129, 0.4)'}; 
+          background-color: ${isStudyMode ? 'rgba(147, 51, 234, 0.4)' : isPracticeMode ? 'rgba(249, 115, 22, 0.4)' : isWaecMode ? 'rgba(37, 99, 235, 0.4)' : 'rgba(16, 185, 129, 0.4)'}; 
           border-radius: 10px; 
         }
         .custom-exam-scrollbar::-webkit-scrollbar-thumb:hover { 
-          background-color: ${isPracticeMode ? 'rgba(249, 115, 22, 0.7)' : isWaecMode ? 'rgba(37, 99, 235, 0.7)' : 'rgba(16, 185, 129, 0.7)'}; 
+          background-color: ${isStudyMode ? 'rgba(147, 51, 234, 0.7)' : isPracticeMode ? 'rgba(249, 115, 22, 0.7)' : isWaecMode ? 'rgba(37, 99, 235, 0.7)' : 'rgba(16, 185, 129, 0.7)'}; 
         }
       `}} />
 
       {/* SECTION 1: CANDIDATE OVERVIEW HERO BANNER */}
       <div className={`relative rounded-3xl p-5 sm:p-8 bg-gradient-to-br text-white overflow-hidden shadow-2xl border ${
+        isStudyMode ? "from-purple-900 via-slate-900 to-fuchsia-950 border-purple-500/20" :
         isPracticeMode ? "from-orange-900 via-slate-900 to-amber-950 border-orange-500/20" :
         isWaecMode ? "from-blue-900 via-slate-900 to-indigo-950 border-blue-500/20" :
         "from-emerald-900 via-slate-900 to-teal-950 border-emerald-500/20"
       }`}>
-        <div className={`absolute -top-32 -right-32 w-96 h-96 rounded-full blur-3xl pointer-events-none ${isPracticeMode ? "bg-orange-500/20" : isWaecMode ? "bg-blue-500/20" : "bg-emerald-500/20"}`} />
-        <div className={`absolute -bottom-20 -left-20 w-72 h-72 rounded-full blur-3xl pointer-events-none ${isPracticeMode ? "bg-amber-500/10" : isWaecMode ? "bg-indigo-500/10" : "bg-teal-500/10"}`} />
+        <div className={`absolute -top-32 -right-32 w-96 h-96 rounded-full blur-3xl pointer-events-none ${isStudyMode ? "bg-purple-500/20" : isPracticeMode ? "bg-orange-500/20" : isWaecMode ? "bg-blue-500/20" : "bg-emerald-500/20"}`} />
+        <div className={`absolute -bottom-20 -left-20 w-72 h-72 rounded-full blur-3xl pointer-events-none ${isStudyMode ? "bg-fuchsia-500/10" : isPracticeMode ? "bg-amber-500/10" : isWaecMode ? "bg-indigo-500/10" : "bg-teal-500/10"}`} />
 
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 w-full">
           <div className="space-y-3 min-w-0 w-full md:w-auto">
             <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider font-mono border ${
+              isStudyMode ? "bg-purple-500/20 text-purple-300 border-purple-500/30" :
               isPracticeMode ? "bg-orange-500/20 text-orange-300 border-orange-500/30" :
               isWaecMode ? "bg-blue-500/20 text-blue-300 border-blue-500/30" :
               "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
             }`}>
-              <span className={`w-2 h-2 rounded-full shrink-0 ${isPracticeMode ? "bg-orange-400" : isWaecMode ? "bg-blue-400" : "bg-emerald-400"}`} />
-              {isPracticeMode ? "Practice Session Completed" : isWaecMode ? "WASSCE Session Completed" : "JAMB CBT Session Completed"}
+              <span className={`w-2 h-2 rounded-full shrink-0 ${isStudyMode ? "bg-purple-400" : isPracticeMode ? "bg-orange-400" : isWaecMode ? "bg-blue-400" : "bg-emerald-400"}`} />
+              {isStudyMode ? "Study Session Completed" : isPracticeMode ? "Practice Session Completed" : isWaecMode ? "WASSCE Session Completed" : "JAMB CBT Session Completed"}
             </div>
             <h1 className="text-2xl sm:text-4xl font-display font-black tracking-tight text-white truncate">
-              Candidate: <span className={isPracticeMode ? "text-orange-400" : isWaecMode ? "text-blue-400" : "text-emerald-400"}>John Jonathan</span>
+              Candidate: <span className={isStudyMode ? "text-purple-400" : isPracticeMode ? "text-orange-400" : isWaecMode ? "text-blue-400" : "text-emerald-400"}>John Jonathan</span>
             </h1>
             <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs font-medium text-slate-300">
               <span className="flex items-center gap-1.5 shrink-0">
-                <svg className={`w-4 h-4 shrink-0 ${isPracticeMode ? "text-orange-500" : isWaecMode ? "text-blue-500" : "text-emerald-500"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className={`w-4 h-4 shrink-0 ${isStudyMode ? "text-purple-500" : isPracticeMode ? "text-orange-500" : isWaecMode ? "text-blue-500" : "text-emerald-500"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
                 </svg>
                 Reg: 202698547210
               </span>
               <span className="flex items-center gap-1.5 shrink-0">
-                <svg className={`w-4 h-4 shrink-0 ${isPracticeMode ? "text-orange-500" : isWaecMode ? "text-blue-500" : "text-emerald-500"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className={`w-4 h-4 shrink-0 ${isStudyMode ? "text-purple-500" : isPracticeMode ? "text-orange-500" : isWaecMode ? "text-blue-500" : "text-emerald-500"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Time Used: {isPracticeMode ? "Custom Drill" : isWaecMode ? "Subject Varied" : "1 hr 45 mins"}
+                Time Used: {isSingleSubjectMode ? "Custom Drill" : isWaecMode ? "Subject Varied" : "1 hr 45 mins"}
               </span>
               <span className="flex items-center gap-1.5 shrink-0">
-                <svg className={`w-4 h-4 shrink-0 ${isPracticeMode ? "text-orange-500" : isWaecMode ? "text-blue-500" : "text-emerald-500"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className={`w-4 h-4 shrink-0 ${isStudyMode ? "text-purple-500" : isPracticeMode ? "text-orange-500" : isWaecMode ? "text-blue-500" : "text-emerald-500"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                 </svg>
                 {gradedData.subjectBreakdown.length} Subject{gradedData.subjectBreakdown.length > 1 ? "s" : ""}
@@ -282,30 +285,32 @@ export default function ExamResults({ mode = "jamb", config, sessionData, onRest
           
           <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center text-center relative overflow-hidden">
             <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${
+              isStudyMode ? "from-purple-500 to-fuchsia-400" :
               isPracticeMode ? "from-orange-500 to-amber-400" :
               isWaecMode ? "from-blue-500 to-indigo-400" : 
               "from-emerald-500 to-teal-400"
             }`} />
             
             <h2 className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">
-              {isPracticeMode ? "Practice Score" : isWaecMode ? "WASSCE Global Aggregate" : "Aggregate UTME Score"}
+              {isStudyMode ? "Study Session Score" : isPracticeMode ? "Practice Score" : isWaecMode ? "WASSCE Global Aggregate" : "Aggregate UTME Score"}
             </h2>
             
             <div className="flex items-baseline gap-2">
               <span className="text-6xl sm:text-7xl font-display font-black text-slate-900 dark:text-white tracking-tighter">
-                {isPracticeMode ? gradedData.subjectBreakdown[0]?.percentage : isWaecMode ? gradedData.averagePercentage : gradedData.totalScaled}
+                {isSingleSubjectMode ? gradedData.subjectBreakdown[0]?.percentage : isWaecMode ? gradedData.averagePercentage : gradedData.totalScaled}
               </span>
               <span className="text-xl sm:text-2xl font-bold text-slate-400">
-                {isPracticeMode || isWaecMode ? "%" : "/ 400"}
+                {isSingleSubjectMode || isWaecMode ? "%" : "/ 400"}
               </span>
             </div>
 
             <div className={`mt-4 px-4 py-1.5 rounded-full text-xs font-bold border ${
+              isStudyMode ? "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800/50" :
               isPracticeMode ? "bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800/50" :
               isWaecMode ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800/50" :
               "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50"
             }`}>
-              {isPracticeMode 
+              {isSingleSubjectMode 
                 ? `Grade Achieved: ${gradedData.subjectBreakdown[0]?.grade}`
                 : isWaecMode 
                   ? `${gradedData.distinctionsCount} Distinctions | ${gradedData.creditsCount} Credits`
@@ -322,7 +327,7 @@ export default function ExamResults({ mode = "jamb", config, sessionData, onRest
                     <th className="p-3 sm:p-4 text-[11px] sm:text-xs font-black uppercase text-slate-500 dark:text-slate-400">Subject</th>
                     <th className="p-3 sm:p-4 text-[11px] sm:text-xs font-black uppercase text-slate-500 dark:text-slate-400 text-center">Raw</th>
                     
-                    {(isWaecMode || isPracticeMode) ? (
+                    {isSingleSubjectMode || isWaecMode ? (
                       <>
                         <th className="p-3 sm:p-4 text-[11px] sm:text-xs font-black uppercase text-slate-500 dark:text-slate-400 text-center">Score</th>
                         <th className="p-3 sm:p-4 text-[11px] sm:text-xs font-black uppercase text-slate-500 dark:text-slate-400 text-right">Grade</th>
@@ -342,14 +347,14 @@ export default function ExamResults({ mode = "jamb", config, sessionData, onRest
                         {sub.rawScore}/{sub.maxRaw}
                       </td>
                       
-                      {(isWaecMode || isPracticeMode) ? (
+                      {isSingleSubjectMode || isWaecMode ? (
                         <>
                           <td className="p-3 sm:p-4 text-xs sm:text-sm font-black font-mono text-slate-700 dark:text-slate-300 text-center">
                             {sub.percentage}%
                           </td>
                           <td className={`p-3 sm:p-4 text-xs sm:text-sm font-black font-mono text-right ${
-                            ["A1", "B2", "B3"].includes(sub.grade) ? (isPracticeMode ? "text-orange-600 dark:text-orange-400" : "text-blue-600 dark:text-blue-400") :
-                            ["C4", "C5", "C6"].includes(sub.grade) ? (isPracticeMode ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400") :
+                            ["A1", "B2", "B3"].includes(sub.grade) ? (isStudyMode ? "text-purple-600 dark:text-purple-400" : isPracticeMode ? "text-orange-600 dark:text-orange-400" : "text-blue-600 dark:text-blue-400") :
+                            ["C4", "C5", "C6"].includes(sub.grade) ? (isStudyMode ? "text-fuchsia-600 dark:text-fuchsia-400" : isPracticeMode ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400") :
                             "text-rose-600 dark:text-rose-400"
                           }`}>
                             {sub.grade}
@@ -373,7 +378,7 @@ export default function ExamResults({ mode = "jamb", config, sessionData, onRest
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[280px] sm:h-[300px] w-full min-w-0">
               <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full shrink-0 ${isPracticeMode ? "bg-orange-500" : isWaecMode ? "bg-blue-500" : "bg-emerald-500"}`} /> 
+                <span className={`w-2 h-2 rounded-full shrink-0 ${isStudyMode ? "bg-purple-500" : isPracticeMode ? "bg-orange-500" : isWaecMode ? "bg-blue-500" : "bg-emerald-500"}`} /> 
                 Subject Mastery
               </h3>
               <div className="flex-1 w-full h-full min-h-0 relative">
@@ -383,7 +388,7 @@ export default function ExamResults({ mode = "jamb", config, sessionData, onRest
 
             <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[280px] sm:h-[300px] w-full min-w-0">
               <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full shrink-0 ${isPracticeMode ? "bg-orange-500" : "bg-indigo-500"}`} /> 
+                <span className={`w-2 h-2 rounded-full shrink-0 ${isStudyMode ? "bg-fuchsia-500" : isPracticeMode ? "bg-orange-500" : "bg-indigo-500"}`} /> 
                 Overall Accuracy
               </h3>
               <div className="flex-1 w-full h-full min-h-0 relative">
@@ -394,8 +399,8 @@ export default function ExamResults({ mode = "jamb", config, sessionData, onRest
 
           <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center h-[200px] sm:h-[220px] w-full min-w-0 relative">
             <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white absolute top-4 left-5 flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full shrink-0 ${isPracticeMode ? "bg-amber-400" : isWaecMode ? "bg-blue-400" : "bg-teal-500"}`} /> 
-              Speed & Readiness Index
+              <span className={`w-2 h-2 rounded-full shrink-0 ${isStudyMode ? "bg-fuchsia-400" : isPracticeMode ? "bg-amber-400" : isWaecMode ? "bg-blue-400" : "bg-teal-500"}`} /> 
+              {isStudyMode ? "Study Mastery Index" : isPracticeMode ? "Speed & Readiness Index" : "Readiness Index"}
             </h3>
             <div className="w-full h-full pt-4 relative flex items-center justify-center">
               <Plot data={gaugeChartData} layout={gaugeChartLayout} config={{ displayModeBar: false, responsive: true }} style={{ width: "100%", height: "100%", position: "absolute" }} useResizeHandler={true} />
@@ -407,11 +412,14 @@ export default function ExamResults({ mode = "jamb", config, sessionData, onRest
 
       {/* SECTION 3: JEMER TUTOR'S REMARK */}
       <div className={`p-6 sm:p-8 rounded-3xl bg-gradient-to-r shadow-sm relative overflow-hidden flex flex-col md:flex-row items-start md:items-center gap-6 border ${
+        isStudyMode ? "from-purple-50 via-fuchsia-50 to-purple-50 dark:from-purple-950/40 dark:via-fuchsia-900/20 dark:to-purple-950/40 border-purple-200 dark:border-purple-800/50" :
         isPracticeMode ? "from-orange-50 via-amber-50 to-orange-50 dark:from-orange-950/40 dark:via-amber-900/20 dark:to-orange-950/40 border-orange-200 dark:border-orange-800/50" :
         "from-indigo-50 via-purple-50 to-indigo-50 dark:from-indigo-950/40 dark:via-purple-900/20 dark:to-indigo-950/40 border-indigo-200 dark:border-indigo-800/50"
       }`}>
         <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br text-white flex items-center justify-center shadow-lg shrink-0 relative z-10 ${
-          isPracticeMode ? "from-orange-500 to-amber-600 shadow-orange-500/30" : "from-indigo-500 to-purple-600 shadow-indigo-500/30"
+          isStudyMode ? "from-purple-500 to-fuchsia-600 shadow-purple-500/30" : 
+          isPracticeMode ? "from-orange-500 to-amber-600 shadow-orange-500/30" : 
+          "from-indigo-500 to-purple-600 shadow-indigo-500/30"
         }`}>
           <svg className="w-7 h-7 sm:w-8 sm:h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -419,15 +427,17 @@ export default function ExamResults({ mode = "jamb", config, sessionData, onRest
         </div>
 
         <div className="relative z-10 flex-1 space-y-2 min-w-0">
-          <h3 className={`text-base sm:text-lg font-black ${isPracticeMode ? "text-orange-900 dark:text-orange-300" : "text-indigo-900 dark:text-indigo-300"}`}>
+          <h3 className={`text-base sm:text-lg font-black ${isStudyMode ? "text-purple-900 dark:text-purple-300" : isPracticeMode ? "text-orange-900 dark:text-orange-300" : "text-indigo-900 dark:text-indigo-300"}`}>
             Jemer Tutor AI Insight
           </h3>
-          <p className={`text-xs sm:text-sm font-medium leading-relaxed break-words ${isPracticeMode ? "text-orange-950/80 dark:text-orange-200/80" : "text-indigo-950/80 dark:text-indigo-200/80"}`}>
-            {isPracticeMode 
-              ? `"Great practice session, John! You scored ${gradedData.subjectBreakdown[0]?.percentage}% (${gradedData.subjectBreakdown[0]?.grade}) in ${gradedData.subjectBreakdown[0]?.name}. Keep drilling to improve your speed and accuracy before the main exam."`
-              : isWaecMode 
-                ? `"Excellent performance across your ${gradedData.subjectBreakdown.length} WASSCE subjects, John! Achieving ${gradedData.distinctionsCount} Distinctions is outstanding. However, we noticed a slight pacing issue in English where 15 questions were rushed in the final 10 minutes."`
-                : `"Excellent overall aggregate, John! Your mastery in Mathematics and Physics is outstanding. However, we noticed a slight pacing issue in Use of English where 15 questions were rushed in the final 10 minutes."`
+          <p className={`text-xs sm:text-sm font-medium leading-relaxed break-words ${isStudyMode ? "text-purple-950/80 dark:text-purple-200/80" : isPracticeMode ? "text-orange-950/80 dark:text-orange-200/80" : "text-indigo-950/80 dark:text-indigo-200/80"}`}>
+            {isStudyMode 
+              ? `"Great study session, John! You achieved a mastery of ${gradedData.subjectBreakdown[0]?.percentage}% (${gradedData.subjectBreakdown[0]?.grade}) in ${gradedData.subjectBreakdown[0]?.name}. Make sure to review the detailed AI explanations below for the ${gradedData.totalWrong} questions you missed to solidify your understanding."`
+              : isPracticeMode 
+                ? `"Great practice drill, John! You scored ${gradedData.subjectBreakdown[0]?.percentage}% (${gradedData.subjectBreakdown[0]?.grade}) in ${gradedData.subjectBreakdown[0]?.name}. Keep practicing to improve your speed and accuracy before the main exam."`
+                : isWaecMode 
+                  ? `"Excellent performance across your ${gradedData.subjectBreakdown.length} WASSCE subjects, John! Achieving ${gradedData.distinctionsCount} Distinctions is outstanding. However, we noticed a slight pacing issue in English where 15 questions were rushed in the final 10 minutes."`
+                  : `"Excellent overall aggregate, John! Your mastery in Mathematics and Physics is outstanding. However, we noticed a slight pacing issue in Use of English where 15 questions were rushed in the final 10 minutes."`
             }
           </p>
         </div>
@@ -464,11 +474,13 @@ export default function ExamResults({ mode = "jamb", config, sessionData, onRest
                         <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs font-mono font-bold">
                           <div className={`px-3 py-1.5 rounded-lg flex items-center gap-2 border ${
                             q.isCorrect 
-                              ? (isPracticeMode 
-                                  ? "bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800"
-                                  : isWaecMode 
-                                    ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800" 
-                                    : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800")
+                              ? (isStudyMode 
+                                  ? "bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800"
+                                  : isPracticeMode 
+                                    ? "bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800"
+                                    : isWaecMode 
+                                      ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800" 
+                                      : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800")
                               : "bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800"
                           }`}>
                             <span>Your Answer: {q.userAnswer || "None"}</span>
@@ -481,7 +493,7 @@ export default function ExamResults({ mode = "jamb", config, sessionData, onRest
 
                           {!q.isCorrect && (
                             <div className={`px-3 py-1.5 rounded-lg text-white flex items-center gap-2 shadow-sm ${
-                              isPracticeMode ? "bg-orange-500" : isWaecMode ? "bg-blue-500" : "bg-emerald-500"
+                              isStudyMode ? "bg-purple-500" : isPracticeMode ? "bg-orange-500" : isWaecMode ? "bg-blue-500" : "bg-emerald-500"
                             }`}>
                               <span>Correct Answer: {q.correctAnswer}</span>
                               <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>

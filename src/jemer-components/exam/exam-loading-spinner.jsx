@@ -2,15 +2,15 @@
 
 /**
  * ================================================================================================
- * 🆕 NEW UPGRADES SUMMARY (v1.2 - EXAM PRACTICE DYNAMIC INTEGRATION)
+ * 🆕 NEW UPGRADES SUMMARY (v1.3 - STUDY ROOM DYNAMIC INTEGRATION)
  * ================================================================================================
- * 1. ORANGE THEME INJECTION: Added `isPracticeMode` checks. The HUD radar rings, progress bars, 
- *    and glowing auras now switch to a vibrant Orange/Amber theme when `mode="practice"`.
- * 2. 3-WAY DYNAMIC THEMING: Replaced inline ternaries with clean derived style variables 
- *    (`themeStyles`) to gracefully handle JAMB (Green), WAEC (Blue), and Practice (Orange) modes.
- * 3. DYNAMIC STATUS MESSAGES: Added a `practice` array to `STATUS_STEPS` containing specific 
- *    practice-focused terminology ("Connecting to Jemer Practice Engine...", etc.).
- * 4. LOGIC PRESERVED: Interval timer, percentile benchmarks, and completion triggers remain 
+ * 1. EDTECH PURPLE THEMING: Added `isStudyMode` checks. The HUD radar rings, progress bars, 
+ *    and glowing auras now switch to a deep Purple/Fuchsia theme when `mode="study"`.
+ * 2. 4-WAY DYNAMIC THEMING: Upgraded `themeStyles` to gracefully handle JAMB (Green), 
+ *    WAEC (Blue), Practice (Orange), and the new Study Room (Purple) seamlessly.
+ * 3. DYNAMIC STATUS MESSAGES: Added a `study` array to `STATUS_STEPS` containing active-learning 
+ *    focused terminology ("Pre-loading AI explanation modules...", etc.).
+ * 4. LOGIC PRESERVED: Core interval timer, percentile benchmarks, and completion triggers remain 
  *    100% identical.
  * ================================================================================================
  */
@@ -38,6 +38,13 @@ const STATUS_STEPS = {
     "Calibrating practice session timer...",
     "Encrypting candidate session token & loading question matrix...",
     "Finalizing interface... Preparing exam workspace!",
+  ],
+  study: [
+    "Initializing Study Room Engine...",
+    "Pre-loading AI explanation modules...",
+    "Calibrating active learning session timer...",
+    "Encrypting candidate session token & loading question matrix...",
+    "Finalizing interface... Preparing study workspace!",
   ]
 };
 
@@ -51,6 +58,7 @@ const MOTIVATIONAL_QUOTES = [
 export default function ExamLoadingSpinner({ mode = "jamb", config, onComplete }) {
   const isWaecMode = mode === "waec";
   const isPracticeMode = mode === "practice";
+  const isStudyMode = mode === "study";
 
   const [progress, setProgress] = useState(0);
   const [statusIndex, setStatusIndex] = useState(0);
@@ -60,14 +68,27 @@ export default function ExamLoadingSpinner({ mode = "jamb", config, onComplete }
     return MOTIVATIONAL_QUOTES[randomIndex];
   }, []);
 
-  const activeStatusSteps = isPracticeMode 
-    ? STATUS_STEPS.practice 
-    : isWaecMode 
-      ? STATUS_STEPS.waec 
-      : STATUS_STEPS.jamb;
+  const activeStatusSteps = isStudyMode 
+    ? STATUS_STEPS.study
+    : isPracticeMode 
+      ? STATUS_STEPS.practice 
+      : isWaecMode 
+        ? STATUS_STEPS.waec 
+        : STATUS_STEPS.jamb;
 
   // Derive dynamic classes based on mode to keep JSX clean
   const themeStyles = useMemo(() => {
+    if (isStudyMode) {
+      return {
+        ringBg: "bg-purple-500/10 dark:bg-purple-500/20",
+        dottedRing: "border-purple-500/40",
+        innerRing: "border-t-purple-500 border-r-fuchsia-400",
+        textAccent: "text-purple-600 dark:text-purple-400",
+        gradientBar: "from-purple-500 via-fuchsia-500 to-purple-400",
+        borderAccent: "border-purple-500/20",
+        bgAccent: "bg-purple-500/10"
+      };
+    }
     if (isPracticeMode) {
       return {
         ringBg: "bg-orange-500/10 dark:bg-orange-500/20",
@@ -99,7 +120,7 @@ export default function ExamLoadingSpinner({ mode = "jamb", config, onComplete }
       borderAccent: "border-emerald-500/20",
       bgAccent: "bg-emerald-500/10"
     };
-  }, [isPracticeMode, isWaecMode]);
+  }, [isPracticeMode, isWaecMode, isStudyMode]);
 
   useEffect(() => {
     const interval = setInterval(() => {

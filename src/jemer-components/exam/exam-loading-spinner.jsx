@@ -2,14 +2,14 @@
 
 /**
  * ================================================================================================
- * 🆕 NEW UPGRADES SUMMARY (v1.3 - STUDY ROOM DYNAMIC INTEGRATION)
+ * 🆕 NEW UPGRADES SUMMARY (v1.4 - QUESTIONS HUNTER DYNAMIC INTEGRATION)
  * ================================================================================================
- * 1. EDTECH PURPLE THEMING: Added `isStudyMode` checks. The HUD radar rings, progress bars, 
- *    and glowing auras now switch to a deep Purple/Fuchsia theme when `mode="study"`.
- * 2. 4-WAY DYNAMIC THEMING: Upgraded `themeStyles` to gracefully handle JAMB (Green), 
- *    WAEC (Blue), Practice (Orange), and the new Study Room (Purple) seamlessly.
- * 3. DYNAMIC STATUS MESSAGES: Added a `study` array to `STATUS_STEPS` containing active-learning 
- *    focused terminology ("Pre-loading AI explanation modules...", etc.).
+ * 1. TURQUOISE/TEAL THEMING: Added `isHunterMode` checks. The HUD radar rings, progress bars, 
+ *    and glowing auras now switch to a vibrant Teal/Cyan theme when `mode="hunter"`.
+ * 2. 5-WAY DYNAMIC THEMING: Upgraded `themeStyles` to gracefully handle JAMB (Green), 
+ *    WAEC (Blue), Practice (Orange), Study Room (Purple), and now Questions Hunter (Teal).
+ * 3. DYNAMIC STATUS MESSAGES: Added a `hunter` array to `STATUS_STEPS` featuring custom 
+ *    AI-generation terminology ("Parsing custom AI prompt...", "Scanning global exam databases...").
  * 4. LOGIC PRESERVED: Core interval timer, percentile benchmarks, and completion triggers remain 
  *    100% identical.
  * ================================================================================================
@@ -45,6 +45,13 @@ const STATUS_STEPS = {
     "Calibrating active learning session timer...",
     "Encrypting candidate session token & loading question matrix...",
     "Finalizing interface... Preparing study workspace!",
+  ],
+  hunter: [
+    "Parsing custom AI prompt...",
+    "Scanning global exam databases (SAT, IGCSE, etc.)...",
+    "Calibrating dynamic session timer...",
+    "Synthesizing custom question matrix...",
+    "Finalizing interface... Preparing custom hunt!",
   ]
 };
 
@@ -59,6 +66,7 @@ export default function ExamLoadingSpinner({ mode = "jamb", config, onComplete }
   const isWaecMode = mode === "waec";
   const isPracticeMode = mode === "practice";
   const isStudyMode = mode === "study";
+  const isHunterMode = mode === "hunter";
 
   const [progress, setProgress] = useState(0);
   const [statusIndex, setStatusIndex] = useState(0);
@@ -68,16 +76,29 @@ export default function ExamLoadingSpinner({ mode = "jamb", config, onComplete }
     return MOTIVATIONAL_QUOTES[randomIndex];
   }, []);
 
-  const activeStatusSteps = isStudyMode 
-    ? STATUS_STEPS.study
-    : isPracticeMode 
-      ? STATUS_STEPS.practice 
-      : isWaecMode 
-        ? STATUS_STEPS.waec 
-        : STATUS_STEPS.jamb;
+  const activeStatusSteps = isHunterMode 
+    ? STATUS_STEPS.hunter
+    : isStudyMode 
+      ? STATUS_STEPS.study
+      : isPracticeMode 
+        ? STATUS_STEPS.practice 
+        : isWaecMode 
+          ? STATUS_STEPS.waec 
+          : STATUS_STEPS.jamb;
 
   // Derive dynamic classes based on mode to keep JSX clean
   const themeStyles = useMemo(() => {
+    if (isHunterMode) {
+      return {
+        ringBg: "bg-teal-500/10 dark:bg-teal-500/20",
+        dottedRing: "border-teal-500/40",
+        innerRing: "border-t-teal-500 border-r-cyan-400",
+        textAccent: "text-teal-600 dark:text-teal-400",
+        gradientBar: "from-teal-500 via-cyan-500 to-teal-400",
+        borderAccent: "border-teal-500/20",
+        bgAccent: "bg-teal-500/10"
+      };
+    }
     if (isStudyMode) {
       return {
         ringBg: "bg-purple-500/10 dark:bg-purple-500/20",
@@ -120,7 +141,7 @@ export default function ExamLoadingSpinner({ mode = "jamb", config, onComplete }
       borderAccent: "border-emerald-500/20",
       bgAccent: "bg-emerald-500/10"
     };
-  }, [isPracticeMode, isWaecMode, isStudyMode]);
+  }, [isPracticeMode, isWaecMode, isStudyMode, isHunterMode]);
 
   useEffect(() => {
     const interval = setInterval(() => {

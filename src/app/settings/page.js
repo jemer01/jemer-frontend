@@ -1,3 +1,6 @@
+// app/settings/page.js
+"use client";
+
 /**
  * ================================================================================================
  * ⚙️ JEMER ACADEMY SETTINGS ENTRY PAGE
@@ -6,8 +9,6 @@
  * Description: Clean runtime entry node mounting the primary Settings Engine component.
  * ================================================================================================
  */
-
-"use client";
 
 import React from 'react';
 import SettingsEngine from '@/jemer-components/settings/settings.jsx';

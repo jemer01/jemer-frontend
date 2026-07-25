@@ -1,13 +1,17 @@
+// app/settings/layout.js
+"use client";
+
 /**
  * ================================================================================================
  * ⚙️ JEMER ACADEMY SETTINGS LAYOUT SHIELD (UPGRADED)
  * ================================================================================================
- * Description: Master layout coordinator for settings. Now perfectly matches dashboard widths
- * and includes a customized WebKit scrollbar implementation.
+ * 🆕 NEW UPGRADES BUILT:
+ * 1. Hydration Mismatch Fix: Removed the massive inline arbitrary Tailwind scrollbar classes 
+ *    that were causing HTML string mismatches between the Server (SSR) and Client.
+ * 2. Premium Scroll Injection: Replaced it with a safe `<style>` block and a clean 
+ *    `.settings-premium-scroll` class, identical to the proven Exam Simulator architecture.
  * ================================================================================================
  */
-
-"use client";
 
 import React, { useState } from "react";
 import Sidebar from "@/jemer-components/layout/Sidebar.jsx";
@@ -19,6 +23,23 @@ export default function SettingsLayout({ children }) {
   return (
     <div className="h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950 flex relative transition-colors duration-200 font-sans">
       
+      {/* 🆕 CSS Injection for Webkit Scrollbar (Bypasses SSR Hydration crashes) */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .settings-premium-scroll::-webkit-scrollbar { width: 10px; }
+        .settings-premium-scroll::-webkit-scrollbar-track { background: transparent; }
+        .settings-premium-scroll::-webkit-scrollbar-thumb { 
+          background-color: #cbd5e1; 
+          border-radius: 9999px; 
+          border: 2px solid #f8fafc; 
+        }
+        .dark .settings-premium-scroll::-webkit-scrollbar-thumb { 
+          background-color: #334155; 
+          border-color: #020617; 
+        }
+        .settings-premium-scroll::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+        .dark .settings-premium-scroll::-webkit-scrollbar-thumb:hover { background-color: #475569; }
+      `}} />
+
       {/* 📡 MOBILE TRANSLUCENT BACKDROP DIM OVERLAY */}
       {isSidebarVisible && (
         <div
@@ -43,15 +64,9 @@ export default function SettingsLayout({ children }) {
         {/* 📑 GLOBAL TOP ADMINISTRATIVE NAVBAR HEADER */}
         <Navbar onMenuToggle={() => setIsSidebarVisible(!isSidebarVisible)} />
 
-        {/* 📥 SELF-CONTAINED SEGMENTED SCROLL CHANNEL WITH CUSTOM CSS SCROLLBAR */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 focus:outline-none bg-slate-50/40 dark:bg-slate-950/40 
-          [&::-webkit-scrollbar]:w-2.5 
-          [&::-webkit-scrollbar-track]:bg-transparent 
-          [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 
-          [&::-webkit-scrollbar-thumb]:border-[2px] [&::-webkit-scrollbar-thumb]:border-solid [&::-webkit-scrollbar-thumb]:border-slate-50 dark:[&::-webkit-scrollbar-thumb]:border-slate-950
-          [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 dark:hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 transition-colors"
-        >
-          {/* MAX-W-7XL FIX: Aligns perfectly with dashboard, eliminating the broken right-side gap */}
+        {/* 📥 SELF-CONTAINED SEGMENTED SCROLL CHANNEL */}
+        <main className="flex-1 overflow-y-auto settings-premium-scroll p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 focus:outline-none bg-slate-50/40 dark:bg-slate-950/40 transition-colors">
+          {/* MAX-W-7XL FIX: Aligns perfectly with dashboard */}
           <div className="max-w-7xl mx-auto space-y-6 lg:space-y-8 animate-fade-in w-full">
             {children}
           </div>

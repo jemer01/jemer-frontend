@@ -1,24 +1,28 @@
-"use client";
+"use client"; // Enforces client-side state execution for active exam navigation, selection options, and live countdown timer
 
 /**
  * ================================================================================================
- * 🆕 NEW UPGRADES SUMMARY (v1.5 - STUDY ROOM ACTIVE LEARNING INTEGRATION)
+ * 🆕 NEW UPGRADES SUMMARY (v1.6 - QUESTIONS HUNTER DYNAMIC INTEGRATION)
  * ================================================================================================
- * 1. EDTECH PURPLE THEME: Complete UI shift. Timers, active tabs, selected options, and matrix 
- *    badges switch to Purple (`purple-600`) when `mode="study"`.
- * 2. ACTIVE LEARNING TRIGGER: Added real-time answer validation. If a user selects an incorrect 
- *    option in Study mode, a smooth animated banner appears at the bottom of the question card 
- *    offering an AI Explanation. Correct answers proceed as normal without interruption.
- * 3. AI EXPLANATION MODAL: Imported and integrated `<AiExplanations />`. Clicking "See AI Explanation" 
- *    passes the exact question context (Question, User Choice, Correct Answer) into the new portal modal.
- * 4. CONCISE COMMENTS: Cleaned up older verbose comments to optimize token usage.
+ * 1. TEAL/TURQUOISE THEME: Implemented `isHunterMode` checks. The live digital timer, active subject tab, 
+ *    selected options, and matrix badges gracefully switch to Teal (`teal-600`, `teal-500`) when `mode="hunter"`.
+ * 2. PRESERVED ACTIVE LEARNING: Extended the exact Study Room logic to Questions Hunter. When a wrong 
+ *    answer is clicked, the AI Explanation banner smoothly appears dynamically tinted in Teal, 
+ *    allowing users to open the `<AiExplanations />` React Portal modal.
+ * 3. DYNAMIC TEXT & COPY: Replaced hardcoded exam strings in the candidate badge, submit 
+ *    confirmation modal, and dummy question generator to display "Custom Hunt" and "AI Custom Generated".
+ * 4. LOGIC PRESERVATION: 100% of the underlying CBT mechanisms, submission payloads (`handleFinalSubmit`), 
+ *    and auto-submit timers remain completely intact to ensure backend data consistency.
  * ================================================================================================
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import AiExplanations from "@/jemer-components/ui/ai-explanations"; // 🆕 Imported AI Modal
+import AiExplanations from "@/jemer-components/ui/ai-explanations";
 
-function generateDummyQuestions(subjects, isWaecMode, isPracticeMode, isStudyMode) {
+/**
+ * DUMMY QUESTION GENERATOR FUNCTION
+ */
+function generateDummyQuestions(subjects, isWaecMode, isPracticeMode, isStudyMode, isHunterMode) {
   const result = {};
   subjects?.forEach((subject) => {
     const questionsList = [];
@@ -32,7 +36,7 @@ function generateDummyQuestions(subjects, isWaecMode, isPracticeMode, isStudyMod
           subject.id === "english" && i <= 5
             ? "Read the passage carefully and answer the question that follows: Technology has revolutionized modern education by giving students instant access to global knowledge bases..."
             : null,
-        questionText: `Sample ${isStudyMode ? "Study" : isPracticeMode ? "Practice" : isWaecMode ? "WASSCE" : "JAMB"} Question ${i} for ${subject.name}: Which of the following statements correctly describes the fundamental principles governing this topic?`,
+        questionText: `Sample ${isHunterMode ? "AI Custom Generated" : isStudyMode ? "Study" : isPracticeMode ? "Practice" : isWaecMode ? "WASSCE" : "JAMB"} Question ${i} for ${subject.name}: Which of the following statements correctly describes the fundamental principles governing this topic?`,
         options: [
           { letter: "A", text: "It remains constant under standard temperature and pressure conditions." },
           { letter: "B", text: "It increases proportionally with an increase in external system velocity." },
@@ -51,10 +55,12 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
   const isWaecMode = mode === "waec";
   const isPracticeMode = mode === "practice";
   const isStudyMode = mode === "study";
-  const isSingleSubjectMode = isPracticeMode || isStudyMode;
+  const isHunterMode = mode === "hunter";
+  const isSingleSubjectMode = isPracticeMode || isStudyMode || isHunterMode;
 
   const activeSubjects = useMemo(() => {
     if (config?.subjects && config.subjects.length > 0) return config.subjects;
+    if (isHunterMode) return [{ id: "custom_hunt", name: "Custom AI Generation", count: 10 }];
     if (isSingleSubjectMode) return [{ id: "english", name: "English Language", count: 40 }];
     return [
       { id: "english", name: isWaecMode ? "English" : "Use of English", count: isWaecMode ? 80 : 60 },
@@ -62,14 +68,14 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
       { id: "physics", name: "Physics", count: isWaecMode ? 50 : 40 },
       { id: "chemistry", name: "Chemistry", count: isWaecMode ? 50 : 40 },
     ];
-  }, [config, isWaecMode, isSingleSubjectMode]);
+  }, [config, isWaecMode, isSingleSubjectMode, isHunterMode]);
 
   const [activeSubjectId, setActiveSubjectId] = useState(activeSubjects[0]?.id || "english");
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState({});
   const [flaggedQuestions, setFlaggedQuestions] = useState([]);
   
-  // 🆕 Active Learning Modal State
+  // Active Learning Modal State (Used in Study and Hunter modes)
   const [showAiExplanationModal, setShowAiExplanationModal] = useState(false);
 
   const [remainingSeconds, setRemainingSeconds] = useState(() => {
@@ -81,8 +87,8 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
   const [autoSubmitCountdown, setAutoSubmitCountdown] = useState(null);
 
   const questionsRepo = useMemo(() => {
-    return generateDummyQuestions(activeSubjects, isWaecMode, isPracticeMode, isStudyMode);
-  }, [activeSubjects, isWaecMode, isPracticeMode, isStudyMode]);
+    return generateDummyQuestions(activeSubjects, isWaecMode, isPracticeMode, isStudyMode, isHunterMode);
+  }, [activeSubjects, isWaecMode, isPracticeMode, isStudyMode, isHunterMode]);
 
   const currentSubjectQuestions = questionsRepo[activeSubjectId] || [];
   const currentQuestion = currentSubjectQuestions[activeQuestionIndex];
@@ -150,8 +156,8 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
   const totalQuestionsAllSubjects = useMemo(() => activeSubjects.reduce((sum, s) => sum + (s.count || 40), 0), [activeSubjects]);
   const totalAnsweredCount = useMemo(() => Object.keys(userAnswers).length, [userAnswers]);
 
-  // 🆕 Active Learning Check
-  const isCurrentAnswerWrong = isStudyMode && userAnswers[currentQuestionKey] && userAnswers[currentQuestionKey] !== currentQuestion?.correctAnswer;
+  // Active Learning Error Check (Applies to both Study Room and Questions Hunter)
+  const isCurrentAnswerWrong = (isStudyMode || isHunterMode) && userAnswers[currentQuestionKey] && userAnswers[currentQuestionKey] !== currentQuestion?.correctAnswer;
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6 animate-fade-in pb-8 lg:pb-12 overflow-x-hidden">
@@ -160,11 +166,11 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
         .custom-exam-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
         .custom-exam-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-exam-scrollbar::-webkit-scrollbar-thumb { 
-          background-color: ${isStudyMode ? 'rgba(147, 51, 234, 0.4)' : isPracticeMode ? 'rgba(249, 115, 22, 0.4)' : isWaecMode ? 'rgba(37, 99, 235, 0.4)' : 'rgba(16, 185, 129, 0.4)'}; 
+          background-color: ${isHunterMode ? 'rgba(20, 184, 166, 0.4)' : isStudyMode ? 'rgba(147, 51, 234, 0.4)' : isPracticeMode ? 'rgba(249, 115, 22, 0.4)' : isWaecMode ? 'rgba(37, 99, 235, 0.4)' : 'rgba(16, 185, 129, 0.4)'}; 
           border-radius: 10px; 
         }
         .custom-exam-scrollbar::-webkit-scrollbar-thumb:hover { 
-          background-color: ${isStudyMode ? 'rgba(147, 51, 234, 0.7)' : isPracticeMode ? 'rgba(249, 115, 22, 0.7)' : isWaecMode ? 'rgba(37, 99, 235, 0.7)' : 'rgba(16, 185, 129, 0.7)'}; 
+          background-color: ${isHunterMode ? 'rgba(20, 184, 166, 0.7)' : isStudyMode ? 'rgba(147, 51, 234, 0.7)' : isPracticeMode ? 'rgba(249, 115, 22, 0.7)' : isWaecMode ? 'rgba(37, 99, 235, 0.7)' : 'rgba(16, 185, 129, 0.7)'}; 
         }
       `}} />
 
@@ -172,13 +178,13 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
       <div className="sticky top-4 z-30 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-4 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3 w-full sm:w-auto">
           <div className={`w-10 h-10 rounded-xl text-white font-black flex items-center justify-center text-sm shadow-sm shrink-0 ${
-            isStudyMode ? "bg-purple-600" : isPracticeMode ? "bg-orange-600" : isWaecMode ? "bg-blue-600" : "bg-emerald-600"
+            isHunterMode ? "bg-teal-600" : isStudyMode ? "bg-purple-600" : isPracticeMode ? "bg-orange-600" : isWaecMode ? "bg-blue-600" : "bg-emerald-600"
           }`}>
             JM
           </div>
           <div className="flex flex-col">
             <span className="text-xs font-bold text-slate-900 dark:text-white line-clamp-1">
-              Candidate: John Jonathan ({isStudyMode ? "Study Session" : isPracticeMode ? "Practice Mock" : isWaecMode ? "WASSCE Mock" : "JAMB CBT"})
+              Candidate: John Jonathan ({isHunterMode ? "Custom Hunt" : isStudyMode ? "Study Session" : isPracticeMode ? "Practice Mock" : isWaecMode ? "WASSCE Mock" : "JAMB CBT"})
             </span>
             <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">Reg No: 202698547210</span>
           </div>
@@ -186,10 +192,10 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
 
         <div className="flex items-center justify-between w-full sm:w-auto gap-3">
           <div className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl bg-slate-900 font-mono font-black text-base sm:text-lg border border-slate-800 shadow-inner shrink-0 ${
-            isStudyMode ? "text-purple-400" : isPracticeMode ? "text-orange-400" : isWaecMode ? "text-blue-400" : "text-emerald-400"
+            isHunterMode ? "text-teal-400" : isStudyMode ? "text-purple-400" : isPracticeMode ? "text-orange-400" : isWaecMode ? "text-blue-400" : "text-emerald-400"
           }`}>
             <svg className={`w-4 h-4 sm:w-5 sm:h-5 animate-pulse ${
-              isStudyMode ? "text-purple-400" : isPracticeMode ? "text-orange-400" : isWaecMode ? "text-blue-400" : "text-emerald-400"
+              isHunterMode ? "text-teal-400" : isStudyMode ? "text-purple-400" : isPracticeMode ? "text-orange-400" : isWaecMode ? "text-blue-400" : "text-emerald-400"
             }`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -208,13 +214,15 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
           const isActive = subject.id === activeSubjectId;
           const subjectAnswered = Object.keys(userAnswers).filter((k) => k.startsWith(`${subject.id}-`)).length;
 
-          const activeTabClass = isStudyMode 
-            ? "bg-purple-600 text-white border-purple-600 shadow-md"
-            : isPracticeMode 
-              ? "bg-orange-600 text-white border-orange-600 shadow-md"
-              : isWaecMode 
-                ? "bg-blue-600 text-white border-blue-600 shadow-md"
-                : "bg-emerald-600 text-white border-emerald-600 shadow-md";
+          const activeTabClass = isHunterMode 
+            ? "bg-teal-600 text-white border-teal-600 shadow-md"
+            : isStudyMode 
+              ? "bg-purple-600 text-white border-purple-600 shadow-md"
+              : isPracticeMode 
+                ? "bg-orange-600 text-white border-orange-600 shadow-md"
+                : isWaecMode 
+                  ? "bg-blue-600 text-white border-blue-600 shadow-md"
+                  : "bg-emerald-600 text-white border-emerald-600 shadow-md";
             
           const inactiveTabClass = "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800";
 
@@ -241,7 +249,7 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
               
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
                 <span className={`text-xs font-mono font-black uppercase ${
-                  isStudyMode ? "text-purple-600 dark:text-purple-400" : isPracticeMode ? "text-orange-600 dark:text-orange-400" : isWaecMode ? "text-blue-600 dark:text-blue-400" : "text-emerald-600 dark:text-emerald-400"
+                  isHunterMode ? "text-teal-600 dark:text-teal-400" : isStudyMode ? "text-purple-600 dark:text-purple-400" : isPracticeMode ? "text-orange-600 dark:text-orange-400" : isWaecMode ? "text-blue-600 dark:text-blue-400" : "text-emerald-600 dark:text-emerald-400"
                 }`}>
                   Question {activeQuestionIndex + 1} of {currentSubjectQuestions.length}
                 </span>
@@ -271,17 +279,19 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
                 {currentQuestion.options.map((option) => {
                   const isSelected = userAnswers[currentQuestionKey] === option.letter;
 
-                  const selectedOptionClass = isStudyMode 
-                    ? "bg-purple-50 dark:bg-purple-950/40 border-purple-500 text-purple-900 dark:text-purple-200 ring-2 ring-purple-500/20"
-                    : isPracticeMode 
-                      ? "bg-orange-50 dark:bg-orange-950/40 border-orange-500 text-orange-900 dark:text-orange-200 ring-2 ring-orange-500/20"
-                      : isWaecMode
-                        ? "bg-blue-50 dark:bg-blue-950/40 border-blue-500 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20"
-                        : "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500/20";
+                  const selectedOptionClass = isHunterMode
+                    ? "bg-teal-50 dark:bg-teal-950/40 border-teal-500 text-teal-900 dark:text-teal-200 ring-2 ring-teal-500/20"
+                    : isStudyMode 
+                      ? "bg-purple-50 dark:bg-purple-950/40 border-purple-500 text-purple-900 dark:text-purple-200 ring-2 ring-purple-500/20"
+                      : isPracticeMode 
+                        ? "bg-orange-50 dark:bg-orange-950/40 border-orange-500 text-orange-900 dark:text-orange-200 ring-2 ring-orange-500/20"
+                        : isWaecMode
+                          ? "bg-blue-50 dark:bg-blue-950/40 border-blue-500 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20"
+                          : "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500/20";
                     
                   const unselectedOptionClass = "bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700";
 
-                  const selectedLetterClass = isStudyMode ? "bg-purple-600 text-white" : isPracticeMode ? "bg-orange-600 text-white" : isWaecMode ? "bg-blue-600 text-white" : "bg-emerald-600 text-white";
+                  const selectedLetterClass = isHunterMode ? "bg-teal-600 text-white" : isStudyMode ? "bg-purple-600 text-white" : isPracticeMode ? "bg-orange-600 text-white" : isWaecMode ? "bg-blue-600 text-white" : "bg-emerald-600 text-white";
                   const unselectedLetterClass = "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300";
 
                   return (
@@ -299,20 +309,24 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
                 })}
               </div>
 
-              {/* 🆕 ACTIVE LEARNING ERROR BANNER (Only shows in Study Room if answer is wrong) */}
+              {/* ACTIVE LEARNING ERROR BANNER (Shows in Study Room & Hunter Mode if answer is wrong) */}
               {isCurrentAnswerWrong && (
-                <div className="mt-4 p-4 sm:p-5 rounded-2xl bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800/50 flex flex-col sm:flex-row items-center justify-between gap-4 animate-slide-up shadow-sm">
+                <div className={`mt-4 p-4 sm:p-5 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-4 animate-slide-up shadow-sm ${
+                  isHunterMode ? "bg-teal-50 dark:bg-teal-900/20 border-teal-200 dark:border-teal-800/50" : "bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800/50"
+                }`}>
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 border border-rose-200 dark:border-rose-800">
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                     </div>
-                    <p className="text-xs sm:text-sm font-bold text-purple-900 dark:text-purple-300">
-                      Incorrect choice. <span className="font-medium text-purple-700 dark:text-purple-400">AI Explanation Available.</span>
+                    <p className={`text-xs sm:text-sm font-bold ${isHunterMode ? "text-teal-900 dark:text-teal-300" : "text-purple-900 dark:text-purple-300"}`}>
+                      Incorrect choice. <span className={`font-medium ${isHunterMode ? "text-teal-700 dark:text-teal-400" : "text-purple-700 dark:text-purple-400"}`}>AI Explanation Available.</span>
                     </p>
                   </div>
                   <button
                     onClick={() => setShowAiExplanationModal(true)}
-                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md shadow-purple-500/20 transition-all active:scale-95 flex items-center justify-center gap-2 shrink-0"
+                    className={`w-full sm:w-auto px-5 py-2.5 rounded-xl text-white text-xs font-bold shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 shrink-0 ${
+                      isHunterMode ? "bg-teal-600 hover:bg-teal-500 shadow-teal-500/20" : "bg-purple-600 hover:bg-purple-500 shadow-purple-500/20"
+                    }`}
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                     <span>See AI Explanation</span>
@@ -327,7 +341,7 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
                 </button>
 
                 <button onClick={handleNextQuestion} disabled={activeQuestionIndex === currentSubjectQuestions.length - 1} className={`px-5 py-2.5 rounded-xl text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm ${
-                  isStudyMode ? "bg-purple-600 hover:bg-purple-500" : isPracticeMode ? "bg-orange-600 hover:bg-orange-500" : isWaecMode ? "bg-blue-600 hover:bg-blue-500" : "bg-emerald-600 hover:bg-emerald-500"
+                  isHunterMode ? "bg-teal-600 hover:bg-teal-500" : isStudyMode ? "bg-purple-600 hover:bg-purple-500" : isPracticeMode ? "bg-orange-600 hover:bg-orange-500" : isWaecMode ? "bg-blue-600 hover:bg-blue-500" : "bg-emerald-600 hover:bg-emerald-500"
                 }`}>
                   Next →
                 </button>
@@ -350,7 +364,7 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
 
             <div className="grid grid-cols-2 gap-2 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
               <div className="flex items-center gap-1.5">
-                <span className={`w-2.5 h-2.5 rounded-full ${isStudyMode ? "bg-purple-500" : isPracticeMode ? "bg-orange-500" : isWaecMode ? "bg-blue-500" : "bg-emerald-500"}`} />
+                <span className={`w-2.5 h-2.5 rounded-full ${isHunterMode ? "bg-teal-500" : isStudyMode ? "bg-purple-500" : isPracticeMode ? "bg-orange-500" : isWaecMode ? "bg-blue-500" : "bg-emerald-500"}`} />
                 <span>Answered</span>
               </div>
               <div className="flex items-center gap-1.5">
@@ -362,7 +376,7 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
                 <span>Unanswered</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className={`w-2.5 h-2.5 rounded-full ring-2 bg-transparent ${isStudyMode ? "ring-purple-500" : isPracticeMode ? "ring-orange-500" : isWaecMode ? "ring-blue-500" : "ring-emerald-500"}`} />
+                <span className={`w-2.5 h-2.5 rounded-full ring-2 bg-transparent ${isHunterMode ? "ring-teal-500" : isStudyMode ? "ring-purple-500" : isPracticeMode ? "ring-orange-500" : isWaecMode ? "ring-blue-500" : "ring-emerald-500"}`} />
                 <span>Active</span>
               </div>
             </div>
@@ -376,11 +390,11 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
 
                 let badgeStyle = "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400";
                 
-                if (isAnswered) badgeStyle = isStudyMode ? "bg-purple-600 text-white font-bold" : isPracticeMode ? "bg-orange-600 text-white font-bold" : isWaecMode ? "bg-blue-600 text-white font-bold" : "bg-emerald-600 text-white font-bold";
+                if (isAnswered) badgeStyle = isHunterMode ? "bg-teal-600 text-white font-bold" : isStudyMode ? "bg-purple-600 text-white font-bold" : isPracticeMode ? "bg-orange-600 text-white font-bold" : isWaecMode ? "bg-blue-600 text-white font-bold" : "bg-emerald-600 text-white font-bold";
                 if (isFlagged) badgeStyle = "bg-amber-500 text-white font-bold";
 
                 const activeRingStyle = isCurrent 
-                  ? (isStudyMode ? "ring-2 ring-offset-2 ring-purple-500 dark:ring-offset-slate-900" : isPracticeMode ? "ring-2 ring-offset-2 ring-orange-500 dark:ring-offset-slate-900" : isWaecMode ? "ring-2 ring-offset-2 ring-blue-500 dark:ring-offset-slate-900" : "ring-2 ring-offset-2 ring-emerald-500 dark:ring-offset-slate-900")
+                  ? (isHunterMode ? "ring-2 ring-offset-2 ring-teal-500 dark:ring-offset-slate-900" : isStudyMode ? "ring-2 ring-offset-2 ring-purple-500 dark:ring-offset-slate-900" : isPracticeMode ? "ring-2 ring-offset-2 ring-orange-500 dark:ring-offset-slate-900" : isWaecMode ? "ring-2 ring-offset-2 ring-blue-500 dark:ring-offset-slate-900" : "ring-2 ring-offset-2 ring-emerald-500 dark:ring-offset-slate-900")
                   : "";
 
                 return (
@@ -406,7 +420,7 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
         </div>
       </div>
 
-      {/* 🆕 AI EXPLANATION MODAL (PORTAL TELEPORTED) */}
+      {/* AI EXPLANATION MODAL (PORTAL TELEPORTED) */}
       <AiExplanations
         isOpen={showAiExplanationModal}
         onClose={() => setShowAiExplanationModal(false)}
@@ -429,7 +443,7 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
 
             <div className="space-y-2">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                Submit Your {isStudyMode ? "Study Session" : isPracticeMode ? "Practice" : isWaecMode ? "WASSCE" : "JAMB"} Exam?
+                Submit Your {isHunterMode ? "Custom Hunt" : isStudyMode ? "Study Session" : isPracticeMode ? "Practice" : isWaecMode ? "WASSCE" : "JAMB"} Exam?
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                 You have answered <span className="font-bold text-slate-900 dark:text-white">{totalAnsweredCount}</span> out of <span className="font-bold text-slate-900 dark:text-white">{totalQuestionsAllSubjects}</span> total questions. Are you sure you want to end this session?

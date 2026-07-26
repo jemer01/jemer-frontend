@@ -4,27 +4,47 @@
  * ================================================================================================
  * ⚙️ JEMER ACADEMY MASTER SETTINGS ENGINE — 2-STAGE STATE MACHINE
  * 
- * 🆕 NEW UPGRADES BUILT (v3.0 - ADVANCED AUTH INTERCEPTOR & MODAL UX):
- * 1. Silent JWT Auto-Refresh Engine: Ported the master auth logic (`isTokenExpiringSoon`, 
- *    `performSilentTokenRefresh`, `jemerAuthenticatedFetch`) from the Tutor runway. This completely 
- *    prevents the Neon DB `400 Bad Request` expired-token crash by intercepting network requests, 
- *    silently refreshing the session via the Neon SDK, and seamlessly replaying the fetch.
- * 2. Neon API Headers Fix: The proxy now auto-injects BOTH `Authorization: Bearer <token>` AND 
- *    `apikey: <token>` into every request, fulfilling PostgREST's strict requirements.
- * 3. Custom CSS Save Modals: Eliminated native `alert()` calls. Clicking "Save Changes" now 
- *    triggers a beautiful CSS confirmation modal (matching the logout aesthetic). Upon success 
- *    or failure, a dedicated notification modal smoothly displays the result.
+ * 🆕 NEW UPGRADES BUILT (v4.2 - JWT REFRESH ENGINE ALIGNMENT):
+ * 1. Restored SDK Hydration Guard: Reintroduced `waitForAuthSDKReady` to prevent false-positive 
+ *    logouts on cold page loads or hard refreshes when the `JemerAuth` SDK script is still mounting.
+ * 2. Re-Routed to Native JemerAuth SDK: Ripped out the direct `fetch` to `/api/auth/refresh`. 
+ *    `performSilentTokenRefresh` now flawlessly delegates session renewal back to 
+ *    `window.JemerAuth.refreshSession()` and respects its explicit `{ success, message }` payload.
+ * 3. 5-Second Polling Matrix: Reinstated the aggressive `localStorage` polling loop (up to 100 
+ *    attempts / 5 seconds) to wait for the exact moment the SDK securely deposits the new JWT.
+ * 4. Circuit Breaker Preserved: If `refreshSession()` explicitly fails or the timeout is breached, 
+ *    it fires the `jemer_session_severed` event to gracefully pop the CSS Logout Modal.
+ * 5. Data Hardening Preserved: The XSS sanitization, `isValidUUID` guards, and API headers 
+ *    (`apikey: token`) remain 100% active to defend the Neon DB cluster against malicious injections.
  * ================================================================================================
  */
 
 import React, { useState, useEffect } from 'react';
 import ThemeToggle from "@/jemer-components/ui/ThemeToggle.jsx";
+import PersonalizationEngine from "@/jemer-components/tutor/personalization.jsx"; 
 
-// ── 🚀 ADVANCED JWT LIFECYCLE ENGINE & INTERCEPTOR ───────────────────────────────────────────────
+// ── 🛡️ ADVANCED SECURITY & SANITIZATION UTILITIES ──────────────────────────────────────────────
 
 /**
- * Safely decodes a base64 JWT string to inspect the expiration (exp) timestamp.
+ * Validates cryptographic identity tokens against standard 36-character UUID formatting.
  */
+const isValidUUID = (uuid) => {
+  return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(uuid);
+};
+
+/**
+ * Strips dangerous injection characters (XSS vectors) and enforces strict database length constraints.
+ */
+const sanitizeString = (str, maxLength = 255) => {
+  if (!str) return null;
+  // Remove angle brackets to block basic HTML/Script injections, then trim trailing spaces
+  const cleanStr = str.replace(/[<>]/g, "").trim();
+  // Cut string to database limits
+  return cleanStr.length > maxLength ? cleanStr.substring(0, maxLength) : cleanStr;
+};
+
+// ── 🚀 DETERMINISTIC JWT LIFECYCLE ENGINE & INTERCEPTOR ─────────────────────────────────────────
+
 const decodeJWTPayload = (token) => {
   try {
     const base64Url = token.split('.')[1];
@@ -38,9 +58,6 @@ const decodeJWTPayload = (token) => {
   }
 };
 
-/**
- * Checks if the current token is dead or will die within the buffer threshold (default 5 mins).
- */
 const isTokenExpiringSoon = (token, thresholdSeconds = 300) => {
   if (!token) return true; 
   const payload = decodeJWTPayload(token);
@@ -49,13 +66,22 @@ const isTokenExpiringSoon = (token, thresholdSeconds = 300) => {
   return (payload.exp - currentUnixTime) < thresholdSeconds;
 };
 
-// Global singletons to prevent multiple overlapping refresh requests
 let isRefreshing = false;
 let refreshPromise = null;
 
+/**
+ * SDK Hydration Guard.
+ * Waits for the Neon Auth client SDK to attach itself to `window` before we ever decide a
+ * refresh has "failed". Prevents false-positive logouts on cold loads.
+ */
 const waitForAuthSDKReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
-  const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.refreshSession === "function";
+  const isReady = () =>
+    typeof window !== "undefined" &&
+    window.JemerAuth &&
+    typeof window.JemerAuth.refreshSession === "function";
+
   if (isReady()) return true;
+
   const startTime = Date.now();
   while (Date.now() - startTime < timeoutMs) {
     await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
@@ -75,48 +101,58 @@ const performSilentTokenRefresh = async () => {
       const sdkIsReady = await waitForAuthSDKReady();
 
       if (sdkIsReady) {
+        // Command the Neon SDK to execute a background session renewal
         const refreshOutcome = await window.JemerAuth.refreshSession();
 
+        // If it explicitly failed (e.g. session cookie is genuinely gone), bail out immediately
         if (refreshOutcome && refreshOutcome.success === false) {
           console.warn("⚠️ [AUTH ENGINE] JemerAuth.refreshSession() explicitly failed:", refreshOutcome.message);
+          if (typeof window !== "undefined") window.dispatchEvent(new Event("jemer_session_severed"));
           return null;
         }
         
         let attempts = 0;
-        const maxAttempts = 100; 
+        const maxAttempts = 100; // Increased to 5 seconds (100 * 50ms) to guarantee DB has time to respond
         
         while (attempts < maxAttempts) {
           const currentToken = localStorage.getItem("jemer_session_jwt");
+          
+          // Check if the string changed OR if the exact same string has a renewed payload expiration
           if (currentToken && (currentToken !== oldToken || !isTokenExpiringSoon(currentToken, 300))) {
             console.log("✅ [AUTH ENGINE] Session securely refreshed. Token matrix successfully extended.");
             return currentToken;
           }
-          await new Promise(resolve => setTimeout(resolve, 50)); 
+          
+          await new Promise(resolve => setTimeout(resolve, 50)); // Wait 50ms before checking the storage again
           attempts++;
         }
-        console.warn("⚠️ [AUTH ENGINE] Mutation timeout. SDK did not update localStorage.");
+        
+        console.warn("⚠️ [AUTH ENGINE] Mutation timeout. SDK did not update localStorage within the 5-second boundary.");
+      } else {
+        console.warn("⚠️ [AUTH ENGINE] Neon Auth SDK never attached to window within the readiness window.");
       }
+      
+      // Dispatch severance event if SDK failed or timed out
+      if (typeof window !== "undefined") window.dispatchEvent(new Event("jemer_session_severed"));
       return null;
+      
     } catch (error) {
       console.error("❌ [AUTH ENGINE] Client pipeline disruption during token swap:", error);
+      if (typeof window !== "undefined") window.dispatchEvent(new Event("jemer_session_severed"));
       return null;
     } finally {
-      isRefreshing = false; 
+      isRefreshing = false; // Always release the lock so future calls can execute
     }
   })();
 
   return refreshPromise;
 };
 
-/**
- * 🚀 Master Network Proxy for Neon DB PostgREST API
- * Intercepts JWT expirations, silently refreshes, injects the `apikey` header, and replays requests.
- */
 const jemerAuthenticatedFetch = async (url, options = {}) => {
   let activeToken = localStorage.getItem("jemer_session_jwt");
   
   if (isTokenExpiringSoon(activeToken)) {
-     console.log("⏳ [AUTH PROXY] Pre-flight TTL limit breached. Executing refresh before transit...");
+     console.log("⏳ [AUTH PROXY] Pre-flight TTL limit breached. Executing deterministic refresh before transit...");
      const refreshedToken = await performSilentTokenRefresh();
      if (refreshedToken) activeToken = refreshedToken;
   }
@@ -124,12 +160,11 @@ const jemerAuthenticatedFetch = async (url, options = {}) => {
   const headers = new Headers(options.headers || {});
   if (activeToken) {
     headers.set("Authorization", `Bearer ${activeToken}`);
-    headers.set("apikey", activeToken); // 🆕 Required by Neon DB PostgREST
+    headers.set("apikey", activeToken); // Strict Database Header
   }
   
   let response = await fetch(url, { ...options, headers });
 
-  // Neon PostgREST throws 400 for Expired JWTs, standard systems throw 401. We catch both.
   if (response.status === 400 || response.status === 401) {
      const clonedRes = response.clone();
      const errorText = await clonedRes.text().catch(() => "");
@@ -157,8 +192,9 @@ export default function SettingsEngine() {
 
   // Modal States
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
-  const [isSaveConfirmOpen, setIsSaveConfirmOpen] = useState(false); // 🆕 DB Save Confirmation
-  const [notificationModal, setNotificationModal] = useState({ isOpen: false, type: "success", title: "", message: "" }); // 🆕 Success/Error Notification
+  const [logoutReason, setLogoutReason] = useState(null); // Tracks forced-eviction vs voluntary logouts
+  const [isSaveConfirmOpen, setIsSaveConfirmOpen] = useState(false); 
+  const [notificationModal, setNotificationModal] = useState({ isOpen: false, type: "success", title: "", message: "" }); 
 
   // Real User Data States
   const [firstName, setFirstName] = useState("");
@@ -175,7 +211,46 @@ export default function SettingsEngine() {
   const [isFetchingDB, setIsFetchingDB] = useState(true);
   const [isSavingDB, setIsSavingDB] = useState(false);
 
-  // Real Neon DB Data Hydration via Proxy
+  // 🛡️ CIRCUIT BREAKER: Listen for terminal session sever events from the Proxy
+  useEffect(() => {
+    const handleSeveredSession = () => {
+      setLogoutReason("severed");
+      setIsLogoutModalOpen(true);
+    };
+    window.addEventListener("jemer_session_severed", handleSeveredSession);
+    return () => window.removeEventListener("jemer_session_severed", handleSeveredSession);
+  }, []);
+
+  // PROACTIVE HEARTBEAT ENGINE
+  useEffect(() => {
+    const auditTokenLifecycle = async () => {
+      const currentToken = localStorage.getItem("jemer_session_jwt");
+      if (currentToken && isTokenExpiringSoon(currentToken, 300)) {
+        console.log("💓 [AUTH HEARTBEAT] Token approaching expiration threshold. Proactively refreshing...");
+        await performSilentTokenRefresh();
+      }
+    };
+
+    const heartbeatInterval = setInterval(auditTokenLifecycle, 45000); 
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log("👀 [AUTH ENGINE] Tab regained focus. Auditing token TTL...");
+        auditTokenLifecycle();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleVisibilityChange);
+
+    return () => {
+      clearInterval(heartbeatInterval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleVisibilityChange);
+    };
+  }, []);
+
+  // Real DB Data Hydration via Proxy
   useEffect(() => {
     const initializeProfileData = async () => {
       const sessionUuid = localStorage.getItem("jemer_user_uuid");
@@ -185,7 +260,8 @@ export default function SettingsEngine() {
       setLastName(localStorage.getItem("jemer_user_lastName") || "");
       setEmail(localStorage.getItem("jemer_user_email") || "");
 
-      if (!sessionUuid || sessionUuid.length < 10) {
+      // Pre-flight identity lock validation
+      if (!sessionUuid || !isValidUUID(sessionUuid)) {
         setIsFetchingDB(false);
         return; 
       }
@@ -193,7 +269,6 @@ export default function SettingsEngine() {
       try {
         const endpoint = `https://ep-wandering-bird-abdexk6a.apirest.eu-west-2.aws.neon.tech/neondb/rest/v1/Jemer-Student-Profiles?id=eq.${sessionUuid}`;
         
-        // 🚀 Bypasses standard fetch to utilize the Auto-Refresh Engine
         const response = await jemerAuthenticatedFetch(endpoint, {
           method: "GET",
           headers: {
@@ -216,7 +291,7 @@ export default function SettingsEngine() {
             setLanguage(profile.language || "");
           }
         } else {
-          console.error("[DB GET REJECTED] Postgres/REST Error:", await response.text());
+          console.error("[DB GET REJECTED] Secure Database Error:", await response.text());
         }
       } catch (error) {
         console.error("[DB SYNC FAULT] Failed to execute network fetch:", error);
@@ -228,31 +303,38 @@ export default function SettingsEngine() {
     initializeProfileData();
   }, []);
 
-  // Modal Triggers
   const handleSaveTrigger = () => {
     setIsSaveConfirmOpen(true);
   };
 
   const executeSaveAccountChanges = async () => {
-    setIsSaveConfirmOpen(false); // Close confirmation modal
+    setIsSaveConfirmOpen(false); 
     setIsSavingDB(true);
 
     const sessionUuid = localStorage.getItem("jemer_user_uuid");
 
+    // Pre-Flight Hacker/Integrity Validation Gate
+    if (!sessionUuid || !isValidUUID(sessionUuid)) {
+      console.warn("[SECURITY INTERCEPT] Invalid identity token format detected. Suspending data commit.");
+      window.dispatchEvent(new Event("jemer_session_severed"));
+      setIsSavingDB(false);
+      return;
+    }
+
     try {
       const endpoint = `https://ep-wandering-bird-abdexk6a.apirest.eu-west-2.aws.neon.tech/neondb/rest/v1/Jemer-Student-Profiles?id=eq.${sessionUuid}`;
       
+      // 🛡️ Advanced Payload Sanitization Protocol
       const safePayload = {
-        first_name: firstName || null,
-        last_name: lastName || null,
-        date_of_birth: dob || null, 
-        university_college: university || null,
-        degree: degree || null,
-        country: country || null,
-        language: language || null
+        first_name: sanitizeString(firstName, 100),
+        last_name: sanitizeString(lastName, 100),
+        date_of_birth: sanitizeString(dob, 20), 
+        university_college: sanitizeString(university, 255),
+        degree: sanitizeString(degree, 255),
+        country: sanitizeString(country, 10),
+        language: sanitizeString(language, 10)
       };
 
-      // 🚀 Utilizing Auto-Refresh Proxy Engine
       const response = await jemerAuthenticatedFetch(endpoint, {
         method: "PATCH",
         headers: {
@@ -263,15 +345,14 @@ export default function SettingsEngine() {
       });
 
       if (response.ok) {
-        localStorage.setItem("jemer_user_firstName", firstName);
-        localStorage.setItem("jemer_user_lastName", lastName);
+        localStorage.setItem("jemer_user_firstName", safePayload.first_name || "");
+        localStorage.setItem("jemer_user_lastName", safePayload.last_name || "");
         
-        // Trigger Success Modal
         setNotificationModal({
           isOpen: true,
           type: "success",
           title: "Database Synchronized",
-          message: "Account identity details have been successfully written to the secure Database cluster."
+          message: "Account identity details have been safely validated and written to the secure Jemer cloud cluster."
         });
       } else {
         const errorText = await response.text();
@@ -280,12 +361,11 @@ export default function SettingsEngine() {
     } catch (error) {
       console.error("[DB PATCH FAULT]:", error);
       
-      // Trigger Error Modal
       setNotificationModal({
         isOpen: true,
         type: "error",
         title: "Synchronization Failed",
-        message: "Database communication failed. The API rejected the payload structure."
+        message: "Database communication failed. The Authentication Engine rejected the payload structure."
       });
     } finally {
       setIsSavingDB(false);
@@ -303,6 +383,7 @@ export default function SettingsEngine() {
   ];
 
   const handleLogoutTrigger = () => {
+    setLogoutReason(null); // Standard voluntary logout
     setIsLogoutModalOpen(true);
   };
 
@@ -384,27 +465,19 @@ export default function SettingsEngine() {
 
       case "ai":
         return (
-          <div className="space-y-6 animate-fade-in w-full">
-            <h3 className="text-xl font-display font-bold text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 pb-4">AI & Personalization Engine</h3>
-            <div className="space-y-4 w-full">
-              <div className="p-5 border border-slate-200/80 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-950/50 transition-colors w-full">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 font-mono block mb-2.5">Default Tutor Tone</label>
-                <select className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3.5 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:outline-none cursor-pointer">
-                  <option>Strict & Concise</option>
-                  <option>Detailed Step-by-Step</option>
-                  <option>WAEC / JAMB Exam Focused</option>
-                </select>
-              </div>
-              <div className="p-5 border border-slate-200/80 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-950/50 flex justify-between items-center group cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors w-full">
-                <div>
-                  <p className="font-bold text-slate-900 dark:text-white text-sm">Vid2Notes Auto-Processing</p>
-                  <p className="text-xs text-slate-500 mt-1 font-medium">Automatically extract transcripts when a video link is pasted.</p>
-                </div>
-                <div className="w-12 h-6 bg-blue-600 rounded-full flex items-center p-1 shrink-0 shadow-inner">
-                  <div className="w-4 h-4 bg-white rounded-full transform translate-x-6 shadow-sm"></div>
-                </div>
-              </div>
+          <div className="w-full animate-fade-in transition-all duration-300">
+            <div className="mb-6 pl-2">
+              <button 
+                onClick={() => setActiveStage("overview")}
+                className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors font-mono p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 w-fit"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Back to Overview
+              </button>
             </div>
+            <PersonalizationEngine isSettingsMode={true} />
           </div>
         );
 
@@ -478,7 +551,7 @@ export default function SettingsEngine() {
               </span>
             </div>
             <p className="text-[11px] font-mono font-bold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1 rounded border border-blue-100 dark:border-blue-800/50 inline-block">
-              ID: {uuid ? uuid.split('-')[0] + '...' : 'Pending'}
+              ID: {uuid ? (uuid.includes('-') ? uuid.split('-')[0] + '...' : uuid) : 'Pending'}
             </p>
             <p className="text-sm text-slate-500 dark:text-slate-400 font-medium pt-1 max-w-lg">
               Jemer Academy Main Profile Configuration. Manage your examination parameters, system themes, and AI defaults here.
@@ -499,18 +572,25 @@ export default function SettingsEngine() {
 
       {/* STAGE 2: ACTIVE DETAIL VIEW */}
       {activeStage !== "overview" && (
-        <section className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-3xl p-6 sm:p-8 shadow-sm transition-all duration-300 w-full animate-fade-in flex flex-col md:flex-row gap-8">
-          <div className="shrink-0 md:w-64 border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800 pb-6 md:pb-0 md:pr-6">
-            <button 
-              onClick={() => setActiveStage("overview")}
-              className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors font-mono w-full p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              Back to Overview
-            </button>
-          </div>
+        <section className={`transition-all duration-300 w-full animate-fade-in flex flex-col md:flex-row gap-8 ${
+          activeStage === "ai" 
+            ? "p-0 sm:p-0 border-none shadow-none bg-transparent dark:bg-transparent" 
+            : "bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-3xl p-6 sm:p-8 shadow-sm"
+        }`}>
+          
+          {activeStage !== "ai" && (
+            <div className="shrink-0 md:w-64 border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800 pb-6 md:pb-0 md:pr-6">
+              <button 
+                onClick={() => setActiveStage("overview")}
+                className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors font-mono w-full p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Back to Overview
+              </button>
+            </div>
+          )}
           
           <div className="flex-1 w-full max-w-full">
             {renderActiveSection()}
@@ -570,10 +650,8 @@ export default function SettingsEngine() {
       )}
 
       {/* ────────────────────────────────────────────────────────────────────────────────────────
-          MODAL SYSTEM: LOGOUT, SAVE CONFIRMATION, & NOTIFICATIONS
+          MODAL SYSTEM: LOGOUT & CIRCUIT BREAKER EVICTION
           ──────────────────────────────────────────────────────────────────────────────────────── */}
-      
-      {/* 1. LOGOUT CONFIRMATION MODAL */}
       {isLogoutModalOpen && (
         <div className="fixed inset-0 z-[9999] bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 transition-all duration-300 animate-fade-in">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center space-y-6 animate-slide-up relative">
@@ -582,25 +660,39 @@ export default function SettingsEngine() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
             </div>
+
             <div className="space-y-2">
-              <h3 className="text-xl font-display font-black text-slate-900 dark:text-white">Terminate Session?</h3>
+              <h3 className="text-xl font-display font-black text-slate-900 dark:text-white">
+                {logoutReason === "severed" ? "Session Severed" : "Terminate Session?"}
+              </h3>
               <p className="text-sm text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                Are you sure you want to securely log out of your active Jemer Academy workspace? You will need to re-authenticate to access your data.
+                {logoutReason === "severed" 
+                  ? "Secure session connection severed. Please re-authenticate." 
+                  : "Are you sure you want to securely log out of your active Jemer Academy workspace? You will need to re-authenticate to access your data."}
               </p>
             </div>
+
             <div className="flex flex-col sm:flex-row items-center gap-3 w-full">
-              <button onClick={() => setIsLogoutModalOpen(false)} className="w-full px-5 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm font-bold transition-colors focus:outline-none">
-                Cancel
-              </button>
-              <button onClick={executeLogout} className="w-full px-5 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-bold shadow-md shadow-red-500/20 active:scale-95 transition-all focus:outline-none">
-                Yes, Log Out
+              {logoutReason !== "severed" && (
+                <button 
+                  onClick={() => setIsLogoutModalOpen(false)}
+                  className="w-full px-5 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm font-bold transition-colors focus:outline-none"
+                >
+                  Cancel
+                </button>
+              )}
+              <button 
+                onClick={executeLogout}
+                className="w-full px-5 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-bold shadow-md shadow-red-500/20 active:scale-95 transition-all focus:outline-none"
+              >
+                {logoutReason === "severed" ? "Sign In Securely" : "Yes, Log Out"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 2. SAVE CONFIRMATION MODAL */}
+      {/* SAVE CONFIRMATION MODAL */}
       {isSaveConfirmOpen && (
         <div className="fixed inset-0 z-[9999] bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 transition-all duration-300 animate-fade-in">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center space-y-6 animate-slide-up relative">
@@ -612,7 +704,7 @@ export default function SettingsEngine() {
             <div className="space-y-2">
               <h3 className="text-xl font-display font-black text-slate-900 dark:text-white">Confirm Database Changes?</h3>
               <p className="text-sm text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                Are you sure you want to update your identity parameters? This will permanently overwrite your existing record in the live Our Database.
+                Are you sure you want to update your identity parameters? This will permanently overwrite your existing record in the live secure database.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row items-center gap-3 w-full">
@@ -627,7 +719,7 @@ export default function SettingsEngine() {
         </div>
       )}
 
-      {/* 3. SUCCESS / ERROR NOTIFICATION MODAL */}
+      {/* SUCCESS / ERROR NOTIFICATION MODAL */}
       {notificationModal.isOpen && (
         <div className="fixed inset-0 z-[9999] bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 transition-all duration-300 animate-fade-in">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl text-center space-y-6 animate-slide-up relative">

@@ -1,3 +1,5 @@
+// NEW: Implemented build-safe lazy initialization for the database connection (defensive dbUrl check) and a runtime guardrail inside the POST handler to permanently prevent Next.js 'npm run build' fatal static analysis crashes.
+
 /**
  * ================================================================================================
  * 🚀 JEMER ACADEMY BACKEND ROUTER — PERSONALIZATION CALIBRATION SAVING CONTROLLER (v1.2 HYBRID ROW-CHECK)
@@ -13,8 +15,15 @@
 import { NextResponse } from "next/server"; // Imports Next.js server utility to serialize and deliver structured JSON HTTP responses
 import { neon } from "@neondatabase/serverless"; // Imports the official serverless Neon database connection driver package
 
-// Instantiates a secure, isolated database driver utility mapping to your server's secret environment variables pool
-const sql = neon(process.env.NEON_DATABASE_URL);
+// SAFEGUARD: Defensive top-level check to prevent build-time crashes during Next.js 'npm run build' static analysis
+const dbUrl = process.env.NEON_DATABASE_URL;
+
+if (!dbUrl) {
+  console.warn("⚠️ [BUILD SAFEGUARD] NEON_DATABASE_URL is missing. Build phase will safely proceed, but runtime database queries will fail in this environment.");
+}
+
+// Instantiates a secure, isolated database driver utility mapping to your server's secret environment variables pool (Lazy Load Pattern)
+const sql = dbUrl ? neon(dbUrl) : null;
 
 /**
  * Handles incoming HTTP POST requests to securely commit and save advanced personalization form state datasets
@@ -24,6 +33,11 @@ export async function POST(requestContext) {
   console.log("[API ROUTE - UPDATE SYSTEM] Intercepting incoming POST serialization parameters data request...");
 
   try {
+    // 🛑 RUNTIME GUARDRAIL: Catch missing environment variables gracefully when a real request is made
+    if (!sql) {
+      throw new Error("Neon Database connection string is unconfigured in this deployment environment.");
+    }
+
     // 🔒 SECURITY LAYER A: Extraction of user session authorization credentials
     // Grabs the custom authentication reference token header assigned safely by your secure login manager
     const authenticationTokenHeader = requestContext.headers.get("Authorization") || "mock-student-id-token";
@@ -40,7 +54,7 @@ export async function POST(requestContext) {
     const clientPayloadJSONBody = await requestContext.json();
 
     // Destructure individual form parameters out of the payload body object wrapper
-    // Explicitly extracting email alongside the rest of the object shell properties[cite: 7]
+    // Explicitly extracting email alongside the rest of the object shell properties
     const {
       email,
       academic_level_pacing_tier,
@@ -71,8 +85,8 @@ export async function POST(requestContext) {
 
     console.log(`[API ROUTE - UPDATE EXECUTION] Processing smart fallback matching logic for: Token=[${authenticationTokenHeader}] or Email=[${email || 'Vacant'}]`);
 
-    // ⚡ WRITE EXECUTION LAYER: Parameterized PostgreSQL UPDATE execution statement[cite: 7]
-    // UPGRADED LINE: Uses a fallback structure in the WHERE clause checking both matching email parameters and UUID token structures safely[cite: 7]
+    // ⚡ WRITE EXECUTION LAYER: Parameterized PostgreSQL UPDATE execution statement
+    // UPGRADED LINE: Uses a fallback structure in the WHERE clause checking both matching email parameters and UUID token structures safely
     // Also captures query metadata returned by Neon's PostgreSQL driver engine to verify modifications directly.
     const databaseMutationResult = await sql`
       UPDATE "Jemer-Student-Profiles"

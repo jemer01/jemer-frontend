@@ -1,14 +1,23 @@
+"use client"; // Enforces client-side processing configurations to safely manage layout hooks and browser document nodes
+
 /**
- * [NEW UPGRADE]
- * SUMMARY: Executed v5.6.0 Routing Net & JSX Vector Optimization.
- * 1. Active State Routing Net: Upgraded the navigation logic to accept an `activePaths` array. The "Learning Tools" tab now stays illuminated when the user navigates into `/snap`, `/vid2notes`, or `/audiobooks`.
- * 2. Strict JSX Compliance: Scrubbed all newly injected raw HTML SVGs, converting `stroke-width`, `stroke-linecap`, `stroke-linejoin`, and `class` into strict React camelCase (`strokeWidth`, `strokeLinecap`, `strokeLinejoin`, `className`) to prevent Next.js compilation crashes.
  * ================================================================================================
- * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM SCALABLE SIDE PANEL FRAMEWORK (v5.6.0)
+ * 🆕 NEW UPGRADES SUMMARY (v5.7.0 - PRODUCTION IDENTITY SYNC FIX)
+ * ================================================================================================
+ * 1. LOCAL STORAGE KEY STANDARDIZATION: Corrected the mismatched keys. The sidebar now queries 
+ *    `jemer_user_firstName` and `jemer_user_lastName` instead of the old underscore formats, 
+ *    ensuring 0-latency cache hits if the user has recently logged in or saved settings.
+ * 2. SECURE NEON POSTGREST FALLBACK: Replaced the broken local `/api/profile/me` fetch with 
+ *    the exact production-grade direct Neon DB query used in the settings dashboard.
+ * 3. CRYPTOGRAPHIC HEADER INJECTION: The fallback network request now correctly utilizes the 
+ *    `jemer_session_jwt` token, injecting it into both the `Authorization: Bearer` and `apikey` 
+ *    headers to safely bypass Neon's Row-Level Security blocks and hydrate the user's name.
+ * 4. PRESERVED UI & ROUTING: Kept 100% of the active path routing matrices and JSX-optimized 
+ *    SVGs untouched.
+ * ================================================================================================
+ * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM SCALABLE SIDE PANEL FRAMEWORK 
  * ================================================================================================
  */
-
-"use client"; // Enforces client-side processing configurations to safely manage layout hooks and browser document nodes
 
 import React, { useState, useEffect } from "react"; 
 import Link from "next/link"; 
@@ -23,11 +32,12 @@ export default function Sidebar({ isOpen, onClose }) {
   useEffect(() => {
     async function verifyAndFetchProfile() {
       try {
-        const activeProxyEnvUrl = process.env.NEXT_PUBLIC_APP_URL || "localhost:3000";
+        const activeProxyEnvUrl = process.env.NEXT_PUBLIC_APP_URL || "production.jemeracademy";
         console.log(`[CACHE ENGINE CORE] Running background profile synchronization audit under context host: ${activeProxyEnvUrl}`);
 
-        const cachedFirst = localStorage.getItem("jemer_user_first_name");
-        const cachedLast = localStorage.getItem("jemer_user_last_name");
+        // 🆕 1. Local Storage Key Standardization Fix
+        const cachedFirst = localStorage.getItem("jemer_user_firstName");
+        const cachedLast = localStorage.getItem("jemer_user_lastName");
 
         if (cachedFirst && cachedLast) {
           console.log(`[CACHE ENGAGED] Profile loaded cleanly from local storage tokens: ${cachedFirst} ${cachedLast}`);
@@ -39,20 +49,24 @@ export default function Sidebar({ isOpen, onClose }) {
         }
 
         const storedUserId = localStorage.getItem("jemer_user_uuid");
+        const storedJwt = localStorage.getItem("jemer_session_jwt");
 
-        if (!storedUserId) {
-          console.warn("[CACHE MISS] No jemer_user_uuid found in localStorage. Skipping server profile fetch.");
+        if (!storedUserId || !storedJwt) {
+          console.warn("[CACHE MISS] No valid authentication tokens found in localStorage. Skipping server profile fetch.");
           return;
         }
 
-        console.log(`[CACHE MISS] Profile values empty or expired. Dispatching to /api/profile/me bridge...`);
+        console.log(`[CACHE MISS] Profile values empty or expired. Dispatching to secure Neon cloud gateway...`);
 
-        const profileBridgeResponse = await fetch("/api/profile/me", {
+        // 🆕 2 & 3. Secure Neon PostgREST Fetch Fallback
+        const endpoint = `https://ep-wandering-bird-abdexk6a.apirest.eu-west-2.aws.neon.tech/neondb/rest/v1/Jemer-Student-Profiles?id=eq.${storedUserId}`;
+        
+        const profileBridgeResponse = await fetch(endpoint, {
           method: "GET",
-          credentials: "include", 
           headers: {
-            "Authorization": storedUserId,    
-            "Content-Type": "application/json"
+            "Authorization": `Bearer ${storedJwt}`,    
+            "apikey": storedJwt, // Crucial for PostgREST
+            "Accept": "application/json"
           }
         });
 
@@ -61,16 +75,21 @@ export default function Sidebar({ isOpen, onClose }) {
           return;
         }
 
-        const resolvedProfile = await profileBridgeResponse.json();
-        const fetchedFirst = resolvedProfile.firstName || "Jemer";
-        const fetchedLast  = resolvedProfile.lastName  || "Innovator";
+        const resolvedPayload = await profileBridgeResponse.json();
+        
+        if (resolvedPayload && resolvedPayload.length > 0) {
+          const resolvedProfile = resolvedPayload[0];
+          const fetchedFirst = resolvedProfile.first_name || "Jemer";
+          const fetchedLast  = resolvedProfile.last_name  || "Student";
 
-        console.log(`[PROFILE BRIDGE SUCCESS] Hydrating sidebar with: ${fetchedFirst} ${fetchedLast}`);
+          console.log(`[PROFILE BRIDGE SUCCESS] Hydrating sidebar with: ${fetchedFirst} ${fetchedLast}`);
 
-        localStorage.setItem("jemer_user_first_name", fetchedFirst);
-        localStorage.setItem("jemer_user_last_name", fetchedLast);
+          // 🆕 Cache the newly fetched values under the correct keys so we don't query DB next time
+          localStorage.setItem("jemer_user_firstName", fetchedFirst);
+          localStorage.setItem("jemer_user_lastName", fetchedLast);
 
-        setStudentProfile({ firstName: fetchedFirst, lastName: fetchedLast });
+          setStudentProfile({ firstName: fetchedFirst, lastName: fetchedLast });
+        }
       } catch (neonSyncException) {
         console.error("[NEON PROFILE RESOLUTION FAILURE] Handshake collapsed:", neonSyncException.message);
       }

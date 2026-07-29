@@ -1,44 +1,40 @@
+"use client";
+
 /**
- * [NEW UPGRADE]
- * SUMMARY: Executed Phase 1 - Prompt Box Stream Controller.
- * 1. Stream Props: Injected `isStreaming` and `onStopStream` into the component signature.
- * 2. UI Lockout: The textarea completely disables itself, drops opacity, and ignores 'Enter' keys while the AI is generating.
- * 3. Morphing Button: The Send button dynamically transforms into a "Stop" button featuring a custom bouncing 3-dot "replying" animation.
  * ================================================================================================
- * 🤖 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR PROMPT BOX CORE ENGINE (v2.5.0 FULL UPGRADE)
+ * 🆕 NEW UPGRADES SUMMARY (v2.6.0 - MOBILE RESPONSIVENESS FIX)
+ * ================================================================================================
+ * 1. Flexbox Container Lockdown: Removed `flex-wrap` from the prompt box's bottom control rail. 
+ *    Enforced a strict `flex-row w-full` layout with `min-w-0` and `shrink-0` constraints so 
+ *    buttons mathematically cannot drop to a second line, preserving the sleek, unified UI.
+ * 2. Responsive Send Button: The "Send" button now dynamically collapses into a perfect circle 
+ *    (`w-10 h-10 rounded-full`) on slim mobile screens. The text is hidden (`hidden sm:inline-block`), 
+ *    and a native, upward-pointing arrow SVG (the standard for modern AI) takes center stage.
+ * 3. Responsive Stop Button: Transformed the streaming "Stop" button to match the mobile circle 
+ *    aesthetic. Replaced the broken FontAwesome `<i>` tag with a pure React SVG `<rect>` square 
+ *    to guarantee perfect rendering. The bouncing dots hide on slim screens to save space.
+ * 4. Safe Truncation: Added `max-w-[130px]` and `truncate` to the Tutor selector button so extremely 
+ *    narrow screens don't force the layout to stretch.
+ * ================================================================================================
+ * 🤖 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR PROMPT BOX CORE ENGINE
  * ================================================================================================
  */
-"use client";
+
 import React, { useState, useEffect, useRef } from "react";
 import { useTheme } from "@/jemer-components/context/ThemeContext.jsx";
 
-// 🚀 UPGRADE: Added isStreaming and onStopStream to the component signature
 export default function AITutorPromptBox({ onSendMessage, injectedPromptText, isStreaming, onStopStream }) {
-  // Pull high-contrast active theme details from the centralized theme application layer context 
   const { theme } = useTheme();
   
-  // State vector holding raw literal textual student characters typed inside input arenas
   const [textPrompt, setTextPrompt] = useState("");
-  
-  // Tracks if initial dispatch sequence triggered to switch greeting placeholders contextually
   const [hasSentFirstMessage, setHasSentFirstMessage] = useState(false);
-  
-  // Controls hardware-accelerated animated edge lighting aura runtime visibility loops
   const [showGlow, setShowGlow] = useState(true);
   
-  // Toggles workspace file attachment and tool expansion context slider layers open or closed
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
-  
-  // Toggles conversational teacher profiles sheet list components open or closed
   const [tutorMenuOpen, setTutorMenuOpen] = useState(false);
-  
-  // Track viewport dimension constraints to change layouts between mobile sliders and desktop flyouts
   const [isMobileView, setIsMobileView] = useState(false);
-  
-  // Custom dropdown display toggles for configuring active image synthesis properties
   const [imageGenDropdownOpen, setImageGenDropdownOpen] = useState(false);
 
-  // Hardcoded textbook profile identities assigning unique behavioral traits to available instruction targets
   const tutorProfiles = [
     {
       id: "jay",
@@ -70,35 +66,21 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
     }
   ];
 
-  // Active student instruction target state choice pointer reference
   const [activeTutor, setActiveTutor] = useState(tutorProfiles[0]);
-  
-  // File attachments stack buffering documents before form payload dispatch operations
   const [attachedFiles, setAttachedFiles] = useState([]);
-  
-  // UPGRADE 7 & 1: Defaults to adaptive mode; the 'off' choice option has been fully purged from the selection grids
   const [imageGenMode, setImageGenMode] = useState("adaptive");
-  
-  // Active toggle flag state mapping deep investigation query structures
   const [deepResearchActive, setDeepResearchActive] = useState(false);
-  
-  // Active toggle flag state tracking custom canvas inline workspaces
   const [canvasActive, setCanvasActive] = useState(false);
   
-  // Native DOM handle referencing system file upload browse dialogues safely
   const fileInputRef = useRef(null);
-  
-  // Native DOM node mapping the micro expanding text area bounding boxes
   const textareaRef = useRef(null);
 
-  // Synchronizes outside prompt card choice inputs straight into the prompt state string layer
   useEffect(() => {
     if (injectedPromptText) {
       setTextPrompt(injectedPromptText);
     }
   }, [injectedPromptText]);
 
-  // Unified application post-mount hardware calibration and local storage hydration life-cycle routine
   useEffect(() => {
     const checkMobile = () => {
       setIsMobileView(window.innerWidth < 768);
@@ -141,7 +123,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
     };
   }, []);
 
-  // Recalculates bounding viewport heights on character updates to expand input size smoothly
   useEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
@@ -151,7 +132,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
     ta.style.overflowY = ta.scrollHeight > 200 ? "auto" : "hidden";
   }, [textPrompt]);
 
-  // Saves selected instruction targets into local storage parameters across page updates
   const handleTutorSelectionChange = (tutorTargetProfile) => {
     setActiveTutor(tutorTargetProfile);
     localStorage.setItem("selectedTutorId", tutorTargetProfile.id);
@@ -159,13 +139,11 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
     setTutorMenuOpen(false);
   };
 
-  // Keeps image synthesis settings completely active alongside custom workspace panels concurrent
   const activateTool = (toolType, mode = null) => {
     if (toolType === 'canvas') {
       const nextCanvas = !canvasActive;
       setCanvasActive(nextCanvas);
       localStorage.setItem("jemer_canvas_active", String(nextCanvas));
-      // Workspace layout panels maintain strict mutual exclusivity against each other
       if (nextCanvas) {
         setDeepResearchActive(false);
         localStorage.setItem("jemer_deep_research_active", "false");
@@ -174,7 +152,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
       const nextDeepResearch = !deepResearchActive;
       setDeepResearchActive(nextDeepResearch);
       localStorage.setItem("jemer_deep_research_active", String(nextDeepResearch));
-      // Workspace layout panels maintain strict mutual exclusivity against each other
       if (nextDeepResearch) {
         setCanvasActive(false);
         localStorage.setItem("jemer_canvas_active", "false");
@@ -186,7 +163,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
     }
   };
 
-  // Inspects uploads, rejecting deep heavy media layers to prioritize light core content data streams
   const processIncomingAttachments = (eventContext) => {
     const targetedFiles = Array.from(eventContext.target.files || []);
     const verifiedBuffer = [];
@@ -217,12 +193,10 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
     setPlusMenuOpen(false);
   };
 
-  // Erases precise files from attachment stack buffer slots
   const handlePurgeAttachedFile = (fileUidToken) => {
     setAttachedFiles((prev) => prev.filter((item) => item.uid !== fileUidToken));
   };
 
-  // Assembles structured transaction state items and forwards payloads up to orchestration layers
   const handleDispatchPromptMessage = () => {
     if (!textPrompt.trim() && attachedFiles.length === 0) return;
     const finalDataPayload = {
@@ -242,19 +216,15 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
       onSendMessage(finalDataPayload);
     }
 
-    // Flushes text buffers safely
     setTextPrompt("");
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.overflowY = "hidden";
     }
     setAttachedFiles([]);
-    
-    // Selections remain pinned inside prompt arena frames across continuous turns
     setHasSentFirstMessage(true);
   };
 
-  // Formats data sizes cleanly for display readouts
   const formatFileSize = (bytes) => {
     if (bytes < 1024) return bytes + ' B';
     else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
@@ -265,21 +235,18 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
     <div className="w-full max-w-3xl mx-auto px-4 relative select-none">
       {showGlow && (
         <>
-          {/* Layer A: Wide blur peripheral dispersion track */}
           <div className="absolute rounded-[48px] z-0 pointer-events-none" style={{
             top: "-10px", bottom: "-10px", left: "0", right: "0",
             background: "linear-gradient(90deg,#818cf8,#a855f7,#ec4899,#f43f5e,#f97316,#fbbf24,#34d399,#22d3ee,#6366f1,#818cf8)",
             backgroundSize: "350% 100%", filter: "blur(22px)",
             animation: "rainbowSlide 2s linear infinite, glowFadeOut 3s ease-out forwards",
           }} />
-          {/* Layer B: Ambient mid-layer illumination contour path */}
           <div className="absolute rounded-[48px] z-0 pointer-events-none" style={{
             top: "-4px", bottom: "-4px", left: "0", right: "0",
             background: "linear-gradient(90deg,#818cf8,#a855f7,#ec4899,#f43f5e,#f97316,#fbbf24,#34d399,#22d3ee,#6366f1,#818cf8)",
             backgroundSize: "350% 100%", filter: "blur(10px)", opacity: 0.85,
             animation: "rainbowSlide 2s linear infinite, glowFadeOut 3s ease-out forwards",
           }} />
-          {/* Layer C: Sharp close-proximity contour rim light ring */}
           <div className="absolute rounded-[48px] z-0 pointer-events-none" style={{
             top: "-2px", bottom: "-2px", left: "0", right: "0",
             background: "linear-gradient(90deg,#818cf8,#a855f7,#ec4899,#f43f5e,#f97316,#fbbf24,#34d399,#22d3ee,#6366f1,#818cf8)",
@@ -289,7 +256,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
         </>
       )}
       
-      {/* Structural inline animation configuration matrices */}
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes rainbowSlide {
           0%   { background-position: 0% 0%; }
@@ -380,7 +346,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
           </div>
         )}
 
-        {/* 🚀 UPGRADE: UI Lockout - Disables the textarea entirely during active generation streams */}
         <div className="w-full">
           <textarea
             ref={textareaRef}
@@ -433,10 +398,11 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
         )}
 
         {/* ── ZONE 3: ENGAGEMENT ACTIONS INTERACTION RAIL ── */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-          <div className="flex items-center flex-wrap gap-2 relative">
-            
-            <div className="relative">
+        {/* 🆕 FLEXBOX FIX: Replaced flex-wrap with a strict single-row layout (flex-row w-full) to prevent buttons dropping to the next line on slim screens */}
+        <div className="flex flex-row items-center justify-between gap-2 pt-1 w-full">
+          
+          <div className="flex flex-row items-center gap-2 relative min-w-0">
+            <div className="relative shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -491,7 +457,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
                   <div className="space-y-1">
                     <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider font-mono mb-2 px-2">Tools</p>
                     
-                    {/* Image Generation Segment Config Section */}
                     <div className="px-3 py-2">
                       <div className="flex items-center gap-2 mb-2">
                         <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -618,7 +583,7 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
               )}
             </div>
 
-            <div className="relative">
+            <div className="relative min-w-0">
               <button
                 type="button"
                 onClick={() => {
@@ -626,11 +591,12 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
                   setPlusMenuOpen(false);
                 }}
                 disabled={isStreaming}
-                className={`h-10 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 px-3.5 text-sm font-semibold transition-all duration-200 cursor-pointer focus:outline-none shadow-sm ${isStreaming ? "opacity-50 pointer-events-none" : "active:scale-98"}`}
+                // 🆕 Added max-w constraints and truncate wrapper to prevent pushing the Send button off screen on mobiles
+                className={`h-10 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 px-3.5 text-sm font-semibold transition-all duration-200 cursor-pointer focus:outline-none shadow-sm max-w-[120px] sm:max-w-none ${isStreaming ? "opacity-50 pointer-events-none" : "active:scale-98"}`}
               >
-                <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
-                <span>{activeTutor.name}</span>
-                <svg className={`w-4 h-4 text-slate-400 transition-transform ${tutorMenuOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse shrink-0" />
+                <span className="truncate">{activeTutor.name}</span>
+                <svg className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${tutorMenuOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
@@ -768,23 +734,26 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
 
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* 🚀 UPGRADE: Morphing Action Button - Shows Replying dots + Stop icon during streams */}
+          <div className="flex items-center shrink-0">
+            {/* 🚀 UPGRADE: Responsive Action Buttons - Morph into pure circles with native SVGs on mobile */}
             {isStreaming ? (
               <button
                 type="button"
                 onClick={onStopStream}
-                className="h-10 px-4 rounded-full bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-sans font-bold text-sm flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer shadow-lg active:scale-95"
+                className="w-10 h-10 sm:w-auto p-0 sm:px-4 rounded-full bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-sans font-bold text-sm flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer shadow-lg active:scale-95 shrink-0"
                 title="Stop generation"
               >
-                <div className="flex items-center gap-1.5">
-                  <span className="flex gap-0.5 mt-1">
+                <div className="flex items-center justify-center gap-1.5">
+                  <span className="hidden sm:flex gap-0.5 mt-1">
                     <span className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
                     <span className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
                     <span className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
                   </span>
-                  <span className="ml-1">Stop</span>
-                  <i className="fas fa-stop text-[10px]" />
+                  <span className="hidden sm:inline-block ml-1">Stop</span>
+                  {/* Native SVG Square (Replaces FontAwesome) */}
+                  <svg className="w-3 h-3 sm:w-2.5 sm:h-2.5" fill="currentColor" viewBox="0 0 24 24">
+                    <rect width="18" height="18" x="3" y="3" rx="2" />
+                  </svg>
                 </div>
               </button>
             ) : (
@@ -792,12 +761,13 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
                 type="button"
                 onClick={handleDispatchPromptMessage}
                 disabled={!textPrompt.trim() && attachedFiles.length === 0}
-                className="h-10 px-5 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-sans font-bold text-sm flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer shadow-lg shadow-indigo-500/25 active:scale-95 disabled:opacity-40 disabled:pointer-events-none disabled:shadow-none"
+                className="w-10 h-10 sm:w-auto p-0 sm:px-5 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-sans font-bold text-sm flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer shadow-lg shadow-indigo-500/25 active:scale-95 disabled:opacity-40 disabled:pointer-events-none disabled:shadow-none shrink-0"
                 title="Send message"
               >
-                <span>Send</span>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                <span className="hidden sm:inline-block">Send</span>
+                {/* Native SVG Upward Arrow (Standard Chat UI) */}
+                <svg className="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />
                 </svg>
               </button>
             )}

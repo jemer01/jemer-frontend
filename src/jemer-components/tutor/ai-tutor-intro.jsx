@@ -1,15 +1,23 @@
+"use client"; // Directs the Next.js framework compiler to safely execute interactive browser DOM layers
+
 /**
- * [NEW UPGRADE]
- * SUMMARY: Executed v2.0 Mobile UI Redesign for Common Prompts.
- * 1. Compact Mobile Layout: Completely overhauled the mobile prompt cards. Instead of taking up massive vertical space with minimum heights of 140px, they now collapse into sleek, highly-professional horizontal list items (min-height 68px) explicitly designed for slim screens.
- * 2. Intelligent DOM Rendering: Utilized `sm:hidden` and `hidden sm:flex` to render a native mobile chevron-list UI on phones, while perfectly preserving your original premium grid card UI on tablets and desktops.
- * 3. Spacing Optimization: Tightened the mobile grid gap to `gap-2.5` (10px) to make the list feel like a cohesive, native iOS settings menu, while maintaining the larger `gap-4` for desktop spacing.
  * ================================================================================================
- * 🧠 JEMER ACADEMY DESIGN SYSTEM — SPECIALIZED AI TUTOR INTRO CANOPY ENGINE (v2.0)
+ * 🆕 NEW UPGRADES SUMMARY (v2.1 - IDENTITY SYNC & MOBILE UX POLISH)
+ * ================================================================================================
+ * 1. IDENTITY HYDRATION FIX: Standardized local storage queries to correctly target 
+ *    `jemer_user_firstName` and `jemer_user_lastName` to ensure immediate 0-latency cache hits 
+ *    when users switch pages.
+ * 2. SECURE DB FALLBACK: Injected the production-grade Neon PostgREST fallback fetch. If the 
+ *    cache is empty, the system securely pulls the user's real name directly from the database 
+ *    using their UUID and JWT (with `apikey` header injected) and caches it.
+ * 3. PREMIUM MOBILE AI UI: Transformed the rigid mobile list rows into soft, sleek "Suggestion 
+ *    Bubbles". By utilizing `bg-slate-50`, rounded corners, and soft shadows, the mobile prompts 
+ *    now look like pre-typed chat bubbles. Also added a beautiful rotating 'sparkle' SVG to the 
+ *    greeting header exclusively for mobile screens.
+ * ================================================================================================
+ * 🧠 JEMER ACADEMY DESIGN SYSTEM — SPECIALIZED AI TUTOR INTRO CANOPY ENGINE 
  * ================================================================================================
  */
-
-"use client"; // Directs the Next.js framework compiler to safely execute interactive browser DOM layers
 
 import React, { useState, useEffect } from "react"; // Pulls standard state and system lifecycle methods out of core React
 
@@ -20,8 +28,6 @@ import React, { useState, useEffect } from "react"; // Pulls standard state and 
  */
 export default function AITutorIntro({ onSelectPrompt }) {
   // 🧬 PERFORMANCE OPTIMIZED PROFILE STATE VECTORS:
-  // FIXED HYDRATION baseline: Establishes a symmetric static initial layout value identically on both
-  // Server (SSR) and Client first-pass runs to completely wipe out React 19 attribute delta mismatches.
   const [studentProfile, setStudentProfile] = useState({ 
     firstName: "Student", 
     lastName: "Workspace" 
@@ -30,35 +36,76 @@ export default function AITutorIntro({ onSelectPrompt }) {
   /**
    * [CACHE-FIRST CLIENT-SIDE HYDRATION LOGIC ENGINE]
    * Fires exactly once post-mount to extract biographical tokens natively saved inside 
-   * browser storage boundaries, entirely preventing expensive database round-trips.
+   * browser storage boundaries, with a secure Neon DB fallback to prevent data loss.
    */
   useEffect(() => {
-    try {
-      console.log("[INTRO HUB CORE] Accessing client local storage registries to hydrate greeting labels...");
+    async function verifyAndFetchProfile() {
+      try {
+        console.log("[INTRO HUB CORE] Accessing client local storage registries to hydrate greeting labels...");
 
-      // Pull down previously deposited student identification tokens out of local browser memory maps
-      const cachedFirst = localStorage.getItem("jemer_user_first_name");
-      const cachedLast = localStorage.getItem("jemer_user_last_name");
+        // 🆕 1. Local Storage Key Standardization Fix
+        const cachedFirst = localStorage.getItem("jemer_user_firstName");
+        const cachedLast = localStorage.getItem("jemer_user_lastName");
 
-      // PERFORMANCE COUPLING GATE: If cached strings exist, apply them directly to state vectors 
-      // post-hydration and skip running network select statements down to the serverless database.
-      if (cachedFirst && cachedLast) {
-        console.log(`[INTRO HUB CACHE HIT] Hydrating identity parameters for: ${cachedFirst} ${cachedLast}`);
-        setStudentProfile({
-          firstName: cachedFirst,
-          lastName: cachedLast
+        // PERFORMANCE COUPLING GATE: If cached strings exist, apply them directly to state vectors
+        if (cachedFirst && cachedLast) {
+          console.log(`[INTRO HUB CACHE HIT] Hydrating identity parameters for: ${cachedFirst} ${cachedLast}`);
+          setStudentProfile({
+            firstName: cachedFirst,
+            lastName: cachedLast
+          });
+          return;
+        }
+
+        const storedUserId = localStorage.getItem("jemer_user_uuid");
+        const storedJwt = localStorage.getItem("jemer_session_jwt");
+
+        if (!storedUserId || !storedJwt) {
+          console.warn("[INTRO HUB CACHE MISS] Identity keys empty or unallocated. Defaulting to sandbox guest terms.");
+          return;
+        }
+
+        console.log(`[INTRO HUB CACHE MISS] Profile values empty or expired. Dispatching to secure Neon cloud gateway...`);
+
+        // 🆕 2. Secure Neon PostgREST Fetch Fallback
+        const endpoint = `https://ep-wandering-bird-abdexk6a.apirest.eu-west-2.aws.neon.tech/neondb/rest/v1/Jemer-Student-Profiles?id=eq.${storedUserId}`;
+        
+        const profileBridgeResponse = await fetch(endpoint, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${storedJwt}`,    
+            "apikey": storedJwt, 
+            "Accept": "application/json"
+          }
         });
-      } else {
-        console.warn("[INTRO HUB CACHE MISS] Identity keys empty or unallocated. Defaulting to sandbox guest terms.");
+
+        if (!profileBridgeResponse.ok) {
+          console.warn(`[PROFILE BRIDGE] Server returned status ${profileBridgeResponse.status}. Keeping default display values.`);
+          return;
+        }
+
+        const resolvedPayload = await profileBridgeResponse.json();
+        
+        if (resolvedPayload && resolvedPayload.length > 0) {
+          const resolvedProfile = resolvedPayload[0];
+          const fetchedFirst = resolvedProfile.first_name || "Jemer";
+          const fetchedLast  = resolvedProfile.last_name  || "Student";
+
+          console.log(`[PROFILE BRIDGE SUCCESS] Hydrating Intro Hub with: ${fetchedFirst} ${fetchedLast}`);
+
+          localStorage.setItem("jemer_user_firstName", fetchedFirst);
+          localStorage.setItem("jemer_user_lastName", fetchedLast);
+
+          setStudentProfile({ firstName: fetchedFirst, lastName: fetchedLast });
+        }
+      } catch (cacheException) {
+        console.error("[INTRO IDENTITY PROFILE EXCEPTION] Failed to safely pull client context tokens:", cacheException.message);
       }
-    } catch (cacheException) {
-      console.error("[INTRO IDENTITY PROFILE EXCEPTION] Failed to safely pull client context tokens:", cacheException.message);
     }
+    verifyAndFetchProfile();
   }, []); // Static tracking loop vector executing precisely on component tree assembly
 
   // 🌍 GLOBAL CURRICULUM STARTER PROMPT DIRECTIVES MATRIX
-  // Re-mapped to support universal academic domains across Science, Arts, and Social Sciences.
-  // Each card maps inline graphic indicators, categorization fields, and raw textual payloads.
   const internationalCurriculumPrompts = [
     {
       label: "Quantum Foundations",
@@ -104,11 +151,9 @@ export default function AITutorIntro({ onSelectPrompt }) {
 
   /**
    * Dispatches data fields upward when a user triggers an item click action loop
-   * @param {string} promptTextPayload - The comprehensive textual question string configured on the tile.
    */
   const handleSuggestionSelection = (promptTextPayload) => {
     console.log("[INTRO SUGGESTION CLICK] Dispatching chosen prompt payload upstream:", promptTextPayload);
-    // Execute communication callback bridge parameters if provided by structural parents
     if (onSelectPrompt) {
       onSelectPrompt(promptTextPayload);
     }
@@ -120,13 +165,17 @@ export default function AITutorIntro({ onSelectPrompt }) {
       
       {/* ── ZONE 1: HIGH-CONTRAST HEADER GREETING LAYERS ── */}
       <header className="space-y-2 block" aria-label="AI Tutor Greetings Dashboard">
-        {/* Primary Identification String line: Outputs cached name strings instantly without layout shaking */}
         <h1 className="text-3xl sm:text-4xl lg:text-5xl font-display font-black tracking-tight text-slate-900 dark:text-white leading-tight">
           Hi there, <span className="text-blue-900 dark:text-blue-500 font-extrabold">{studentProfile.firstName} {studentProfile.lastName}</span>
         </h1>
+        
         {/* Dynamic Action Subtext Statement */}
-        <p className="text-xl sm:text-2xl font-display font-bold text-slate-700 dark:text-slate-200 tracking-tight">
+        <p className="text-xl sm:text-2xl font-display font-bold text-slate-700 dark:text-slate-200 tracking-tight flex items-center gap-2">
           What do you want to learn?
+          {/* 🆕 3. Sparkle/Magic SVG exclusively rendered on mobile screens to soften the conversational tone */}
+          <svg className="w-5 h-5 text-blue-500 sm:hidden animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+          </svg>
         </p>
       </header>
 
@@ -138,42 +187,25 @@ export default function AITutorIntro({ onSelectPrompt }) {
       </div>
 
       {/* ── ZONE 3: RESPONSIVE CURRICULUM PROMPT GRID CARD BLOCKS ── */}
-      {/* 🚀 UPGRADE: Swapped mobile gap from gap-4 to gap-2.5 so the slim mobile rows lock together cleanly like an iOS menu */}
       <div className="grid gap-2.5 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mt-4 w-full">
         {internationalCurriculumPrompts.map((card, index) => (
           <button
             key={index}
             type="button"
             onClick={() => handleSuggestionSelection(card.promptText)}
-            // 🚀 UPGRADE: Set min-h-[68px] on mobile to prevent massive stretching, preserved sm:min-h-[160px] for desktop
-            className="group w-full bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 hover:border-blue-900/40 dark:hover:border-blue-500/40 rounded-2xl p-3 sm:p-4 text-left flex flex-col justify-center sm:justify-between items-start transition-all duration-200 hover:shadow-md cursor-pointer active:scale-[0.98] focus:outline-none min-h-[68px] sm:min-h-[160px] relative overflow-hidden"
+            // 🆕 UPGRADE: Removed rigid borders and backgrounds exclusively on mobile. Injected `rounded-[20px]` and `bg-slate-50` to mimic floating chat suggestion bubbles. Maintained desktop grid aesthetics completely untouched via `sm:` modifiers.
+            className="group w-full sm:bg-white sm:dark:bg-slate-900 bg-slate-50 dark:bg-slate-800/60 border border-transparent sm:border-slate-200/80 sm:dark:border-slate-800/80 hover:border-blue-900/40 dark:hover:border-blue-500/40 rounded-[20px] sm:rounded-2xl p-3.5 sm:p-4 text-left flex flex-col justify-center sm:justify-between items-start transition-all duration-200 shadow-sm sm:shadow-none hover:shadow-md cursor-pointer active:scale-[0.98] focus:outline-none min-h-[68px] sm:min-h-[160px] relative overflow-hidden"
             title={`Auto inject "${card.label}" starter prompt sequence`}
           >
             
-            {/* 📱 MOBILE EXCLUSIVE LAYOUT: Compact horizontal row (Unmounts entirely on sm+ screens) */}
-            <div className="flex sm:hidden flex-row items-center justify-between w-full gap-3">
-              <div className="flex flex-row items-center gap-3 min-w-0 flex-1">
-                {/* Icon wrapper tightly sized for mobile flow */}
-                <div className="p-2 bg-slate-50 dark:bg-slate-800/60 rounded-[10px] shrink-0 group-hover:bg-blue-50 dark:group-hover:bg-blue-950/40 transition-colors">
-                  {card.iconGlyph}
-                </div>
-                {/* Text stack truncates naturally to prevent vertical stretching */}
-                <div className="flex flex-col min-w-0 flex-1">
-                  <h3 className="text-[13px] font-sans font-extrabold text-slate-800 dark:text-slate-200 tracking-tight leading-tight group-hover:text-blue-900 dark:group-hover:text-blue-400 transition-colors truncate">
-                    {card.label}
-                  </h3>
-                  <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 block truncate mt-0.5">
-                    {card.branch}
-                  </span>
-                </div>
+            {/* 📱 🆕 MOBILE EXCLUSIVE LAYOUT: Soft Conversational Chat Bubble (Unmounts entirely on sm+ screens) */}
+            <div className="flex sm:hidden flex-row items-center w-full gap-3">
+              <div className="shrink-0 text-slate-400 group-hover:text-blue-500 transition-colors">
+                {card.iconGlyph}
               </div>
-              
-              {/* Native iOS-style chevron indicator hinting at the tap-forward affordance */}
-              <div className="shrink-0 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors ml-1">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
-              </div>
+              <h3 className="text-[13px] font-sans font-medium text-slate-700 dark:text-slate-300 tracking-tight leading-snug line-clamp-2">
+                &quot;{card.promptText}&quot;
+              </h3>
             </div>
 
             {/* 🖥️ DESKTOP EXCLUSIVE LAYOUT: Original Expanded Grid Card (Unmounts entirely on mobile screens) */}
@@ -181,17 +213,14 @@ export default function AITutorIntro({ onSelectPrompt }) {
               {/* Upper Frame: Houses descriptive title metrics and custom branch taxonomy strings */}
               <div className="space-y-2.5 w-full">
                 <div className="flex items-center justify-between w-full">
-                  {/* Categorization field marker token configured with specialized monospace configurations */}
                   <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 block truncate max-w-[80%]">
                     {card.branch}
                   </span>
-                  {/* Dynamic vector icon container node mapping chosen domain graphics handles */}
                   <div className="p-1.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl group-hover:bg-blue-50 dark:group-hover:bg-blue-950/40 transition-colors shrink-0">
                     {card.iconGlyph}
                   </div>
                 </div>
                 
-                {/* Short explicit design prompt headers display statement labels */}
                 <h3 className="text-xs sm:text-sm font-sans font-extrabold text-slate-800 dark:text-slate-200 tracking-tight leading-snug group-hover:text-blue-900 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
                   {card.label}
                 </h3>

@@ -2,18 +2,17 @@
 
 /**
  * ================================================================================================
- * 🆕 NEW UPGRADES SUMMARY (v5.7.0 - PRODUCTION IDENTITY SYNC FIX)
+ * 🆕 NEW UPGRADES SUMMARY (v5.8.0 - MOBILE VIEWPORT OVERHAUL & CLIPPING FIX)
  * ================================================================================================
- * 1. LOCAL STORAGE KEY STANDARDIZATION: Corrected the mismatched keys. The sidebar now queries 
- *    `jemer_user_firstName` and `jemer_user_lastName` instead of the old underscore formats, 
- *    ensuring 0-latency cache hits if the user has recently logged in or saved settings.
- * 2. SECURE NEON POSTGREST FALLBACK: Replaced the broken local `/api/profile/me` fetch with 
- *    the exact production-grade direct Neon DB query used in the settings dashboard.
- * 3. CRYPTOGRAPHIC HEADER INJECTION: The fallback network request now correctly utilizes the 
- *    `jemer_session_jwt` token, injecting it into both the `Authorization: Bearer` and `apikey` 
- *    headers to safely bypass Neon's Row-Level Security blocks and hydrate the user's name.
- * 4. PRESERVED UI & ROUTING: Kept 100% of the active path routing matrices and JSX-optimized 
- *    SVGs untouched.
+ * 1. 100dvh DYNAMIC VIEWPORT FIX: Surgically replaced the rigid `h-screen` class with `h-[100dvh]` 
+ *    on the master `<aside>` container. This calculates the true visible screen area on mobile 
+ *    browsers (safari/chrome), preventing native browser UI bars from pushing the footer off-screen.
+ * 2. FLEXBOX OVERFLOW FIX: Added `min-h-0` and extra safe-area padding (`pb-8`) to the scrollable 
+ *    Zone 1 tray. This strict flexbox rule prevents the scroll container from breaking out of its 
+ *    bounds, ensuring the "Pro Access" card stops getting cut off and doesn't visually crash into 
+ *    the stationary bottom footer.
+ * 3. LOGIC & ROUTING PRESERVED: 100% of the newly implemented Identity Sync (`localStorage`), Neon DB 
+ *    fetching, JSX optimized SVGs, and `activePaths` routing have been strictly maintained.
  * ================================================================================================
  * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM SCALABLE SIDE PANEL FRAMEWORK 
  * ================================================================================================
@@ -35,7 +34,7 @@ export default function Sidebar({ isOpen, onClose }) {
         const activeProxyEnvUrl = process.env.NEXT_PUBLIC_APP_URL || "production.jemeracademy";
         console.log(`[CACHE ENGINE CORE] Running background profile synchronization audit under context host: ${activeProxyEnvUrl}`);
 
-        // 🆕 1. Local Storage Key Standardization Fix
+        // Local Storage Key Standardization Fix
         const cachedFirst = localStorage.getItem("jemer_user_firstName");
         const cachedLast = localStorage.getItem("jemer_user_lastName");
 
@@ -58,14 +57,14 @@ export default function Sidebar({ isOpen, onClose }) {
 
         console.log(`[CACHE MISS] Profile values empty or expired. Dispatching to secure Neon cloud gateway...`);
 
-        // 🆕 2 & 3. Secure Neon PostgREST Fetch Fallback
+        // Secure Neon PostgREST Fetch Fallback
         const endpoint = `https://ep-wandering-bird-abdexk6a.apirest.eu-west-2.aws.neon.tech/neondb/rest/v1/Jemer-Student-Profiles?id=eq.${storedUserId}`;
         
         const profileBridgeResponse = await fetch(endpoint, {
           method: "GET",
           headers: {
             "Authorization": `Bearer ${storedJwt}`,    
-            "apikey": storedJwt, // Crucial for PostgREST
+            "apikey": storedJwt, 
             "Accept": "application/json"
           }
         });
@@ -84,7 +83,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
           console.log(`[PROFILE BRIDGE SUCCESS] Hydrating sidebar with: ${fetchedFirst} ${fetchedLast}`);
 
-          // 🆕 Cache the newly fetched values under the correct keys so we don't query DB next time
+          // Cache the newly fetched values under the correct keys so we don't query DB next time
           localStorage.setItem("jemer_user_firstName", fetchedFirst);
           localStorage.setItem("jemer_user_lastName", fetchedLast);
 
@@ -104,7 +103,6 @@ export default function Sidebar({ isOpen, onClose }) {
       label: "Dashboard", 
       targetPath: "/dashboard", 
       vectorGlyph: (
-        // 🚀 JSX OPTIMIZED: camelCase props applied
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-layout-dashboard-icon lucide-layout-dashboard"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
       )
     },
@@ -112,17 +110,14 @@ export default function Sidebar({ isOpen, onClose }) {
       label: "My AI Tutor", 
       targetPath: "/tutor", 
       vectorGlyph: (
-        // 🚀 JSX OPTIMIZED
        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-astroid-icon lucide-astroid"><path d="M12.983 21.186a1 1 0 0 1-1.966 0 10 10 0 0 0-8.203-8.203 1 1 0 0 1 0-1.966 10 10 0 0 0 8.203-8.203 1 1 0 0 1 1.966 0 10 10 0 0 0 8.203 8.203 1 1 0 0 1 0 1.966 10 10 0 0 0-8.203 8.203"/></svg>
       )
     },
     { 
       label: "Learning Tools", 
       targetPath: "/tools", 
-      // 🚀 THE ROUTING FIX: This array catches the parent route and all sub-feature routes!
       activePaths: ["/tools", "/snap", "/vid2notes", "/audiobooks"],
       vectorGlyph: (
-        // 🚀 JSX OPTIMIZED
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-wrench-icon lucide-wrench"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/></svg>
       )
     },
@@ -130,16 +125,14 @@ export default function Sidebar({ isOpen, onClose }) {
       label: "Brain Training", 
       targetPath: "/brain-training",
       vectorGlyph: (
-        // 🚀 JSX OPTIMIZED
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-brain-circuit-icon lucide-brain-circuit"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M9 13a4.5 4.5 0 0 0 3-4"/><path d="M6.003 5.125A3 3 0 0 0 6.401 6.5"/><path d="M3.477 10.896a4 4 0 0 1 .585-.396"/><path d="M6 18a4 4 0 0 1-1.967-.516"/><path d="M12 13h4"/><path d="M12 18h6a2 2 0 0 1 2 2v1"/><path d="M12 8h8"/><path d="M16 8V5a2 2 0 0 1 2-2"/><circle cx="16" cy="13" r=".5"/><circle cx="18" cy="3" r=".5"/><circle cx="20" cy="21" r=".5"/><circle cx="20" cy="8" r=".5"/></svg>
       )
     },
      { 
       label: "Exam Simulator", 
       targetPath: "/exam-simulator", 
-        activePaths: ["/jamb", "/waec", "/exam-practice", "/study" , "/questions" , "/exam-performance" , "/exam-simulator"], 
+      activePaths: ["/jamb", "/waec", "/exam-practice", "/study" , "/questions" , "/exam-performance" , "/exam-simulator"], 
       vectorGlyph: (
-        // 🚀 JSX OPTIMIZED
        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-book-open-check-icon lucide-book-open-check"><path d="M12 21V7"/><path d="m16 12 2 2 4-4"/><path d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3"/></svg>
       )
     },
@@ -147,7 +140,6 @@ export default function Sidebar({ isOpen, onClose }) {
       label: "Rankings", 
       targetPath: "/rankings", 
       vectorGlyph: (
-        // 🚀 JSX OPTIMIZED
        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-podium-icon lucide-podium"><path d="M12 6V2h-1"/><path d="M9 15a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1"/><path d="M9 21V11a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v10"/></svg>
       )
     },
@@ -155,7 +147,6 @@ export default function Sidebar({ isOpen, onClose }) {
       label: "Billings", 
       targetPath: "/billings", 
       vectorGlyph: (
-        // 🚀 JSX OPTIMIZED
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-credit-card-icon lucide-credit-card"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
       )
     }
@@ -165,7 +156,7 @@ export default function Sidebar({ isOpen, onClose }) {
    * Internal reusable tab renderer component compiling our layout link rows
    */
   const buildInteractiveTabNode = (item, uniqueIndexId) => {
-    // 🚀 THE ROUTING FIX: Checks if the current pathname exists within the extended `activePaths` array.
+    // Checks if the current pathname exists within the extended `activePaths` array.
     // If no array exists, it falls back to a strict targetPath match.
     const isCurrentTabTargeted = item.activePaths 
       ? item.activePaths.includes(activePathname) 
@@ -201,15 +192,17 @@ export default function Sidebar({ isOpen, onClose }) {
         />
       )}
 
-      {/* 🏢 MASTER VIEWPORT LOCK-DOWN SIDEBAR ENVELOPE CONTAINER */}
+      {/* 🏢 MASTER VIEWPORT LOCK-DOWN SIDEBAR ENVELOPE CONTAINER 
+          🆕 FIX: Replaced `h-screen` with `h-[100dvh]` to stop mobile browser URL bars from hiding the bottom footer */}
       <aside
-        className={`fixed inset-y-0 left-0 h-screen w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col justify-between shrink-0 z-40 select-none transition-transform duration-300 ease-in-out ${
+        className={`fixed inset-y-0 left-0 h-[100dvh] w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col justify-between shrink-0 z-40 select-none transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         
-        {/* ── ZONE 1: HIGH-VOLUME INDEPENDENTLY SCROLLING RUNWAY TRAY (TOP PART) ── */}
-        <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
+        {/* ── ZONE 1: HIGH-VOLUME INDEPENDENTLY SCROLLING RUNWAY TRAY (TOP PART) ── 
+            🆕 FIX: Injected `min-h-0`, updated top padding (`pt-5`), and added safe-area bottom padding (`pb-8`) */}
+        <div className="flex-1 overflow-y-auto min-h-0 px-4 pt-5 pb-8 space-y-6 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
           
           <div className="flex items-center gap-3 shrink-0 pb-1 border-b border-slate-50 dark:border-slate-800/20">
             <img src="/assets/brand/jemer-logo.png" alt="Logo" className="w-8 h-8 object-contain shrink-0" onError={(e) => e.target.style.display = 'none'} />
@@ -237,7 +230,6 @@ export default function Sidebar({ isOpen, onClose }) {
             label: "Bookshelf",
             targetPath: "/bookshelf",
             vectorGlyph: (
-              // 🚀 JSX OPTIMIZED
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-square-library-icon lucide-square-library"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 7v10"/><path d="M11 7v10"/><path d="m15 7 2 10"/></svg>
             )
           }, 99)}
@@ -246,7 +238,6 @@ export default function Sidebar({ isOpen, onClose }) {
             label: "Settings",
             targetPath: "/settings",
             vectorGlyph: (
-              // 🚀 JSX OPTIMIZED
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-settings-icon lucide-settings"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>
             )
           }, 100)}

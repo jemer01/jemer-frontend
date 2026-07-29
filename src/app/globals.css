@@ -1,11 +1,42 @@
 /**
  * ================================================================================================
  * 🎨 JEMER ACADEMY GLOBAL CSS CORE — TAILWIND V4 STYLESHEET CONFIGURATIONS
+ * 
+ * 🆕 NEW UPGRADES SUMMARY (GLOBAL MOBILE VIEWPORT FIX):
+ * 1. 100dvh Global Override: Surgically reconfigured the native Tailwind `-screen` utilities 
+ *    (`h-screen`, `min-h-screen`, `max-h-screen`) to output `100dvh` (Dynamic Viewport Height) 
+ *    instead of `100vh`. This instantly fixes the mobile Safari/Chrome bottom-clipping bug across 
+ *    every single page without touching dozens of individual component files.
+ * 2. Baseline HTML/Body Constraints: Enforced 100dvh baseline minimums to guarantee absolute 
+ *    flexbox containers never stretch beyond the physical mobile viewport.
  * ================================================================================================
  */
 
 /* Cascades the entire core Tailwind v4 design utility framework layers */
 @import "tailwindcss";
+
+/* ── STEP 1.0: GLOBAL DYNAMIC VIEWPORT (100dvh) OVERRIDES ──────────────────────────────────────── */
+/* Forces any component using 'h-screen' to respect actual mobile browser bounds (URL bars) */
+@utility h-screen {
+  height: 100dvh;
+}
+
+@utility min-h-screen {
+  min-height: 100dvh;
+}
+
+@utility max-h-screen {
+  max-height: 100dvh;
+}
+
+@layer base {
+  html, body {
+    height: 100dvh;
+    min-height: 100dvh;
+    margin: 0;
+    padding: 0;
+  }
+}
 
 /* ── STEP 1.1: TAILWIND V4 CSS-FIRST MANUAL SELECTOR DEFINITION ────────────────────────────────── */
 /**

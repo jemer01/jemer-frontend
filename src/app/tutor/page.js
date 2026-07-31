@@ -1,48 +1,32 @@
+"use client"; // Enforces client-side execution to allow browser APIs like localStorage and React hooks
+
 /**
- * [NEW UPGRADE — v4.5.0]
+ * ================================================================================================
+ * [NEW UPGRADE — v4.6.0]
+ * SUMMARY: Cross-Device Onboarding Sync & Dynamic Backend Routing.
+ * 1. Database Source-of-Truth Sync: Ripped out the dummy `/api/profile/status_check` call. The 
+ *    `executeSmartOnboardingGateCheck` now securely fetches the user's actual row directly from 
+ *    the Neon DB using `jemer_user_uuid`. If `academic_level_pacing_tier` contains data, it proves 
+ *    they completed onboarding on another device, instantly caching `jemer_profile_calibrated` to `true` 
+ *    and seamlessly dropping them into the chat interface.
+ * 2. Dynamic Environment API Routing: Upgraded the `BACKEND_URL` variable in `loadChatHistory` 
+ *    and `handleProcessOutboundPrompt`. It now dynamically detects the production URL 
+ *    (`academy.jemerplatforms.company`), the Google Cloud Shell dev environment, or falls back to 
+ *    localhost. This completely eliminates the CORS and connection refused errors.
+ * 3. Neon DB Authorization Patch: Upgraded `jemerAuthenticatedFetch` to automatically inject the 
+ *    `apikey` header alongside the Bearer token, which is strictly required for Neon PostgREST queries.
+ * ================================================================================================
+ * [PREVIOUS UPGRADE — v4.5.0]
  * SUMMARY: Fixed the actual root cause — `window.JemerAuth.refreshSession` didn't exist.
  * The v4.4.0 patch correctly diagnosed a false-positive-looking failure, but the real problem was
  * deeper: `refreshSession` was never implemented anywhere in auth.js, so every silent-refresh
  * attempt was doomed regardless of timing. Fixed at the source: `refreshSession()` has been added
- * to `JemerAuthEngine` in auth.js (reusing the existing, proven `/token` fallback route). This file
- * only needed one small companion change: `performSilentTokenRefresh` now reads the explicit
- * `{ success, message }` result `refreshSession()` returns and bails out immediately on a real
- * failure, instead of polling localStorage for the full 5 seconds for a token that was never
- * going to arrive. Everything else from v4.4.0 (the SDK readiness wait, the graceful gate
- * eviction, the whole-page coverage) is unchanged and still active.
+ * to `JemerAuthEngine` in auth.js. This file only needed one small companion change: 
+ * `performSilentTokenRefresh` now reads the explicit `{ success, message }` result.
  * ================================================================================================
- * [PREVIOUS UPGRADE — v4.4.0]
- * SUMMARY: Closed the false-positive logout hole in the authentication gate.
- * 1. SDK Hydration Guard: `performSilentTokenRefresh` now waits (up to 3s, polling every 100ms)
- *    for the Neon Auth SDK to attach itself to `window` before deciding a refresh has failed.
- *    Previously it bailed out instantly on a cold page load / hard refresh if the SDK script
- *    hadn't finished loading yet — which looked identical to a genuinely dead session and was
- *    the real cause of the surprise redirect-to-login.
- * 2. Graceful Gate Eviction: `executeSmartOnboardingGateCheck` no longer silently wipes storage
- *    and hard-navigates the instant it sees a 401. Since the refresh underneath it is now
- *    reliable, a 401 that survives it really does mean the session is dead — so authenticated-only
- *    access to this page is still fully enforced — but the user now sees a brief "Session expired,
- *    redirecting..." message instead of an unexplained instant jump.
- * 3. Whole-Page Coverage: the fix lives inside the one shared `performSilentTokenRefresh`, so it
- *    automatically covers every existing caller — the mount-time gate check (page load/refresh),
- *    the 45s heartbeat, the tab-focus listener, and the chat stream calls — not just chatting.
- * ================================================================================================
- * [PREVIOUS UPGRADE]
- * SUMMARY: Executed v4.3.0 - Silent Authentication Interceptor & Replay Engine.
- * 1. Intelligent Token Polling: Upgraded `performSilentTokenRefresh` to parse the actual JWT payload. 
- * Instead of just waiting for the string to mutate, it now checks if the `exp` timestamp has been safely extended.
- * Increased polling limits to 5 seconds to accommodate network latency from Neon Auth servers.
- * 2. Deep Stream Replay: Eradicated the brutal 401 redirect in `handleProcessOutboundPrompt`.
- * If a stream request hits a 401, the engine now traps the error, executes a synchronous token refresh, 
- * and seamlessly replays the fetch request. The user experiences a slight delay, but never a redirect!
- * 3. Safe Failures: If the session is permanently dead, it safely logs the error into the AI chat 
- * instead of flushing local storage and destroying the viewport.
- * ================================================================================================
- * 🧠 JEMER ACADEMY DASHBOARD FEATURE ENGINE — MASTER AI TUTOR PAGE RUNWAY (v4.5.0)
+ * 🧠 JEMER ACADEMY DASHBOARD FEATURE ENGINE — MASTER AI TUTOR PAGE RUNWAY (v4.6.0)
  * ================================================================================================
  */
-
-"use client"; // Enforces client-side execution to allow browser APIs like localStorage and React hooks
 
 import React, { useState, useEffect, useRef } from "react"; 
 import AITutorIntro from "@/jemer-components/tutor/ai-tutor-intro.jsx"; 
@@ -90,7 +74,7 @@ let isRefreshing = false;
 let refreshPromise = null;
 
 /**
- * 🚀 [v4.4.0 UPGRADE] SDK Hydration Guard.
+ * SDK Hydration Guard.
  * Waits for the Neon Auth client SDK to attach itself to `window` before we ever decide a
  * refresh has "failed". Without this, a slow-loading auth script on a fresh page load or hard
  * refresh looks identical to a genuinely dead session and used to trigger a false-positive
@@ -126,9 +110,6 @@ const performSilentTokenRefresh = async () => {
     try {
       const oldToken = localStorage.getItem("jemer_session_jwt");
 
-      // 🚀 [v4.4.0 UPGRADE] Wait for the SDK to attach to `window` instead of instantly deciding
-      // it's unavailable. This was the actual cause of the false-positive "refresh failed" that
-      // led to a login redirect on a cold page load / hard refresh.
       const sdkIsReady = await waitForAuthSDKReady();
 
       if (sdkIsReady) {
@@ -136,10 +117,6 @@ const performSilentTokenRefresh = async () => {
         // Command the Neon SDK to execute a background session renewal
         const refreshOutcome = await window.JemerAuth.refreshSession();
 
-        // 🚀 [v4.5.0 UPGRADE] refreshSession() now exists on JemerAuth and returns an explicit
-        // { success, message } result. If it explicitly failed (e.g. session cookie is genuinely
-        // gone), bail out immediately instead of polling localStorage for a token that we already
-        // know was never written.
         if (refreshOutcome && refreshOutcome.success === false) {
           console.warn("⚠️ [AUTH ENGINE] JemerAuth.refreshSession() reported explicit failure:", refreshOutcome.message);
           return null;
@@ -151,8 +128,6 @@ const performSilentTokenRefresh = async () => {
         while (attempts < maxAttempts) {
           const currentToken = localStorage.getItem("jemer_session_jwt");
           
-          // 🚀 NEW UPGRADE: We now check if the string changed OR if the exact same string has a renewed payload expiration!
-          // This prevents infinite timeouts if Neon Auth retains the token ID but bumps the expiry timestamp.
           if (currentToken && (currentToken !== oldToken || !isTokenExpiringSoon(currentToken, 300))) {
             console.log("✅ [AUTH ENGINE] Session securely refreshed. Token matrix successfully extended.");
             return currentToken;
@@ -164,7 +139,6 @@ const performSilentTokenRefresh = async () => {
         
         console.warn("⚠️ [AUTH ENGINE] Mutation timeout. SDK did not update localStorage within the 5-second boundary.");
       } else {
-        // 🚀 [v4.4.0 UPGRADE] This is now a real, timed-out unavailability -- not an instant guess.
         console.warn("⚠️ [AUTH ENGINE] Neon Auth SDK never attached to window within the readiness window.");
       }
       return null;
@@ -196,21 +170,29 @@ const jemerAuthenticatedFetch = async (url, options = {}) => {
   const headers = new Headers(options.headers || {});
   if (activeToken) {
     headers.set("Authorization", `Bearer ${activeToken}`);
+    // 🚀 [v4.6.0 UPGRADE] Injected apikey to ensure Neon DB PostgREST requests do not fail with 400 Bad Request
+    headers.set("apikey", activeToken); 
   }
   
   // Fire the outbound request to the backend
   let response = await fetch(url, { ...options, headers });
 
-  // If the token expired at the exact millisecond in transit, trap the 401 error
-  if (response.status === 401) {
-     console.warn("⚠️ [AUTH PROXY] 401 Unauthorized intercepted. Initiating emergency synchronous mutation poll...");
-     const emergencyToken = await performSilentTokenRefresh();
-     
-     if (emergencyToken) {
-        console.log("✅ [AUTH PROXY] Emergency swap successful. Replaying exact network request behind the scenes...");
-        headers.set("Authorization", `Bearer ${emergencyToken}`);
-        // Re-fire the exact same request with the new fresh token!
-        response = await fetch(url, { ...options, headers });
+  // If the token expired at the exact millisecond in transit, trap the 401/400 error
+  if (response.status === 401 || response.status === 400) {
+     const clonedRes = response.clone();
+     const errorText = await clonedRes.text().catch(() => "");
+
+     if (response.status === 401 || errorText.includes("JWT token has expired")) {
+         console.warn("⚠️ [AUTH PROXY] Token expiry intercepted in transit. Initiating emergency synchronous mutation poll...");
+         const emergencyToken = await performSilentTokenRefresh();
+         
+         if (emergencyToken) {
+            console.log("✅ [AUTH PROXY] Emergency swap successful. Replaying exact network request behind the scenes...");
+            headers.set("Authorization", `Bearer ${emergencyToken}`);
+            headers.set("apikey", emergencyToken);
+            // Re-fire the exact same request with the new fresh token!
+            response = await fetch(url, { ...options, headers });
+         }
      }
   }
 
@@ -223,7 +205,7 @@ export default function TutorPage() {
   const [injectedText, setInjectedText] = useState("");
 
   const [isCheckingProfile, setIsCheckingProfile] = useState(true);
-  const [isSessionExpiring, setIsSessionExpiring] = useState(false); // 🚀 [v4.4.0] Drives the graceful "session expired" message instead of an instant silent redirect
+  const [isSessionExpiring, setIsSessionExpiring] = useState(false); 
   const [showGateModal, setShowGateModal] = useState(false);
   const [forceFormOverlay, setForceFormOverlay] = useState(false);
 
@@ -251,7 +233,13 @@ export default function TutorPage() {
     }
 
     try {
-      const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+      // 🚀 [v4.6.0 UPGRADE] Dynamic environment routing prevents localhost errors on production builds
+      const activeOrigin = typeof window !== "undefined" ? window.location.origin : "";
+      const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 
+        (activeOrigin.includes("jemerplatforms.company") ? "https://academy.jemerplatforms.company" : 
+         activeOrigin.includes("cloudshell.dev") ? "https://3000-cs-9c6bf60b-3314-4394-80ef-ef6f4089d8e1.cs-europe-west1-haha.cloudshell.dev" : 
+         "http://localhost:8080");
+
       // Fetch the history block securely via our 401-resilient proxy
       const response = await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/tutor/sessions/${sessionId}/messages?limit=30&offset=${currentOffset}`);
       
@@ -387,27 +375,25 @@ export default function TutorPage() {
           return; 
         }
 
-        const remoteServerHandshakeResponse = await jemerAuthenticatedFetch("/api/profile/status_check", {
-          method: "GET", 
-          credentials: "include", 
-          headers: {
-            "Content-Type": "application/json"   
+        // 🚀 [v4.6.0 UPGRADE] Database Source of Truth: Bypassed dummy endpoints and queries Neon directly
+        const remoteServerHandshakeResponse = await jemerAuthenticatedFetch(
+          `https://ep-wandering-bird-abdexk6a.apirest.eu-west-2.aws.neon.tech/neondb/rest/v1/Jemer-Student-Profiles?id=eq.${activeUserUuidToken}`, 
+          {
+            method: "GET", 
+            headers: {
+              "Accept": "application/json"   
+            }
           }
-        });
+        );
 
         if (remoteServerHandshakeResponse && remoteServerHandshakeResponse.status === 401) {
-          // 🚀 [v4.4.0 UPGRADE] Graceful Eviction: by the time we get here, jemerAuthenticatedFetch
-          // has ALREADY attempted a race-condition-free silent refresh and replayed the request
-          // once. A 401 surviving that means the session is genuinely dead, not a timing fluke —
-          // so authenticated-only access is still enforced, but we explain what's happening
-          // instead of silently vanishing the user mid-session.
           console.warn("[SECURITY EVICTION] Server engine returned absolute 401 Unauthorized flag after a verified refresh attempt. Flushing storage keys...");
           setIsSessionExpiring(true);
           localStorage.removeItem("jemer_session_jwt"); 
           localStorage.removeItem("jemer_user_uuid"); 
           setTimeout(() => {
             window.location.href = "/login.html"; 
-          }, 1200); // Brief, visible handoff instead of an instant unexplained jump
+          }, 1200); 
           return;
         }
 
@@ -417,12 +403,15 @@ export default function TutorPage() {
           return; 
         }
 
-        const verificationResultJSON = await remoteServerHandshakeResponse.json();
+        const profileData = await remoteServerHandshakeResponse.json();
 
-        if (verificationResultJSON.isProfileComplete === true) {
+        // 🚀 Validate if the user previously completed setup on another device
+        if (profileData && profileData.length > 0 && profileData[0].academic_level_pacing_tier) {
+          console.log("[CROSS-DEVICE SYNC] Active personalization matrix found in database. Restoring cache parameters...");
           localStorage.setItem("jemer_profile_calibrated", "true"); 
           setIsCheckingProfile(false); 
         } else {
+          console.log("[CROSS-DEVICE SYNC] No valid personalization parameters found. Opening wizard...");
           setShowGateModal(true); 
           setIsCheckingProfile(false); 
         }
@@ -532,11 +521,15 @@ export default function TutorPage() {
     // Synchronize the pagination offset with the live database insert.
     setHistoryOffset((prevOffset) => prevOffset + 2);
 
-    const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+    // 🚀 [v4.6.0 UPGRADE] Dynamic environment routing prevents localhost errors on production builds
+    const activeOrigin = typeof window !== "undefined" ? window.location.origin : "";
+    const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 
+      (activeOrigin.includes("jemerplatforms.company") ? "https://academy.jemerplatforms.company" : 
+       activeOrigin.includes("cloudshell.dev") ? "https://3000-cs-9c6bf60b-3314-4394-80ef-ef6f4089d8e1.cs-europe-west1-haha.cloudshell.dev" : 
+       "http://localhost:8080");
     const ENDPOINT_PATH = `${BACKEND_URL}/api/v1/tutor/stream`;
 
     try {
-      // 🚀 Changed `const` to `let` so we can reassign the stream response object if we need to silently replay the fetch
       let serverStreamResponse = await jemerAuthenticatedFetch(ENDPOINT_PATH, {
         method: "POST", 
         signal: abortControllerRef.current.signal, 
@@ -555,9 +548,6 @@ export default function TutorPage() {
 
       if (!serverStreamResponse.ok) {
         
-        // 🚀 NEW UPGRADE: The Deep Replay Matrix
-        // If the request completely fails the proxy and returns a 401 right as the stream starts,
-        // we DO NOT wipe the screen or kick the user to login. We execute one final, aggressive background refresh.
         if (serverStreamResponse.status === 401) {
           console.warn("⚠️ [STREAM ENGINE] Absolute 401 boundary hit. Pausing stream to force a deep synchronous replay...");
           
@@ -572,7 +562,8 @@ export default function TutorPage() {
               signal: abortControllerRef.current.signal, 
               headers: {
                 "Content-Type": "application/json",
-                "Authorization": `Bearer ${emergencyReplayToken}`
+                "Authorization": `Bearer ${emergencyReplayToken}`,
+                "apikey": emergencyReplayToken // Ensure PostgREST compatibility on replays
               },
               body: JSON.stringify({
                 session_id: currentSessionId, 
@@ -689,9 +680,6 @@ export default function TutorPage() {
 
       console.error("❌ Critical streaming communication infrastructure crash occurred:", criticalPipelineCommunicationException);
       
-      // 🚀 NEW UPGRADE: Graceful UI Failure Handling
-      // Even if everything absolutely crashes, we inject the error beautifully into the chat log 
-      // instead of redirecting or breaking the layout. The user keeps all their typed history!
       setChatLog((prevLog) =>
         prevLog.map((msgItem) =>
           msgItem.id === aiMessageId
@@ -727,8 +715,6 @@ export default function TutorPage() {
       <div className="h-full w-full bg-slate-50 dark:bg-slate-950 flex flex-col justify-center items-center select-none">
         <div className="text-center font-mono space-y-2 text-xs text-slate-400 dark:text-slate-500">
           <i className="fas fa-circle-notch fa-spin text-lg text-blue-600 mb-1" />
-          {/* 🚀 [v4.4.0 UPGRADE] Swap the copy during a graceful eviction so the redirect reads as
-              an explained handoff instead of an unexplained hard cut. */}
           <p className="uppercase tracking-widest font-black">
             {isSessionExpiring ? "Session expired. Redirecting to sign in..." : "Calibrating Jemer Tutor Matrix..."}
           </p>

@@ -81,11 +81,11 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
       const activeJwtToken = localStorage.getItem("jemer_session_jwt");
       if (!activeJwtToken) return; // Halt if student is not authenticated
 
-      const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-      // Call our highly optimized GET endpoint with Limit and Offset
-      const response = await fetch(`${BACKEND_URL}/api/v1/tutor/sessions?limit=10&offset=${currentOffset}`, {
-        headers: { "Authorization": `Bearer ${activeJwtToken}` }
-      });
+      const activeOrigin = typeof window !== "undefined" ? window.location.origin : "";
+      const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 
+     (activeOrigin.includes("jemerplatforms.company") ? "https://academy.jemerplatforms.company" : 
+     activeOrigin.includes("cloudshell.dev") ? "https://3000-cs-9c6bf60b-3314-4394-80ef-ef6f4089d8e1.cs-europe-west1-haha.cloudshell.dev" : 
+      "http://localhost:8080");
 
       if (response.ok) {
         const data = await response.json();

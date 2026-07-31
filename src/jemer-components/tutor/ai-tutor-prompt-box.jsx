@@ -2,19 +2,18 @@
 
 /**
  * ================================================================================================
- * 🆕 NEW UPGRADES SUMMARY (v2.6.0 - MOBILE RESPONSIVENESS FIX)
+ * 🆕 NEW UPGRADES SUMMARY (v2.7.0 - PROMPT BOX UX/UI OVERHAUL)
  * ================================================================================================
- * 1. Flexbox Container Lockdown: Removed `flex-wrap` from the prompt box's bottom control rail. 
- *    Enforced a strict `flex-row w-full` layout with `min-w-0` and `shrink-0` constraints so 
- *    buttons mathematically cannot drop to a second line, preserving the sleek, unified UI.
- * 2. Responsive Send Button: The "Send" button now dynamically collapses into a perfect circle 
- *    (`w-10 h-10 rounded-full`) on slim mobile screens. The text is hidden (`hidden sm:inline-block`), 
- *    and a native, upward-pointing arrow SVG (the standard for modern AI) takes center stage.
- * 3. Responsive Stop Button: Transformed the streaming "Stop" button to match the mobile circle 
- *    aesthetic. Replaced the broken FontAwesome `<i>` tag with a pure React SVG `<rect>` square 
- *    to guarantee perfect rendering. The bouncing dots hide on slim screens to save space.
- * 4. Safe Truncation: Added `max-w-[130px]` and `truncate` to the Tutor selector button so extremely 
- *    narrow screens don't force the layout to stretch.
+ * 1. RESPONSIVE TUTOR NAME FORMATTING: Fixed mobile truncation issues. On slim screens, the active 
+ *    tutor badge dynamically strips the word "Teacher " (e.g., "Emily", "Jay") to save horizontal 
+ *    space, while preserving the full name ("Teacher Emily") on desktop displays.
+ * 2. UNIFIED TUTOR MODAL INTERFACE: Completely ripped out the clunky, inconsistent bottom-sheet 
+ *    modal that only showed on mobile. The Tutor selector now uses the exact same sleek, floating 
+ *    glassmorphism popover architecture as the Tools/Upload menu across ALL devices, guaranteeing 
+ *    100% design consistency.
+ * 3. GLOBAL "CLICK-OUTSIDE" INTERCEPTOR: Wrapped the master prompt container in a `useRef` hook 
+ *    and bound `mousedown` and `touchstart` event listeners. Users can now simply tap anywhere 
+ *    outside the open menus to instantly close them, eliminating the need to hunt for an 'X' button.
  * ================================================================================================
  * 🤖 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR PROMPT BOX CORE ENGINE
  * ================================================================================================
@@ -74,13 +73,17 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
   
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
+  // 🆕 Master reference hook for click-outside detection
+  const promptContainerRef = useRef(null);
 
+  // Synchronizes outside prompt card choice inputs straight into the prompt state string layer
   useEffect(() => {
     if (injectedPromptText) {
       setTextPrompt(injectedPromptText);
     }
   }, [injectedPromptText]);
 
+  // Unified application post-mount hardware calibration and local storage hydration life-cycle routine
   useEffect(() => {
     const checkMobile = () => {
       setIsMobileView(window.innerWidth < 768);
@@ -123,6 +126,7 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
     };
   }, []);
 
+  // Recalculates bounding viewport heights on character updates to expand input size smoothly
   useEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
@@ -131,6 +135,24 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
     ta.style.height = next + "px";
     ta.style.overflowY = ta.scrollHeight > 200 ? "auto" : "hidden";
   }, [textPrompt]);
+
+  // 🆕 GLOBAL CLICK-OUTSIDE INTERCEPTOR
+  // Actively monitors the document for mousedown/touchstart events and closes menus if interactions fall outside our prompt bounds
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (promptContainerRef.current && !promptContainerRef.current.contains(event.target)) {
+        setPlusMenuOpen(false);
+        setTutorMenuOpen(false);
+        setImageGenDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, []);
 
   const handleTutorSelectionChange = (tutorTargetProfile) => {
     setActiveTutor(tutorTargetProfile);
@@ -297,7 +319,8 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
         .modal-scroll { -ms-overflow-style: none; scrollbar-width: none; }
       `}} />
 
-      <div className="relative w-full rounded-[48px] bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200/80 dark:border-slate-700/50 p-3 sm:p-3.5 flex flex-col gap-2.5 transition-all duration-300 z-10 shadow-[0_10px_20px_-5px_rgba(0,0,0,0.05),0_30px_60px_-10px_rgba(0,0,0,0.12)] dark:shadow-[0_15px_25px_-5px_rgba(0,0,0,0.5),0_40px_70px_-15px_rgba(0,0,0,0.75)]">
+      {/* 🆕 BOUNDARY REF: All clicks outside this master container trigger the menu closures */}
+      <div ref={promptContainerRef} className="relative w-full rounded-[38px] bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200/80 dark:border-slate-700/50 p-3 sm:p-3.5 flex flex-col gap-2.5 transition-all duration-300 z-10 shadow-[0_10px_20px_-5px_rgba(0,0,0,0.05),0_30px_60px_-10px_rgba(0,0,0,0.12)] dark:shadow-[0_15px_25px_-5px_rgba(0,0,0,0.5),0_40px_70px_-15px_rgba(0,0,0,0.75)]">
         
         {/* Active Indicators Area Row */}
         {(canvasActive || deepResearchActive) && (
@@ -398,7 +421,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
         )}
 
         {/* ── ZONE 3: ENGAGEMENT ACTIONS INTERACTION RAIL ── */}
-        {/* 🆕 FLEXBOX FIX: Replaced flex-wrap with a strict single-row layout (flex-row w-full) to prevent buttons dropping to the next line on slim screens */}
         <div className="flex flex-row items-center justify-between gap-2 pt-1 w-full">
           
           <div className="flex flex-row items-center gap-2 relative min-w-0">
@@ -591,110 +613,23 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
                   setPlusMenuOpen(false);
                 }}
                 disabled={isStreaming}
-                // 🆕 Added max-w constraints and truncate wrapper to prevent pushing the Send button off screen on mobiles
-                className={`h-10 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 px-3.5 text-sm font-semibold transition-all duration-200 cursor-pointer focus:outline-none shadow-sm max-w-[120px] sm:max-w-none ${isStreaming ? "opacity-50 pointer-events-none" : "active:scale-98"}`}
+                // 🆕 Safe Truncation: Prevents narrow screens from forcing the layout to stretch
+                className={`h-10 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 px-3.5 text-sm font-semibold transition-all duration-200 cursor-pointer focus:outline-none shadow-sm max-w-[130px] sm:max-w-none ${isStreaming ? "opacity-50 pointer-events-none" : "active:scale-98"}`}
               >
                 <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse shrink-0" />
-                <span className="truncate">{activeTutor.name}</span>
+                {/* 🆕 Responsive Name Truncation: "Jay" on mobile, "Teacher Jay" on desktop */}
+                <span className="hidden sm:inline truncate">{activeTutor.name}</span>
+                <span className="sm:hidden truncate">{activeTutor.name.replace("Teacher ", "")}</span>
                 <svg className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${tutorMenuOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
 
-              {tutorMenuOpen && isMobileView && (
-                <div className="fixed inset-0 z-50 flex items-end justify-center pointer-events-none">
-                  <div
-                    className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto"
-                    onClick={() => setTutorMenuOpen(false)}
-                  />
-                  <div
-                    className="relative w-full bg-white dark:bg-slate-900 pointer-events-auto animate-slide-up flex flex-col overflow-hidden"
-                    style={{ height: "70vh", borderRadius: "20px 20px 0 0", boxShadow: "0 -8px 40px rgba(0,0,0,0.3)" }}
-                  >
-                    <div className="flex justify-center pt-3 pb-2 flex-shrink-0">
-                      <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-slate-600" />
-                    </div>
-
-                    <div className="flex items-center justify-between px-5 pb-3 flex-shrink-0">
-                      <div>
-                        <h3 className="text-base font-bold text-slate-900 dark:text-white leading-tight">Choose Your Tutor</h3>
-                        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
-                          Active: <span className="font-semibold text-indigo-500">{activeTutor.name}</span>
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setTutorMenuOpen(false)}
-                        className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer focus:outline-none"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-
-                    <div className="mx-5 h-px bg-slate-100 dark:bg-slate-800 flex-shrink-0" />
-
-                    <div className="modal-scroll flex-1 overflow-y-auto px-4 py-3 space-y-2">
-                      {tutorProfiles.map((tutor) => {
-                        const isCurrentlySelected = tutor.id === activeTutor.id;
-                        const avatarGradient =
-                          tutor.id === "jay"     ? "from-blue-500 to-indigo-600"
-                        : tutor.id === "emily"   ? "from-amber-400 to-orange-500"
-                        : tutor.id === "dave"    ? "from-slate-400 to-slate-600"
-                        :                          "from-purple-500 to-violet-600";
-                        return (
-                          <button
-                            key={tutor.id}
-                            type="button"
-                            onClick={() => handleTutorSelectionChange(tutor)}
-                            className={`w-full text-left flex items-center gap-3 px-3 py-3.5 rounded-2xl transition-all cursor-pointer focus:outline-none ${
-                              isCurrentlySelected
-                                ? "bg-indigo-50 dark:bg-indigo-900/25 ring-2 ring-indigo-400 dark:ring-indigo-500"
-                                : "bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700"
-                            }`}
-                          >
-                            <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${avatarGradient} flex items-center justify-center flex-shrink-0 shadow-sm`}>
-                              <span className="text-lg font-black text-white leading-none">
-                                {tutor.name.split(" ").pop().charAt(0)}
-                              </span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-0.5">
-                                <span className={`text-sm font-bold ${isCurrentlySelected ? "text-indigo-700 dark:text-indigo-300" : "text-slate-900 dark:text-white"}`}>
-                                  {tutor.name}
-                                </span>
-                                <span className={`text-[9px] font-black tracking-wider font-mono uppercase px-1.5 py-0.5 rounded flex-shrink-0 ${tutor.badgeStyle}`}>
-                                  {tutor.badge}
-                                </span>
-                              </div>
-                              <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug">
-                                {tutor.description}
-                              </p>
-                            </div>
-                            {isCurrentlySelected && (
-                              <svg className="w-5 h-5 text-indigo-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <div className="px-5 py-3 flex-shrink-0">
-                      <div className="h-px bg-slate-100 dark:bg-slate-800 mb-3" />
-                      <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center">
-                        Jemer tutors may make mistakes — please crosscheck your work.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {tutorMenuOpen && !isMobileView && (
-                <div className="absolute bottom-full left-0 mb-3 w-80 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl p-3 z-50 animate-slide-up shadow-[0_20px_50px_rgba(0,0,0,0.15)] dark:shadow-[0_25px_60px_rgba(0,0,0,0.6)]">
+              {/* 🆕 UNIFIED TUTOR MODAL: Uses the sleek floating popover design for ALL screens */}
+              {tutorMenuOpen && (
+                <div className="absolute bottom-full left-0 sm:left-auto mb-3 w-69 sm:w-80 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border border-slate-200/90 dark:border-slate-700/80 p-3 z-50 animate-slide-up shadow-[0_20px_50px_rgba(0,0,0,0.18)] dark:shadow-[0_25px_60px_rgba(0,0,0,0.65)]">
                   <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider font-mono mb-2 px-2">Select Active Tutor</p>
-                  <div className="space-y-1">
+                  <div className="space-y-1 modal-scroll max-h-[60vh] overflow-y-auto">
                     {tutorProfiles.map((tutor) => {
                       const isCurrentlySelected = tutor.id === activeTutor.id;
                       return (
@@ -702,7 +637,7 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
                           key={tutor.id}
                           type="button"
                           onClick={() => handleTutorSelectionChange(tutor)}
-                          className={`w-full text-left p-3 rounded-xl transition-all cursor-pointer border ${
+                          className={`w-full text-left p-3 rounded-xl transition-all cursor-pointer border focus:outline-none ${
                             isCurrentlySelected 
                               ? "bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800" 
                               : "bg-transparent border-transparent hover:bg-slate-50 dark:hover:bg-slate-800"

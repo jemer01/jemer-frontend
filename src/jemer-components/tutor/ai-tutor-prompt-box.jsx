@@ -627,7 +627,7 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
 
               {/* 🆕 UNIFIED TUTOR MODAL: Uses the sleek floating popover design for ALL screens */}
               {tutorMenuOpen && (
-                <div className="absolute bottom-full left-0 sm:left-auto mb-3 w-69 sm:w-80 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border border-slate-200/90 dark:border-slate-700/80 p-3 z-50 animate-slide-up shadow-[0_20px_50px_rgba(0,0,0,0.18)] dark:shadow-[0_25px_60px_rgba(0,0,0,0.65)]">
+                <div className="absolute bottom-full left-0 sm:left-auto mb-3 w-65 sm:w-80 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border border-slate-200/90 dark:border-slate-700/80 p-3 z-50 animate-slide-up shadow-[0_20px_50px_rgba(0,0,0,0.18)] dark:shadow-[0_25px_60px_rgba(0,0,0,0.65)]">
                   <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider font-mono mb-2 px-2">Select Active Tutor</p>
                   <div className="space-y-1 modal-scroll max-h-[60vh] overflow-y-auto">
                     {tutorProfiles.map((tutor) => {

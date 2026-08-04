@@ -2,21 +2,18 @@
 
 /**
  * ================================================================================================
- * 🆕 NEW UPGRADES SUMMARY (v5.9.0 - REFERENCE ERROR & CORS FIX)
+ * 🆕 NEW UPGRADES SUMMARY (v6.0.0 - ON-DEMAND JWT & SHIMMER FIX)
  * ================================================================================================
- * 1. REFERENCE ERROR PATCH: Fixed the `ReferenceError: response is not defined` crash inside 
- *    `fetchSessionsFromDB`. The error occurred because a failed network request or CORS block 
- *    threw an exception before the `response` variable was initialized, and the `catch` block 
- *    accidentally referenced it. Scoped variables securely to prevent this layout crash.
- * 2. DETERMINISTIC JWT PROXY INJECTED: Ported the exact `jemerAuthenticatedFetch` and 
- *    `performSilentTokenRefresh` logic from Settings into the Sidebar. Now, when fetching 
- *    history or mutating sessions (Delete/Archive), the Sidebar auto-renews expired tokens 
- *    and injects the `apikey` header, completely bypassing Neon 400 Bad Requests and Go 401s.
- * 3. DYNAMIC ENVIRONMENT ROUTING: Implemented `activeOrigin` detection for `BACKEND_URL`. 
- *    The sidebar now automatically routes to `academy.jemerplatforms.company`, Cloud Shell, 
- *    or localhost depending on where it's running, structurally preventing CORS Preflight failures.
- * 4. 100% UI PRESERVATION: Retained the `100dvh` mobile fix, the JSX-optimized SVG icons, and 
- *    the active routing matrix (`activePaths`).
+ * 1. ON-DEMAND JWT FETCH ARCHITECTURE: Replicated the ultra-fast `fetchJwtOnDemand` and 
+ *    `jemerAuthenticatedFetch` logic from `page.js`. The sidebar no longer relies on background 
+ *    polling or direct `/api/auth/refresh` hits. It strictly interfaces with the native Neon Auth 
+ *    SDK (`window.JemerAuth.refreshSession()`) the exact millisecond a user triggers a network request.
+ * 2. HARD SECURITY REDIRECTS: If local storage lacks a JWT, or the SDK explicitly fails to refresh 
+ *    the token, the proxy intercepts the failure and instantly evicts the user to `/login.html` 
+ *    instead of throwing silent console errors or crashing the layout.
+ * 3. DARK MODE SHIMMER VISIBILITY: Upgraded the `.dark .animate-shimmer` CSS keyframes. Shifted 
+ *    the gradient from `slate-800` to a higher-contrast `slate-700` & `slate-600` mix so the 
+ *    skeleton loaders are highly visible against the dark sidebar background.
  * ================================================================================================
  * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM SCALABLE SIDE PANEL FRAMEWORK 
  * ================================================================================================
@@ -33,7 +30,7 @@ const isValidUUID = (uuid) => {
   return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(uuid);
 };
 
-// ── 🚀 DETERMINISTIC JWT LIFECYCLE ENGINE & INTERCEPTOR ─────────────────────────────────────────
+// ── 🚀 ON-DEMAND JWT LIFECYCLE ENGINE & INTERCEPTOR ─────────────────────────────────────────────
 
 const decodeJWTPayload = (token) => {
   try {
@@ -52,6 +49,7 @@ const isTokenExpiringSoon = (token, thresholdSeconds = 300) => {
   if (!token) return true; 
   const payload = decodeJWTPayload(token);
   if (!payload || !payload.exp) return true; 
+  
   const currentUnixTime = Math.floor(Date.now() / 1000);
   return (payload.exp - currentUnixTime) < thresholdSeconds;
 };
@@ -59,78 +57,76 @@ const isTokenExpiringSoon = (token, thresholdSeconds = 300) => {
 let isRefreshing = false;
 let refreshPromise = null;
 
-const performSilentTokenRefresh = async () => {
-  if (isRefreshing) return refreshPromise; 
+const waitForAuthSDKReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
+  const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.refreshSession === "function";
+  if (isReady()) return true;
+  const startTime = Date.now();
+  while (Date.now() - startTime < timeoutMs) {
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+    if (isReady()) return true;
+  }
+  return false;
+};
+
+// 🚀 ON-DEMAND JWT FETCHER
+const fetchJwtOnDemand = async () => {
+  if (isRefreshing) return refreshPromise;
   isRefreshing = true;
 
   refreshPromise = (async () => {
     try {
-      const uuid = localStorage.getItem("jemer_user_uuid");
-      
-      if (!uuid || !isValidUUID(uuid)) {
-        throw new Error("Invalid or missing internal identity UUID.");
-      }
-
-      const response = await fetch('/api/auth/refresh', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${uuid}`,
-          'Content-Type': 'application/json'
+      const sdkIsReady = await waitForAuthSDKReady();
+      if (sdkIsReady) {
+        const refreshOutcome = await window.JemerAuth.refreshSession();
+        if (refreshOutcome && refreshOutcome.success === false) return null;
+        
+        let attempts = 0;
+        while (attempts < 100) {
+          const currentToken = localStorage.getItem("jemer_session_jwt");
+          if (currentToken && !isTokenExpiringSoon(currentToken, 300)) {
+            return currentToken;
+          }
+          await new Promise(resolve => setTimeout(resolve, 50));
+          attempts++;
         }
-      });
-
-      if (!response.ok) {
-        throw new Error("Authentication pipeline rejected the swap protocol.");
       }
-
-      const data = await response.json();
-      
-      if (data && data.token) {
-        localStorage.setItem("jemer_session_jwt", data.token);
-        return data.token;
-      } else {
-        throw new Error("No token was provided in the payload.");
-      }
+      return null;
     } catch (error) {
-      console.error("❌ [AUTH ENGINE] Sidebar pipeline disruption during token swap:", error.message);
-      if (typeof window !== "undefined") window.dispatchEvent(new Event("jemer_session_severed"));
       return null;
     } finally {
-      isRefreshing = false; 
+      isRefreshing = false;
     }
   })();
 
   return refreshPromise;
 };
 
+// 🚀 SECURE PROXY WRAPPER
 const jemerAuthenticatedFetch = async (url, options = {}) => {
   let activeToken = localStorage.getItem("jemer_session_jwt");
   
-  if (isTokenExpiringSoon(activeToken)) {
-     const refreshedToken = await performSilentTokenRefresh();
-     if (refreshedToken) activeToken = refreshedToken;
+  if (!activeToken || isTokenExpiringSoon(activeToken, 300)) {
+     activeToken = await fetchJwtOnDemand();
+     if (!activeToken) {
+         window.location.href = "/login.html";
+         return new Response(null, { status: 401 });
+     }
   }
 
   const headers = new Headers(options.headers || {});
-  if (activeToken) {
-    headers.set("Authorization", `Bearer ${activeToken}`);
-    headers.set("apikey", activeToken); // Strict Database Header for Neon PostgREST compatibility
-  }
+  headers.set("Authorization", `Bearer ${activeToken}`);
+  headers.set("apikey", activeToken); // Strict Database Header for Neon PostgREST compatibility
   
   let response = await fetch(url, { ...options, headers });
 
-  if (response.status === 400 || response.status === 401) {
-     const clonedRes = response.clone();
-     const errorText = await clonedRes.text().catch(() => "");
-     
-     if (response.status === 401 || errorText.includes("JWT token has expired")) {
-         const emergencyToken = await performSilentTokenRefresh();
-         
-         if (emergencyToken) {
-            headers.set("Authorization", `Bearer ${emergencyToken}`);
-            headers.set("apikey", emergencyToken);
-            response = await fetch(url, { ...options, headers });
-         }
+  if (response.status === 401 || response.status === 400) {
+     const emergencyToken = await fetchJwtOnDemand();
+     if (emergencyToken) {
+        headers.set("Authorization", `Bearer ${emergencyToken}`);
+        headers.set("apikey", emergencyToken);
+        response = await fetch(url, { ...options, headers });
+     } else {
+        window.location.href = "/login.html";
      }
   }
 
@@ -219,7 +215,6 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
          activeOrigin.includes("cloudshell.dev") ? "https://3000-cs-9c6bf60b-3314-4394-80ef-ef6f4089d8e1.cs-europe-west1-haha.cloudshell.dev" : 
          "http://localhost:8080");
 
-      // 🚀 Fix: Safely scope the response variable and use authenticated proxy to avoid 401s
       const response = await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/tutor/sessions?limit=10&offset=${currentOffset}`);
 
       if (response && response.ok) {
@@ -236,7 +231,6 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
         console.warn(`[TUTOR SIDEBAR] Server rejected fetch. Status: ${response?.status}. Details: ${errorText}`);
       }
     } catch (error) {
-      // 🚀 Fix: Ensure we only log `error` and NEVER reference `response` here, resolving the ReferenceError crash
       console.error("[TUTOR SIDEBAR] Network error fetching database sessions:", error);
     } finally {
       isFetchingRef.current = false;
@@ -313,7 +307,6 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
       const POSTGREST_API_URL = "https://ep-wandering-bird-abdexk6a.apirest.eu-west-2.aws.neon.tech/neondb/rest/v1/tutor_sessions";
       const method = actionType === "delete" ? "DELETE" : "PATCH";
       
-      // 🚀 Utilize the Authenticated Fetch proxy to prevent 401 exp errors and inject apikey
       await jemerAuthenticatedFetch(`${POSTGREST_API_URL}?id=eq.${sessionId}`, {
         method: method,
         headers: {
@@ -384,7 +377,7 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
       {isOpen && (
         <div
           onClick={onClose}
-          className="fixed inset-0 bg-slate-900/10 dark:bg-black/40 backdrop-blur-xs z-45 lg:hidden transition-all duration-300 animate-fade-in"
+          className="fixed inset-0 bg-slate-900/40 dark:bg-black/60 backdrop-blur-xs z-40 lg:hidden transition-all duration-300 animate-fade-in"
         />
       )}
 
@@ -400,10 +393,10 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
           .sidebar-scroll::-webkit-scrollbar-thumb:hover { background-color: rgba(148,163,184,0.4); }
           @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
           .animate-shimmer { background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
-          .dark .animate-shimmer { background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%); }
+          .dark .animate-shimmer { background: linear-gradient(90deg, #334155 25%, #475569 50%, #334155 75%); }
         `}} />
 
-        <div className="flex-1 overflow-y-auto px-4 py-5 flex flex-col gap-6 sidebar-scroll min-h-0 relative">
+        <div className="flex-1 overflow-y-auto px-4 pt-5 pb-8 flex flex-col gap-6 sidebar-scroll min-h-0 relative">
           <div className="flex items-center justify-between w-full shrink-0 pb-1 border-b border-slate-50 dark:border-slate-800/20">
             <div className="flex items-center gap-2.5">
               <img src="/assets/brand/jemer-logo.png" alt="Logo" className="w-6 h-6 object-contain shrink-0" onError={(e) => { e.target.style.display = 'none'; }} />

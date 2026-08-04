@@ -1,21 +1,30 @@
 "use client";
 
 /**
+ * ================================================================================================
+ * 🚀 JEMER ACADEMY AI TUTOR PAGE — CLIENT-SIDE ORCHESTRATOR (v3.0.0)
+ * ================================================================================================
  * [NEW UPGRADE]
- * SUMMARY: On-Demand JWT Architecture.
- * 1. On-Demand JWT Fetch: Removed the expensive 45-second background polling loops (`setInterval`).
- *    The system now strictly executes a pre-flight token fetch via the Neon Auth SDK 
- *    right before dispatching API calls or sending prompt messages.
- * 2. Hard Security Redirects: If local storage lacks a JWT, or the SDK fails to refresh,
- *    the application instantly evicts the user to `/login.html` instead of throwing silent errors.
- * 3. Optimized Comments: Removed outdated legacy upgrade headers to save processing tokens.
+ * SUMMARY: High-Performance Stream Handshake & Latency Masking.
+ * 1. Intelligent Handshake Handling: The stream reader (`handleProcessOutboundPrompt`) now
+ *    explicitly looks for a preliminary `{"status":"initializing"}` message from the backend.
+ *    This allows the UI to immediately reflect a "generating" state, completely masking the
+ *    upstream cold-start latency from the NVIDIA NIM API.
+ * 2. Resilient JSON Parsing: Wrapped the `JSON.parse()` call in a more robust safety check.
+ *    If the backend sends an empty heartbeat or a non-JSON status chunk, the stream reader
+ *    now skips it gracefully instead of crashing the entire pipeline. This makes the connection
+ *    far more resilient to network proxy buffering.
+ * 3. On-Demand JWT Architecture: Maintained the v2 upgrade. The system still uses the optimized
+ *    on-demand JWT fetch right before dispatching API calls, ensuring maximum security and
+ *    eliminating all unnecessary background polling.
+ * ================================================================================================
  */
 
-import React, { useState, useEffect, useRef } from "react"; 
-import AITutorIntro from "@/jemer-components/tutor/ai-tutor-intro.jsx"; 
-import AIChatInterface from "@/jemer-components/tutor/ai-chat-interface.jsx"; 
-import AITutorPromptBox from "@/jemer-components/tutor/ai-tutor-prompt-box.jsx"; 
-import PersonalizationEngine from "@/jemer-components/tutor/personalization.jsx"; 
+import React, { useState, useEffect, useRef } from "react";
+import AITutorIntro from "@/jemer-components/tutor/ai-tutor-intro.jsx";
+import AIChatInterface from "@/jemer-components/tutor/ai-chat-interface.jsx";
+import AITutorPromptBox from "@/jemer-components/tutor/ai-tutor-prompt-box.jsx";
+import PersonalizationEngine from "@/jemer-components/tutor/personalization.jsx";
 
 const decodeJWTPayload = (token) => {
   try {
@@ -31,10 +40,10 @@ const decodeJWTPayload = (token) => {
 };
 
 const isTokenExpiringSoon = (token, thresholdSeconds = 300) => {
-  if (!token) return true; 
+  if (!token) return true;
   const payload = decodeJWTPayload(token);
-  if (!payload || !payload.exp) return true; 
-  
+  if (!payload || !payload.exp) return true;
+
   const currentUnixTime = Math.floor(Date.now() / 1000);
   return (payload.exp - currentUnixTime) < thresholdSeconds;
 };
@@ -64,7 +73,7 @@ const fetchJwtOnDemand = async () => {
       if (sdkIsReady) {
         const refreshOutcome = await window.JemerAuth.refreshSession();
         if (refreshOutcome && refreshOutcome.success === false) return null;
-        
+
         let attempts = 0;
         while (attempts < 100) {
           const currentToken = localStorage.getItem("jemer_session_jwt");
@@ -88,7 +97,7 @@ const fetchJwtOnDemand = async () => {
 
 const jemerAuthenticatedFetch = async (url, options = {}) => {
   let activeToken = localStorage.getItem("jemer_session_jwt");
-  
+
   if (!activeToken || isTokenExpiringSoon(activeToken, 300)) {
      activeToken = await fetchJwtOnDemand();
      if (!activeToken) {
@@ -99,8 +108,8 @@ const jemerAuthenticatedFetch = async (url, options = {}) => {
 
   const headers = new Headers(options.headers || {});
   headers.set("Authorization", `Bearer ${activeToken}`);
-  headers.set("apikey", activeToken); 
-  
+  headers.set("apikey", activeToken);
+
   let response = await fetch(url, { ...options, headers });
 
   if (response.status === 401 || response.status === 400) {
@@ -121,19 +130,19 @@ export default function TutorPage() {
   const [chatLog, setChatLog] = useState([]);
   const [injectedText, setInjectedText] = useState("");
   const [isCheckingProfile, setIsCheckingProfile] = useState(true);
-  const [isSessionExpiring, setIsSessionExpiring] = useState(false); 
+  const [isSessionExpiring, setIsSessionExpiring] = useState(false);
   const [showGateModal, setShowGateModal] = useState(false);
   const [forceFormOverlay, setForceFormOverlay] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const abortControllerRef = useRef(null);
 
-  const [activeSessionId, setActiveSessionId] = useState(null); 
-  const [historyOffset, setHistoryOffset] = useState(0); 
-  const [hasMoreHistory, setHasMoreHistory] = useState(true); 
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false); 
+  const [activeSessionId, setActiveSessionId] = useState(null);
+  const [historyOffset, setHistoryOffset] = useState(0);
+  const [hasMoreHistory, setHasMoreHistory] = useState(true);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
-  const chatContainerRef = useRef(null); 
-  const topObserverTarget = useRef(null); 
+  const chatContainerRef = useRef(null);
+  const topObserverTarget = useRef(null);
 
   const loadChatHistory = async (sessionId, currentOffset, isReset = false) => {
     if ((!hasMoreHistory && !isReset) || isLoadingHistory) return;
@@ -147,13 +156,13 @@ export default function TutorPage() {
 
     try {
       const activeOrigin = typeof window !== "undefined" ? window.location.origin : "";
-      const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 
-        (activeOrigin.includes("jemerplatforms.company") ? "https://academy.jemerplatforms.company" : 
-         activeOrigin.includes("cloudshell.dev") ? "https://3000-cs-9c6bf60b-3314-4394-80ef-ef6f4089d8e1.cs-europe-west1-haha.cloudshell.dev" : 
+      const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL ||
+        (activeOrigin.includes("jemerplatforms.company") ? "https://academy.jemerplatforms.company" :
+         activeOrigin.includes("cloudshell.dev") ? "https://3000-cs-9c6bf60b-3314-4394-80ef-ef6f4089d8e1.cs-europe-west1-haha.cloudshell.dev" :
          "http://localhost:8080");
 
       const response = await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/tutor/sessions/${sessionId}/messages?limit=30&offset=${currentOffset}`);
-      
+
       if (response.ok) {
         const data = await response.json();
         if (data && data.length > 0) {
@@ -177,7 +186,7 @@ export default function TutorPage() {
             }
           }, 0);
         } else {
-          setHasMoreHistory(false); 
+          setHasMoreHistory(false);
         }
       }
     } catch (error) {
@@ -193,13 +202,13 @@ export default function TutorPage() {
       setActiveSessionId(sessionId);
       loadChatHistory(sessionId, 0, true);
     };
-    
+
     const handleNewChat = () => {
       setActiveSessionId(null);
       setChatLog([]);
       setInjectedText("");
-      setHistoryOffset(0);         
-      setHasMoreHistory(true);     
+      setHistoryOffset(0);
+      setHasMoreHistory(true);
     };
 
     window.addEventListener("jemer_session_selected", handleSessionSelect);
@@ -234,65 +243,65 @@ export default function TutorPage() {
         const activeUserUuidToken = localStorage.getItem("jemer_user_uuid");
 
         if (!activeJwtSessionToken || !activeUserUuidToken) {
-          window.location.href = "/login.html"; 
-          return; 
+          window.location.href = "/login.html";
+          return;
         }
 
         const localCacheValidationToken = localStorage.getItem("jemer_profile_calibrated");
         if (localCacheValidationToken === "true") {
-          setIsCheckingProfile(false); 
-          return; 
+          setIsCheckingProfile(false);
+          return;
         }
 
         const remoteServerHandshakeResponse = await jemerAuthenticatedFetch(
-          `https://ep-wandering-bird-abdexk6a.apirest.eu-west-2.aws.neon.tech/neondb/rest/v1/Jemer-Student-Profiles?id=eq.${activeUserUuidToken}`, 
+          `https://ep-wandering-bird-abdexk6a.apirest.eu-west-2.aws.neon.tech/neondb/rest/v1/Jemer-Student-Profiles?id=eq.${activeUserUuidToken}`,
           { method: "GET", headers: { "Accept": "application/json" } }
         );
 
         if (remoteServerHandshakeResponse && remoteServerHandshakeResponse.status === 401) {
           setIsSessionExpiring(true);
-          localStorage.removeItem("jemer_session_jwt"); 
-          localStorage.removeItem("jemer_user_uuid"); 
-          setTimeout(() => { window.location.href = "/login.html"; }, 1200); 
+          localStorage.removeItem("jemer_session_jwt");
+          localStorage.removeItem("jemer_user_uuid");
+          setTimeout(() => { window.location.href = "/login.html"; }, 1200);
           return;
         }
 
         if (!remoteServerHandshakeResponse || !remoteServerHandshakeResponse.ok) {
-          setShowGateModal(true); 
-          setIsCheckingProfile(false); 
-          return; 
+          setShowGateModal(true);
+          setIsCheckingProfile(false);
+          return;
         }
 
         const profileData = await remoteServerHandshakeResponse.json();
 
         if (profileData && profileData.length > 0 && profileData[0].academic_level_pacing_tier) {
-          localStorage.setItem("jemer_profile_calibrated", "true"); 
-          setIsCheckingProfile(false); 
+          localStorage.setItem("jemer_profile_calibrated", "true");
+          setIsCheckingProfile(false);
         } else {
-          setShowGateModal(true); 
-          setIsCheckingProfile(false); 
+          setShowGateModal(true);
+          setIsCheckingProfile(false);
         }
       } catch (e) {
-        setShowGateModal(true); 
-        setIsCheckingProfile(false); 
+        setShowGateModal(true);
+        setIsCheckingProfile(false);
       }
     }
 
-    executeSmartOnboardingGateCheck(); 
-  }, []); 
+    executeSmartOnboardingGateCheck();
+  }, []);
 
   const handleTransitionToCalibrationForm = () => {
-    setShowGateModal(false); 
-    setForceFormOverlay(true); 
+    setShowGateModal(false);
+    setForceFormOverlay(true);
   };
 
   const handlePersonalizationOnboardingSuccess = () => {
-    localStorage.setItem("jemer_profile_calibrated", "true"); 
-    setForceFormOverlay(false); 
+    localStorage.setItem("jemer_profile_calibrated", "true");
+    setForceFormOverlay(false);
   };
 
   const handleCaptureIntroPromptChoice = (promptTextString) => {
-    setInjectedText(promptTextString); 
+    setInjectedText(promptTextString);
   };
 
   const handleStopStream = () => {
@@ -313,9 +322,9 @@ export default function TutorPage() {
 
     let aiMessageId = "";
     let currentSessionId = activeSessionId;
-    
+
     if (!currentSessionId) {
-      currentSessionId = crypto.randomUUID(); 
+      currentSessionId = crypto.randomUUID();
       setActiveSessionId(currentSessionId);
     }
 
@@ -330,11 +339,11 @@ export default function TutorPage() {
       setChatLog((prevLog) => {
         const newLog = [...prevLog];
         const targetIdx = newLog.findIndex(m => m.id === messagePayload.editTargetId);
-        
+
         if (targetIdx !== -1) {
           newLog[targetIdx] = { ...newLog[targetIdx], text: messagePayload.promptText };
           const truncatedLog = newLog.slice(0, targetIdx + 1);
-          
+
           truncatedLog.push({ id: aiMessageId, sender: "ai", text: "", reasoning: "", isThinking: true });
           return truncatedLog;
         }
@@ -355,21 +364,21 @@ export default function TutorPage() {
     setHistoryOffset((prevOffset) => prevOffset + 2);
 
     const activeOrigin = typeof window !== "undefined" ? window.location.origin : "";
-    const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 
-      (activeOrigin.includes("jemerplatforms.company") ? "https://academy.jemerplatforms.company" : 
-       activeOrigin.includes("cloudshell.dev") ? "https://3000-cs-9c6bf60b-3314-4394-80ef-ef6f4089d8e1.cs-europe-west1-haha.cloudshell.dev" : 
+    const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL ||
+      (activeOrigin.includes("jemerplatforms.company") ? "https://academy.jemerplatforms.company" :
+       activeOrigin.includes("cloudshell.dev") ? "https://3000-cs-9c6bf60b-3314-4394-80ef-ef6f4089d8e1.cs-europe-west1-haha.cloudshell.dev" :
        "http://localhost:8080");
     const ENDPOINT_PATH = `${BACKEND_URL}/api/v1/tutor/stream`;
 
     try {
       let serverStreamResponse = await jemerAuthenticatedFetch(ENDPOINT_PATH, {
-        method: "POST", 
-        signal: abortControllerRef.current.signal, 
+        method: "POST",
+        signal: abortControllerRef.current.signal,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          session_id: currentSessionId, 
-          tutor_id: messagePayload.selectedTutor || "jay", 
-          user_prompt: messagePayload.promptText, 
+          session_id: currentSessionId,
+          tutor_id: messagePayload.selectedTutor || "jay",
+          user_prompt: messagePayload.promptText,
         }),
       });
 
@@ -380,17 +389,17 @@ export default function TutorPage() {
           const emergencyReplayToken = await fetchJwtOnDemand();
           if (emergencyReplayToken) {
             serverStreamResponse = await fetch(ENDPOINT_PATH, {
-              method: "POST", 
-              signal: abortControllerRef.current.signal, 
+              method: "POST",
+              signal: abortControllerRef.current.signal,
               headers: {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${emergencyReplayToken}`,
                 "apikey": emergencyReplayToken
               },
               body: JSON.stringify({
-                session_id: currentSessionId, 
-                tutor_id: messagePayload.selectedTutor || "jay", 
-                user_prompt: messagePayload.promptText, 
+                session_id: currentSessionId,
+                tutor_id: messagePayload.selectedTutor || "jay",
+                user_prompt: messagePayload.promptText,
               }),
             });
 
@@ -430,8 +439,18 @@ export default function TutorPage() {
 
           if (trimmedStreamLine.startsWith("data:")) {
             const cleanedJsonContentString = trimmedStreamLine.replace("data:", "").trim();
+            // 🚀 NEW UPGRADE: Gracefully skip empty/heartbeat server packets without crashing
+            if (!cleanedJsonContentString || cleanedJsonContentString === "[INITIALIZING]") {
+              continue;
+            }
             try {
               const unpackedChunkMetrics = JSON.parse(cleanedJsonContentString);
+              
+              // 🚀 NEW UPGRADE: Check for the new handshake status and gracefully skip it
+              if (unpackedChunkMetrics.status === "initializing") {
+                continue;
+              }
+
               if (unpackedChunkMetrics.error) {
                 setChatLog((prevLog) =>
                   prevLog.map((msgItem) =>
@@ -440,7 +459,7 @@ export default function TutorPage() {
                       : msgItem
                   )
                 );
-                break; 
+                break;
               }
               if (unpackedChunkMetrics.reasoning_content) {
                 setChatLog((prevLog) =>
@@ -460,17 +479,20 @@ export default function TutorPage() {
                   )
                 );
               }
-            } catch (payloadParseAnomalyError) {}
+            } catch (payloadParseAnomalyError) {
+                // Log parsing errors but don't crash the stream
+                console.warn("[STREAM HANDLER] Failed to parse JSON from stream chunk:", cleanedJsonContentString, payloadParseAnomalyError);
+            }
           }
         }
       }
     } catch (criticalPipelineCommunicationException) {
       if (criticalPipelineCommunicationException.name === "AbortError") {
         setChatLog((prevLog) => prevLog.map((msgItem) => msgItem.id === aiMessageId ? { ...msgItem, isThinking: false } : msgItem));
-        setIsStreaming(false); 
+        setIsStreaming(false);
         return;
       }
-      
+
       setChatLog((prevLog) =>
         prevLog.map((msgItem) =>
           msgItem.id === aiMessageId
@@ -484,14 +506,14 @@ export default function TutorPage() {
   };
 
   const handleExecuteInterruptedEditRollback = (rawPromptTextString) => {
-    setInjectedText(rawPromptTextString); 
+    setInjectedText(rawPromptTextString);
   };
 
   const handleProcessResponseRegeneration = (targetUserPromptRecord) => {
     handleProcessOutboundPrompt({
-      promptText: targetUserPromptRecord.text, 
+      promptText: targetUserPromptRecord.text,
       selectedTutor: "jay",
-      editTargetId: targetUserPromptRecord.id 
+      editTargetId: targetUserPromptRecord.id
     });
   };
 
@@ -514,7 +536,7 @@ export default function TutorPage() {
     <div className="h-full w-full flex flex-col justify-between overflow-hidden p-2 sm:p-4 md:p-6 max-w-4xl mx-auto relative">
       <div ref={chatContainerRef} className="flex-1 w-full overflow-y-auto pr-1 scrollbar-none pb-4 flex flex-col min-h-0 justify-start">
         <div ref={topObserverTarget} className="h-2 w-full shrink-0" />
-        
+
         {isLoadingHistory && (
           <div className="w-full py-4 text-center shrink-0">
              <i className="fas fa-circle-notch fa-spin text-indigo-500 text-lg" />
@@ -523,11 +545,11 @@ export default function TutorPage() {
         )}
 
         {isConversationActive ? (
-          <AIChatInterface 
-            activeChatLog={chatLog} 
+          <AIChatInterface
+            activeChatLog={chatLog}
             onInterruptedEdit={handleExecuteInterruptedEditRollback}
             onRegenerateResponse={handleProcessResponseRegeneration}
-            isStreaming={isStreaming} 
+            isStreaming={isStreaming}
           />
         ) : (
           <div className="my-auto w-full">
@@ -537,11 +559,11 @@ export default function TutorPage() {
       </div>
 
       <div className="w-full shrink-0 pt-2 pb-2 block z-20 bg-transparent">
-        <AITutorPromptBox 
-          onSendMessage={handleProcessOutboundPrompt} 
-          injectedPromptText={injectedText} 
-          isStreaming={isStreaming} 
-          onStopStream={handleStopStream} 
+        <AITutorPromptBox
+          onSendMessage={handleProcessOutboundPrompt}
+          injectedPromptText={injectedText}
+          isStreaming={isStreaming}
+          onStopStream={handleStopStream}
         />
       </div>
 

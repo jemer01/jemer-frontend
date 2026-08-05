@@ -2,6 +2,19 @@
 
 /**
  * ================================================================================================
+ * 🆕 NEW UPGRADES SUMMARY (v3.0.0 - DIRECT-TO-CLOUD STORAGE FILE ENGINE)
+ * ================================================================================================
+ * 1. R2 PRESIGNED UPLOADER: Integrated a `secureUploadFetch` utility and `uploadFileToR2` workflow. 
+ *    Files are no longer queued to be sent as raw bytes in the chat payload. Instead, the UI requests 
+ *    a secure pre-signed URL from Go and `PUT`s the file directly to Cloudflare R2 in the background.
+ * 2. REAL-TIME PROGRESS UI: The `attachedFiles` state now tracks `status` (uploading, completed, error)
+ *    and `progress` (0-100%). We injected a sleek, bottom-border progress bar and status indicator 
+ *    SVG into your existing attachment pill design without breaking its layout.
+ * 3. 10-FILE LIMIT: Enforced a hard limit. Users cannot select or queue more than 10 files.
+ * 4. OBJECT KEY PAYLOAD: The `handleDispatchPromptMessage` now extracts the secure `objectKey` from 
+ *    successfully uploaded files and sends them as `attached_files` to the backend, enabling the AI 
+ *    File Reader Tool to fetch them.
+ * ================================================================================================
  * 🆕 NEW UPGRADES SUMMARY (v2.7.0 - PROMPT BOX UX/UI OVERHAUL)
  * ================================================================================================
  * 1. RESPONSIVE TUTOR NAME FORMATTING: Fixed mobile truncation issues. On slim screens, the active 
@@ -22,6 +35,17 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useTheme } from "@/jemer-components/context/ThemeContext.jsx";
 
+// 🆕 Helper function to fetch pre-signed URLs securely before direct upload
+const secureUploadFetch = async (url, options = {}) => {
+  let token = localStorage.getItem("jemer_session_jwt");
+  const headers = new Headers(options.headers || {});
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+    headers.set("apikey", token);
+  }
+  return fetch(url, { ...options, headers });
+};
+
 export default function AITutorPromptBox({ onSendMessage, injectedPromptText, isStreaming, onStopStream }) {
   const { theme } = useTheme();
   
@@ -33,7 +57,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
   const [tutorMenuOpen, setTutorMenuOpen] = useState(false);
   const [isMobileView, setIsMobileView] = useState(false);
   const [imageGenDropdownOpen, setImageGenDropdownOpen] = useState(false);
-
   const tutorProfiles = [
     {
       id: "jay",
@@ -64,7 +87,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
       badgeStyle: "bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-400"
     }
   ];
-
   const [activeTutor, setActiveTutor] = useState(tutorProfiles[0]);
   const [attachedFiles, setAttachedFiles] = useState([]);
   const [imageGenMode, setImageGenMode] = useState("adaptive");
@@ -75,14 +97,12 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
   const textareaRef = useRef(null);
   // 🆕 Master reference hook for click-outside detection
   const promptContainerRef = useRef(null);
-
   // Synchronizes outside prompt card choice inputs straight into the prompt state string layer
   useEffect(() => {
     if (injectedPromptText) {
       setTextPrompt(injectedPromptText);
     }
   }, [injectedPromptText]);
-
   // Unified application post-mount hardware calibration and local storage hydration life-cycle routine
   useEffect(() => {
     const checkMobile = () => {
@@ -90,11 +110,9 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
     };
     checkMobile();
     window.addEventListener('resize', checkMobile);
-
     const glowTimer = setTimeout(() => {
       setShowGlow(false);
     }, 3000);
-
     const savedTutorId = localStorage.getItem("selectedTutorId");
     if (savedTutorId) {
       const matchedProfile = tutorProfiles.find((t) => t.id === savedTutorId);
@@ -102,30 +120,25 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
         setActiveTutor(matchedProfile);
       }
     }
-
     const savedImageGen = localStorage.getItem("jemer_image_gen_mode");
     if (savedImageGen && savedImageGen !== "off") {
       setImageGenMode(savedImageGen);
     } else {
       setImageGenMode("adaptive");
     }
-
     const savedCanvas = localStorage.getItem("jemer_canvas_active");
     if (savedCanvas === "true") {
       setCanvasActive(true);
     }
-
     const savedDeepResearch = localStorage.getItem("jemer_deep_research_active");
     if (savedDeepResearch === "true") {
       setDeepResearchActive(true);
     }
-
     return () => {
       clearTimeout(glowTimer);
       window.removeEventListener('resize', checkMobile);
     };
   }, []);
-
   // Recalculates bounding viewport heights on character updates to expand input size smoothly
   useEffect(() => {
     const ta = textareaRef.current;
@@ -135,7 +148,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
     ta.style.height = next + "px";
     ta.style.overflowY = ta.scrollHeight > 200 ? "auto" : "hidden";
   }, [textPrompt]);
-
   // 🆕 GLOBAL CLICK-OUTSIDE INTERCEPTOR
   // Actively monitors the document for mousedown/touchstart events and closes menus if interactions fall outside our prompt bounds
   useEffect(() => {
@@ -153,14 +165,12 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
       document.removeEventListener("touchstart", handleClickOutside);
     };
   }, []);
-
   const handleTutorSelectionChange = (tutorTargetProfile) => {
     setActiveTutor(tutorTargetProfile);
     localStorage.setItem("selectedTutorId", tutorTargetProfile.id);
     localStorage.setItem("selectedTutorName", tutorTargetProfile.name);
     setTutorMenuOpen(false);
   };
-
   const activateTool = (toolType, mode = null) => {
     if (toolType === 'canvas') {
       const nextCanvas = !canvasActive;
@@ -185,9 +195,64 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
     }
   };
 
+  // 🆕 DIRECT-TO-R2 UPLOAD WORKFLOW
+  const uploadFileToR2 = async (fileInstance, fileUID) => {
+    try {
+      const activeOrigin = typeof window !== "undefined" ? window.location.origin : "";
+      const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 
+        (activeOrigin.includes("jemerplatforms.company") ? "https://academy.jemerplatforms.company" : 
+         activeOrigin.includes("cloudshell.dev") ? "https://3000-cs-9c6bf60b-3314-4394-80ef-ef6f4089d8e1.cs-europe-west1-haha.cloudshell.dev" : 
+         "http://localhost:8080");
+      
+      const presignedUrlResponse = await secureUploadFetch(`${BACKEND_URL}/api/v1/tools/storage/presigned-url?filename=${encodeURIComponent(fileInstance.name)}`);
+      
+      if (!presignedUrlResponse.ok) {
+        throw new Error("Failed to get secure upload link from server.");
+      }
+
+      const { presigned_url, object_key } = await presignedUrlResponse.json();
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", presigned_url, true);
+
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percentComplete = Math.round((event.loaded / event.total) * 100);
+          setAttachedFiles((prev) => prev.map(f => f.uid === fileUID ? { ...f, progress: percentComplete } : f));
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          setAttachedFiles((prev) => prev.map(f => f.uid === fileUID ? { ...f, status: 'completed', objectKey: object_key, progress: 100 } : f));
+        } else {
+          setAttachedFiles((prev) => prev.map(f => f.uid === fileUID ? { ...f, status: 'error' } : f));
+        }
+      };
+
+      xhr.onerror = () => {
+        setAttachedFiles((prev) => prev.map(f => f.uid === fileUID ? { ...f, status: 'error' } : f));
+      };
+      
+      xhr.send(fileInstance);
+    } catch (error) {
+      console.error("[FILE UPLOAD SYSTEM] Pipeline failure:", error);
+      setAttachedFiles((prev) => prev.map(f => f.uid === fileUID ? { ...f, status: 'error' } : f));
+    }
+  };
+
   const processIncomingAttachments = (eventContext) => {
     const targetedFiles = Array.from(eventContext.target.files || []);
+    
+    // 🆕 10 FILE LIMIT ENFORCEMENT
+    if (attachedFiles.length + targetedFiles.length > 10) {
+      alert("You can only attach a maximum of 10 files per prompt.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
     const verifiedBuffer = [];
+    const filesToUpload = [];
 
     targetedFiles.forEach((fileInstance) => {
       if (fileInstance.type.startsWith("image/") || fileInstance.type.startsWith("video/")) {
@@ -197,18 +262,24 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
         if (isDuplicate) {
           alert(`File "${fileInstance.name}" is already attached.`);
         } else {
+          const fileUID = `${Date.now()}-${fileInstance.name}`;
           verifiedBuffer.push({
-            uid: `${Date.now()}-${fileInstance.name}`,
+            uid: fileUID,
             name: fileInstance.name,
             sizeInBytes: fileInstance.size,
-            rawHandle: fileInstance
+            status: 'uploading',
+            progress: 0,
+            objectKey: null
           });
+          filesToUpload.push({ fileInstance, uid: fileUID });
         }
       }
     });
 
     if (verifiedBuffer.length > 0) {
       setAttachedFiles((prev) => [...prev, ...verifiedBuffer]);
+      // Trigger background upload for all verified files
+      filesToUpload.forEach(item => uploadFileToR2(item.fileInstance, item.uid));
     }
 
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -220,24 +291,27 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
   };
 
   const handleDispatchPromptMessage = () => {
-    if (!textPrompt.trim() && attachedFiles.length === 0) return;
+    // 🆕 Compile ONLY successfully uploaded file object keys
+    const successfullyUploadedKeys = attachedFiles
+      .filter(f => f.status === 'completed' && f.objectKey)
+      .map(f => f.objectKey);
+
+    if (!textPrompt.trim() && successfullyUploadedKeys.length === 0) return;
+
     const finalDataPayload = {
       promptText: textPrompt.trim(),
       selectedTutor: activeTutor.id,
-      attachments: attachedFiles,
+      attached_files: successfullyUploadedKeys, // 🆕 Replaced raw attachments with R2 object keys
       toolingContext: {
         imageGeneration: imageGenMode,
         deepResearch: deepResearchActive,
         canvasWorkspace: canvasActive
       }
     };
-
     console.log("[PROMPT ENGINE DISPATCH] Transmitting payload:", finalDataPayload);
-
     if (onSendMessage) {
       onSendMessage(finalDataPayload);
     }
-
     setTextPrompt("");
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -252,7 +326,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
     else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
     else return (bytes / 1048576).toFixed(1) + ' MB';
   };
-
   return (
     <div className="w-full max-w-3xl mx-auto px-4 relative select-none">
       {showGlow && (
@@ -304,7 +377,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
           to { opacity: 1; transform: translateY(0); }
         }
         .animate-fade-in { animation: fadeIn 0.2s ease-out forwards; }
-
         .prompt-textarea::-webkit-scrollbar { width: 3px; }
         .prompt-textarea::-webkit-scrollbar-track { background: transparent; }
         .prompt-textarea::-webkit-scrollbar-thumb {
@@ -314,11 +386,9 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
         .prompt-textarea::-webkit-scrollbar-thumb:hover {
           background-color: rgba(148,163,184,0.6);
         }
-
         .modal-scroll::-webkit-scrollbar { display: none; }
         .modal-scroll { -ms-overflow-style: none; scrollbar-width: none; }
       `}} />
-
       {/* 🆕 BOUNDARY REF: All clicks outside this master container trigger the menu closures */}
       <div ref={promptContainerRef} className="relative w-full rounded-[38px] bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200/80 dark:border-slate-700/50 p-3 sm:p-3.5 flex flex-col gap-2.5 transition-all duration-300 z-10 shadow-[0_10px_20px_-5px_rgba(0,0,0,0.05),0_30px_60px_-10px_rgba(0,0,0,0.12)] dark:shadow-[0_15px_25px_-5px_rgba(0,0,0,0.5),0_40px_70px_-15px_rgba(0,0,0,0.75)]">
         
@@ -368,7 +438,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
             )}
           </div>
         )}
-
         <div className="w-full">
           <textarea
             ref={textareaRef}
@@ -378,7 +447,8 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                if (!isStreaming) {
+                // 🆕 Block send on Enter if files are uploading
+                if (!isStreaming && !attachedFiles.some(f => f.status === 'uploading')) {
                   handleDispatchPromptMessage();
                 }
               }
@@ -389,26 +459,56 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
             rows={1}
           />
         </div>
-
-        {/* Buffered Documents Rows Area */}
+        
+        {/* 🆕 UPGRADED: Buffered Documents Rows Area with Progress Bars */}
         {attachedFiles.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 pb-1 border-b border-slate-100 dark:border-slate-800/60 max-h-[120px] overflow-y-auto scrollbar-none animate-fade-in">
             {attachedFiles.map((file) => (
               <div 
                 key={file.uid}
-                className="flex items-center gap-2.5 bg-slate-800 dark:bg-slate-800 border border-slate-700 dark:border-slate-700 px-3 py-1.5 rounded-xl text-xs font-medium text-slate-200 dark:text-slate-200 shadow-sm group"
+                className="relative overflow-hidden flex items-center gap-2.5 bg-slate-800 dark:bg-slate-800 border border-slate-700 dark:border-slate-700 px-3 py-2 rounded-xl text-xs font-medium text-slate-200 dark:text-slate-200 shadow-sm group"
               >
-                <svg className="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
+                {/* 🆕 Sleek bottom border progress bar */}
+                {file.status === 'uploading' && (
+                  <div className="absolute bottom-0 left-0 h-[2px] bg-blue-500 transition-all duration-300" style={{ width: `${file.progress}%` }} />
+                )}
+                
+                <div className="flex-shrink-0">
+                  {file.status === 'completed' && (
+                    <svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  )}
+                  {file.status === 'uploading' && (
+                    <svg className="w-4 h-4 text-blue-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  )}
+                  {file.status === 'error' && (
+                    <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  )}
+                  {(!file.status || !['completed', 'uploading', 'error'].includes(file.status)) && (
+                    <svg className="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  )}
+                </div>
+                
                 <div className="flex flex-col min-w-0">
                   <span className="truncate max-w-[150px] sm:max-w-[200px] font-medium">{file.name}</span>
-                  <span className="text-[10px] text-slate-400">{formatFileSize(file.sizeInBytes)}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-slate-400">{formatFileSize(file.sizeInBytes)}</span>
+                    {file.status === 'uploading' && <span className="text-[9px] text-blue-400 font-mono font-bold">{file.progress}%</span>}
+                    {file.status === 'error' && <span className="text-[9px] text-red-400">Failed</span>}
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => handlePurgeAttachedFile(file.uid)}
-                  className="text-slate-400 hover:text-red-400 transition-colors ml-1 cursor-pointer focus:outline-none p-0.5 hover:bg-slate-700 rounded"
+                  className="text-slate-400 hover:text-red-400 transition-colors ml-1 cursor-pointer focus:outline-none p-0.5 hover:bg-slate-700 rounded z-10"
                   title="Remove file"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -419,7 +519,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
             ))}
           </div>
         )}
-
         {/* ── ZONE 3: ENGAGEMENT ACTIONS INTERACTION RAIL ── */}
         <div className="flex flex-row items-center justify-between gap-2 pt-1 w-full">
           
@@ -443,26 +542,27 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
               </button>
-
               {plusMenuOpen && (
                 <div className="absolute bottom-full left-0 mb-3 w-72 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border border-slate-200/90 dark:border-slate-700/80 p-3 z-50 animate-slide-up shadow-[0_20px_50px_rgba(0,0,0,0.18)] dark:shadow-[0_25px_60px_rgba(0,0,0,0.65)]">
                   
                   <div className="space-y-1 mb-3">
-                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider font-mono mb-2 px-2">Upload Files</p>
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider font-mono mb-2 px-2">Upload Files (Max 10)</p>
                     <input 
                       type="file" 
                       ref={fileInputRef} 
                       onChange={processIncomingAttachments} 
                       multiple 
+                      disabled={attachedFiles.length >= 10}
                       className="hidden" 
                       accept="*/*"
                     />
                     <button
                       type="button"
+                      disabled={attachedFiles.length >= 10}
                       onClick={() => {
                         if (fileInputRef.current) fileInputRef.current.click();
                       }}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer focus:outline-none"
+                      className="w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <svg className="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
@@ -473,9 +573,7 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
                       </div>
                     </button>
                   </div>
-
                   <hr className="border-slate-200 dark:border-slate-700 my-2" />
-
                   <div className="space-y-1">
                     <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider font-mono mb-2 px-2">Tools</p>
                     
@@ -510,7 +608,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                           </svg>
                         </button>
-
                         {imageGenDropdownOpen && (
                           <div className="absolute top-full left-0 right-0 mt-1.5 w-full rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl z-20 overflow-hidden animate-fade-in">
                             <button
@@ -562,7 +659,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
                         {imageGenMode === "adaptive" ? "AI will decide when to generate images" : "Only generates when explicitly requested"}
                       </p>
                     </div>
-
                     <button
                       type="button"
                       onClick={() => activateTool('canvas')}
@@ -578,7 +674,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
                       <span>Canvas</span>
                       {canvasActive && <span className="ml-auto text-xs">✓</span>}
                     </button>
-
                     <button
                       type="button"
                       onClick={() => activateTool('deepResearch')}
@@ -604,7 +699,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
                 </div>
               )}
             </div>
-
             <div className="relative min-w-0">
               <button
                 type="button"
@@ -624,7 +718,6 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
-
               {/* 🆕 UNIFIED TUTOR MODAL: Uses the sleek floating popover design for ALL screens */}
               {tutorMenuOpen && (
                 <div className="absolute bottom-full left-0 sm:left-auto mb-3 w-65 sm:w-80 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border border-slate-200/90 dark:border-slate-700/80 p-3 z-50 animate-slide-up shadow-[0_20px_50px_rgba(0,0,0,0.18)] dark:shadow-[0_25px_60px_rgba(0,0,0,0.65)]">
@@ -666,9 +759,7 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
                 </div>
               )}
             </div>
-
           </div>
-
           <div className="flex items-center shrink-0">
             {/* 🚀 UPGRADE: Responsive Action Buttons - Morph into pure circles with native SVGs on mobile */}
             {isStreaming ? (
@@ -695,7 +786,8 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
               <button
                 type="button"
                 onClick={handleDispatchPromptMessage}
-                disabled={!textPrompt.trim() && attachedFiles.length === 0}
+                // 🆕 Block send if uploading is happening
+                disabled={(!textPrompt.trim() && attachedFiles.length === 0) || attachedFiles.some(f => f.status === 'uploading')}
                 className="w-10 h-10 sm:w-auto p-0 sm:px-5 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-sans font-bold text-sm flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer shadow-lg shadow-indigo-500/25 active:scale-95 disabled:opacity-40 disabled:pointer-events-none disabled:shadow-none shrink-0"
                 title="Send message"
               >
@@ -707,9 +799,7 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
               </button>
             )}
           </div>
-
         </div>
-
       </div>
     </div>
   );

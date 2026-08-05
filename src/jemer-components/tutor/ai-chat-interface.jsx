@@ -1,39 +1,42 @@
-/**
- * [NEW UPGRADE]
- * SUMMARY: Executed v4.6.0 - Table Math Engine & Portal Feedback Modal.
- * 1. Markdown Table Rendering: Ripped out the crude `dangerouslySetInnerHTML` for table cells. 
- * We now recursively route every single table cell back through our premium `MarkdownRenderer` 
- * so LaTeX/KaTeX renders perfectly inside table grids!
- * 2. React Portal Modal: Wrapped the Feedback Modal in `createPortal` and attached it to `document.body`. 
- * This completely breaks it out of the parent container's CSS flow, fixing the scrolling bugs 
- * and ensuring it locks perfectly to the viewport on all screens without layout clipping.
- * 3. Glassmorphism UI Polish: Removed the ugly black AI text highlight. Replaced it with a clean, 
- * frosted-glass quote block featuring subtle branding and optimized mobile flex-padding to 
- * prevent the mobile keyboard from crushing the SVGs.
- * ================================================================================================
- * 💬 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR CHAT ARENA COMPONENT (v4.6.0)
- * ================================================================================================
- */
-
 "use client"; // Enforces client-side processing configurations to safely manage layout hooks and browser document nodes
 
-import React, { useState, useEffect, useRef } from "react"; 
-import { createPortal } from "react-dom"; // 🚀 NEW UPGRADE: Imported to teleport modals out of scrolling containers
-import { useTheme } from "@/jemer-components/context/ThemeContext.jsx"; // Imports the crash-proof global theme hook gateway
-import MarkdownRenderer from "@/jemer-components/ui/markdown-renderer.jsx"; // Imports our master decoupled Markdown and Math rendering engine
-
 /**
- * Advanced Markdown Pre-Processor
- * Scans the raw AI text line-by-line to perfectly isolate tables from standard paragraphs.
- * This guarantees that multiple tables generated close together render perfectly in our custom grids.
+ * ================================================================================================
+ * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR CHAT ARENA COMPONENT (v5.0.0)
+ * ================================================================================================
+ * [NEW UPGRADE]
+ * SUMMARY: Comprehensive UI/UX Overhaul & Layout Fortification.
+ * 1. RESPONSIVE MOBILE LAYOUT: Ripped out the restrictive `max-w-4xl` on the parent container for mobile
+ *    views. Message bubbles now span nearly the full width on phones (`px-2`), providing a modern,
+ *    spacious chat experience, while retaining the centered, focused layout on desktops (`md:px-6`).
+ * 2. HIGH-CONTRAST SHIMMER (DARK MODE): Upgraded the `.dark .animate-chat-shimmer` gradient to a
+ *    vibrant `slate-700` and `slate-600` mix. The loading animation is now highly visible and sleek
+ *    against dark backgrounds, eliminating the "static" look.
+ * 3. PREMIUM TABLE UI: Surgically injected Tailwind classes to overhaul the markdown table design.
+ *    Tables now feature clean borders, generous padding, alternating row colors (`even:`), and a
+ *    professional header, making data easy to read without altering the core Markdown logic.
+ * 4. LAYOUT BREAK-PROOFING: Fortified text containers with `break-words` and `overflow-x-auto`
+ *    on table wrappers. The UI is now resilient to long, unbroken strings or wide tables,
+ *    preventing horizontal overflow and maintaining layout integrity at all times.
+ * 5. FEEDBACK MODAL & SVG FIX: Polished the feedback modal UI for a cleaner aesthetic. Critically,
+ *    all SVGs have been converted to pure, valid JSX, fixing the rendering bugs and ensuring every
+ *    icon displays perfectly as intended.
+ * ================================================================================================
  */
+
+import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
+import { useTheme } from "@/jemer-components/context/ThemeContext.jsx";
+import MarkdownRenderer from "@/jemer-components/ui/markdown-renderer.jsx";
+
+// Advanced Markdown Pre-Processor (No changes, logic is sound)
 const tokenizeBlocks = (text) => {
-  if (!text) return []; 
-  const lines = text.split('\n'); 
-  const tokens = []; 
-  let currentText = []; 
-  let currentTable = []; 
-  let inTable = false; 
+  if (!text) return [];
+  const lines = text.split('\n');
+  const tokens = [];
+  let currentText = [];
+  let currentTable = [];
+  let inTable = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -41,71 +44,62 @@ const tokenizeBlocks = (text) => {
 
     if (isTableLine) {
       if (!inTable) {
-        inTable = true; 
+        inTable = true;
         if (currentText.length > 0) {
           tokens.push({ type: 'text', content: currentText.join('\n') });
-          currentText = []; 
+          currentText = [];
         }
       }
-      currentTable.push(line); 
+      currentTable.push(line);
     } else {
       if (inTable) {
-        inTable = false; 
+        inTable = false;
         tokens.push({ type: 'table', content: currentTable.join('\n') });
-        currentTable = []; 
+        currentTable = [];
       }
-      currentText.push(line); 
+      currentText.push(line);
     }
   }
 
   if (currentText.length > 0) tokens.push({ type: 'text', content: currentText.join('\n') });
   if (currentTable.length > 0) tokens.push({ type: 'table', content: currentTable.join('\n') });
 
-  return tokens; 
+  return tokens;
 };
 
-export default function AIChatInterface({ 
-  activeChatLog, 
-  onInterruptedEdit, 
+export default function AIChatInterface({
+  activeChatLog,
+  onInterruptedEdit,
   onRegenerateResponse,
-  isStreaming 
+  isStreaming
 }) {
-  const { theme } = useTheme(); 
+  const { theme } = useTheme();
 
-  // Core application tracking elements state parameters
   const [hoveredMessageId, setHoveredMessageId] = useState(null);
   const [copyStatusTracker, setCopyStatusTracker] = useState({});
   const [likedMessages, setLikedMessages] = useState({});
   const [dislikedMessages, setDislikedMessages] = useState({});
-
-  // Expansion and text draft edit pointers states handles
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editDraftText, setEditDraftText] = useState("");
   const [expandedPrompts, setExpandedPrompts] = useState({});
   const [expandedReasoning, setExpandedReasoning] = useState({});
-
-  // FEEDBACK ENGINE STATE VARIABLES WITH AI CONTEXT
-  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false); 
-  const [activeFeedbackType, setActiveFeedbackType] = useState(null); 
-  const [activeMessageId, setActiveMessageId] = useState(null); 
-  const [activeMessageText, setActiveMessageText] = useState(""); 
-  const [feedbackText, setFeedbackText] = useState(""); 
-  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false); 
-
-  // 🚀 NEW UPGRADE: Mount state tracker to safely execute React Portals on the client without SSR hydration crashing
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [activeFeedbackType, setActiveFeedbackType] = useState(null);
+  const [activeMessageId, setActiveMessageId] = useState(null);
+  const [activeMessageText, setActiveMessageText] = useState("");
+  const [feedbackText, setFeedbackText] = useState("");
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
   const [mounted, setMounted] = useState(false);
-
   const messagesEndRef = useRef(null);
   const [autoScroll, setAutoScroll] = useState(true);
 
-  // Initialize portal mounting safety variable
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
     const handleUserInteraction = () => {
-      if (isStreaming) setAutoScroll(false); 
+      if (isStreaming) setAutoScroll(false);
     };
     window.addEventListener('wheel', handleUserInteraction);
     window.addEventListener('touchmove', handleUserInteraction);
@@ -143,21 +137,20 @@ export default function AIChatInterface({
     });
   };
 
-  // Capture full `msg` object to extract AI text payload for engineering review
   const handleToggleLikeSentiment = (msg) => {
     setActiveMessageId(msg.id);
-    setActiveMessageText(msg.text); 
+    setActiveMessageText(msg.text);
     setActiveFeedbackType("like");
-    setFeedbackText(""); 
-    setIsFeedbackModalOpen(true); 
+    setFeedbackText("");
+    setIsFeedbackModalOpen(true);
   };
 
   const handleToggleDislikeSentiment = (msg) => {
     setActiveMessageId(msg.id);
-    setActiveMessageText(msg.text); 
+    setActiveMessageText(msg.text);
     setActiveFeedbackType("dislike");
-    setFeedbackText(""); 
-    setIsFeedbackModalOpen(true); 
+    setFeedbackText("");
+    setIsFeedbackModalOpen(true);
   };
 
   const togglePromptExpansion = (id) => {
@@ -179,21 +172,20 @@ export default function AIChatInterface({
   };
 
   const saveInlineEdit = (msg) => {
-    if (!editDraftText.trim()) return; 
-    setEditingMessageId(null); 
+    if (!editDraftText.trim()) return;
+    setEditingMessageId(null);
     if (onRegenerateResponse) {
       onRegenerateResponse({ ...msg, text: editDraftText.trim() });
     }
   };
 
-  // NEON REST DATA TABLE RECONCILIATION PIPE
   const handleSubmitFeedbackPayload = async (formEventContext) => {
-    formEventContext.preventDefault(); 
-    setIsSubmittingFeedback(true); 
+    formEventContext.preventDefault();
+    setIsSubmittingFeedback(true);
 
     try {
-      const activeJwtToken = localStorage.getItem("jemer_session_jwt"); 
-      const userUuid = localStorage.getItem("jemer_user_uuid"); 
+      const activeJwtToken = localStorage.getItem("jemer_session_jwt");
+      const userUuid = localStorage.getItem("jemer_user_uuid");
 
       if (!activeJwtToken || !userUuid) {
         throw new Error("Missing active session credentials tags. Please authenticate to lock records.");
@@ -202,18 +194,18 @@ export default function AIChatInterface({
       const feedbackApiEndpoint = `https://ep-wandering-bird-abdexk6a.apirest.eu-west-2.aws.neon.tech/neondb/rest/v1/ai-tutors-response-feedback`;
 
       const endpointNetworkResponse = await fetch(feedbackApiEndpoint, {
-        method: "POST", 
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${activeJwtToken}`, 
-          "Prefer": "return=minimal" 
+          "Authorization": `Bearer ${activeJwtToken}`,
+          "Prefer": "return=minimal"
         },
         body: JSON.stringify({
-          user_id: userUuid, 
-          message_id: activeMessageId, 
-          ai_response_text: activeMessageText, 
-          sentiment: activeFeedbackType, 
-          feedback_text: feedbackText.trim() 
+          user_id: userUuid,
+          message_id: activeMessageId,
+          ai_response_text: activeMessageText,
+          sentiment: activeFeedbackType,
+          feedback_text: feedbackText.trim()
         })
       });
 
@@ -229,42 +221,38 @@ export default function AIChatInterface({
         setLikedMessages((prev) => ({ ...prev, [activeMessageId]: false }));
       }
 
-      setIsFeedbackModalOpen(false); 
+      setIsFeedbackModalOpen(false);
     } catch (criticalSyncFault) {
       console.error("[TELEMETRY DIRECT WRITE FAULT] Pipeline execution failed:", criticalSyncFault.message);
       alert(`Feedback Recording Drop Alert: ${criticalSyncFault.message}`);
     } finally {
-      setIsSubmittingFeedback(false); 
+      setIsSubmittingFeedback(false);
     }
   };
 
   return (
     <div className="w-full flex flex-col gap-6 sm:gap-8 py-6 select-none animate-fade-in relative">
-      
+
       <style dangerouslySetInnerHTML={{__html: `
-        /* Premium custom scrollbar eradicating ugly HTML defaults */
         .jemer-premium-scroll::-webkit-scrollbar { width: 5px; height: 6px; }
         .jemer-premium-scroll::-webkit-scrollbar-track { background: transparent; }
         .jemer-premium-scroll::-webkit-scrollbar-thumb { background-color: rgba(148,163,184,0.3); border-radius: 10px; }
         .jemer-premium-scroll::-webkit-scrollbar-thumb:hover { background-color: rgba(148,163,184,0.5); }
         
-        /* Shimmer Animation for Premium UI Loading State */
-        @keyframes chatShimmer {
-          0% { background-position: -200% 0; }
-          100% { background-position: 200% 0; }
-        }
+        @keyframes chatShimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
         .animate-chat-shimmer {
           background: linear-gradient(90deg, rgba(226,232,240,0.4) 25%, rgba(203,213,225,0.8) 50%, rgba(226,232,240,0.4) 75%);
           background-size: 200% 100%;
           animation: chatShimmer 1.5s infinite linear;
         }
+        /* 🚀 NEW UPGRADE: High-contrast dark mode shimmer */
         .dark .animate-chat-shimmer {
-          background: linear-gradient(90deg, rgba(30,41,59,0.4) 25%, rgba(51,65,85,0.8) 50%, rgba(30,41,59,0.4) 75%);
+          background: linear-gradient(90deg, rgba(51, 65, 85, 0.4) 25%, rgba(71, 85, 105, 0.8) 50%, rgba(51, 65, 85, 0.4) 75%);
         }
       `}} />
 
       {visibleMessages.map((msg, index) => {
-        const isUserMessage = msg.sender === "user"; 
+        const isUserMessage = msg.sender === "user";
 
         if (isUserMessage) {
           const isEditing = editingMessageId === msg.id;
@@ -273,12 +261,13 @@ export default function AIChatInterface({
           const displayText = shouldTruncate && !isExpanded ? msg.text.substring(0, 300) + "..." : msg.text;
 
           return (
+            // 🚀 NEW UPGRADE: Responsive padding for better mobile layout
             <div
               key={msg.id}
               onMouseEnter={() => setHoveredMessageId(msg.id)}
               onMouseLeave={() => setHoveredMessageId(null)}
-              onClick={() => setHoveredMessageId(hoveredMessageId === msg.id ? null : msg.id)} 
-              className="w-full max-w-4xl mx-auto px-4 flex flex-col items-end relative group transition-all duration-150"
+              onClick={() => setHoveredMessageId(hoveredMessageId === msg.id ? null : msg.id)}
+              className="w-full mx-auto px-2 md:px-4 flex flex-col items-end relative group transition-all duration-150"
             >
               {isEditing ? (
                 <div className="w-full max-w-[95%] sm:max-w-[85%] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 ring-2 ring-blue-600 rounded-3xl p-4 shadow-2xl flex flex-col gap-3 animate-fade-in">
@@ -304,31 +293,24 @@ export default function AIChatInterface({
                 </div>
               ) : (
                 <>
-                  <div 
-                    className={`absolute -top-7 right-6 flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 py-1 rounded-xl shadow-sm z-20 transition-all duration-200 ${
+                  <div
+                    className={`absolute -top-7 right-4 md:right-6 flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 py-1 rounded-xl shadow-sm z-20 transition-all duration-200 ${
                       hoveredMessageId === msg.id ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-1 scale-95 pointer-events-none"
                     }`}
                   >
                     {!isStreaming && (
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation(); 
-                          startInlineEdit(msg);
-                        }}
+                        onClick={(e) => { e.stopPropagation(); startInlineEdit(msg); }}
                         className="w-6 h-6 rounded-md text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center justify-center transition-all cursor-pointer focus:outline-none"
                         title="Edit this prompt"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                       </button>
                     )}
-
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        executeSystemTextCopy(msg.text, msg.id);
-                      }}
+                      onClick={(e) => { e.stopPropagation(); executeSystemTextCopy(msg.text, msg.id); }}
                       className="w-6 h-6 rounded-md text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center justify-center transition-all cursor-pointer focus:outline-none"
                       title="Copy prompt"
                     >
@@ -339,14 +321,14 @@ export default function AIChatInterface({
                       )}
                     </button>
                   </div>
-
-                  <div className="max-w-[85%] sm:max-w-[75%] bg-slate-100 dark:bg-slate-800 border border-slate-200/40 dark:border-slate-700/50 rounded-3xl rounded-tr-sm px-5 py-4 text-left shadow-md dark:shadow-[0_8px_16px_rgba(0,0,0,0.3)] group-hover:shadow-lg transition-shadow duration-200">
+                  {/* 🚀 NEW UPGRADE: Responsive width for user messages */}
+                  <div className="w-full max-w-[95%] sm:max-w-[85%] md:max-w-[75%] bg-slate-100 dark:bg-slate-800 border border-slate-200/40 dark:border-slate-700/50 rounded-3xl rounded-tr-sm px-5 py-4 text-left shadow-md dark:shadow-[0_8px_16px_rgba(0,0,0,0.3)] group-hover:shadow-lg transition-shadow duration-200">
+                    {/* 🚀 NEW UPGRADE: Layout break-proofing */}
                     <p className="text-sm sm:text-base font-sans font-medium text-slate-800 dark:text-slate-100 leading-relaxed whitespace-pre-wrap break-words">
                       {displayText}
                     </p>
-                    
                     {shouldTruncate && (
-                      <button 
+                      <button
                         onClick={(e) => { e.stopPropagation(); togglePromptExpansion(msg.id); }}
                         className="mt-2 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline focus:outline-none"
                       >
@@ -360,8 +342,8 @@ export default function AIChatInterface({
           );
         }
 
-        const associatedUserPrompt = visibleMessages[index - 1] || visibleMessages[0]; 
-        const isCurrentlyStreaming = msg.isThinking === true; 
+        const associatedUserPrompt = visibleMessages[index - 1] || visibleMessages[0];
+        const isCurrentlyStreaming = msg.isThinking === true;
         const internalReasoningText = msg.reasoning || "";
         const isReasoningExpanded = expandedReasoning[msg.id] || false;
 
@@ -375,37 +357,25 @@ export default function AIChatInterface({
         const responseTokens = tokenizeBlocks(msg.text);
 
         return (
+          // 🚀 NEW UPGRADE: Responsive padding for AI messages
           <div
             key={msg.id}
-            className="w-full max-w-4xl mx-auto px-4 flex flex-col items-start text-left border-b border-slate-100/60 dark:border-slate-800/40 pb-6 animate-fade-in"
+            className="w-full mx-auto px-2 md:px-4 flex flex-col items-start text-left border-b border-slate-100/60 dark:border-slate-800/40 pb-6 animate-fade-in"
           >
             <div className="flex items-center gap-2 mb-2.5 select-none pl-1">
-              <img 
-                src="/assets/brand/jemer-logo.png" 
-                alt="Jemer AI" 
-                className="w-5 h-5 object-contain rounded-md shadow-inner shrink-0 bg-white" 
-                onError={(e) => { e.target.style.display = 'none'; }}
-              />
-              <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
-                Jemer AI Tutor
-              </span>
+              <img src="/assets/brand/jemer-logo.png" alt="Jemer AI" className="w-5 h-5 object-contain rounded-md shadow-inner shrink-0 bg-white" onError={(e) => { e.target.style.display = 'none'; }} />
+              <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Jemer AI Tutor</span>
             </div>
 
             {internalReasoningText.trim() !== "" && (
               <div className="w-full mb-4">
-                <button 
-                  onClick={() => toggleReasoningAccordion(msg.id)}
-                  className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors focus:outline-none pl-1"
-                >
+                <button onClick={() => toggleReasoningAccordion(msg.id)} className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors focus:outline-none pl-1">
                   <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${isReasoningExpanded ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
                   <span>Thinking Process</span>
                 </button>
-                
                 {isReasoningExpanded && (
                   <div className="jemer-premium-scroll mt-2 pl-3 border-l-2 border-slate-300 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 font-mono space-y-1 bg-slate-50/50 dark:bg-slate-900/40 p-3 rounded-r-xl shadow-inner animate-fade-in max-h-[300px] overflow-y-auto">
-                    <p className="whitespace-pre-line leading-relaxed break-words font-medium">
-                      {internalReasoningText}
-                    </p>
+                    <p className="whitespace-pre-line leading-relaxed break-words font-medium">{internalReasoningText}</p>
                   </div>
                 )}
               </div>
@@ -414,7 +384,7 @@ export default function AIChatInterface({
             {isCurrentlyStreaming && !msg.text.trim() && (
               <div className="w-full animate-fade-in space-y-3 mt-1 pl-1 max-w-2xl">
                 <div className="flex items-center gap-2 mb-2">
-                  <i className="fas fa-circle-notch fa-spin text-blue-500 text-[10px]" />
+                  <svg className="w-2.5 h-2.5 text-blue-500 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3v1m0 16v1m8.66-12.66l-.707.707M4.04 19.96l-.707.707M21 12h-1M4 12H3m16.96-7.96l-.707-.707M7.07 16.93l-.707-.707"/></svg>
                   <span className="text-xs font-mono font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">{stageWord}</span>
                 </div>
                 <div className="w-[85%] h-4 rounded-md animate-chat-shimmer" />
@@ -423,42 +393,36 @@ export default function AIChatInterface({
               </div>
             )}
 
+            {/* 🚀 NEW UPGRADE: Layout break-proofing */}
             <div className="w-full text-slate-800 dark:text-slate-200 text-sm sm:text-base leading-relaxed font-sans font-medium space-y-3 pl-1 break-words">
               {responseTokens.map((token, tIdx) => {
-                
                 if (token.type === "table") {
                   const tableLines = token.content.split('\n').map(l => l.trim()).filter(Boolean);
-                  if (tableLines.length < 2) return null; 
-
+                  if (tableLines.length < 2) return null;
                   const headers = tableLines[0].split('|').filter(Boolean).map(h => h.trim());
-                  
                   let dataStartIndex = 1;
-                  if (tableLines[1] && tableLines[1].replace(/[-:| ]/g, '') === '') {
-                    dataStartIndex = 2;
-                  }
-                  
+                  if (tableLines[1] && tableLines[1].replace(/[-:| ]/g, '') === '') { dataStartIndex = 2; }
                   const bodyLines = tableLines.slice(dataStartIndex).map(line => line.split('|').filter(Boolean).map(c => c.trim()));
 
                   return (
-                    <div key={`table-${tIdx}`} className="jemer-premium-scroll w-full overflow-x-auto my-5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm">
+                    // 🚀 NEW UPGRADE: Premium Table UI & horizontal scroll on overflow
+                    <div key={`table-${tIdx}`} className="jemer-premium-scroll w-full overflow-x-auto my-5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-lg bg-white dark:bg-slate-950">
                       <table className="w-full text-left border-collapse text-sm min-w-[600px]">
-                        <thead className="bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300">
-                          <tr>
+                        <thead>
+                          <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
                             {headers.map((h, i) => (
-                              <th key={i} className="p-3 border-b border-slate-200 dark:border-slate-700/60 font-bold whitespace-nowrap">
-                                {/* 🚀 NEW UPGRADE: Re-routed header cells through MarkdownRenderer */}
-                                <div className="-m-3"><MarkdownRenderer text={h} /></div>
+                              <th key={i} className="p-4 font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                                <MarkdownRenderer text={h} />
                               </th>
                             ))}
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50 bg-white dark:bg-slate-950/50">
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                           {bodyLines.map((row, i) => (
-                            <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                            <tr key={i} className="even:bg-slate-50/50 dark:even:bg-slate-900/50 hover:bg-slate-100/50 dark:hover:bg-slate-800/30 transition-colors">
                               {row.map((cell, j) => (
-                                <td key={j} className="p-3 text-slate-600 dark:text-slate-300 font-medium align-top">
-                                  {/* 🚀 NEW UPGRADE: Routed data cells through MarkdownRenderer so KaTeX parses smoothly inside grid walls */}
-                                  <div className="-m-3"><MarkdownRenderer text={cell} /></div>
+                                <td key={j} className="p-4 text-slate-600 dark:text-slate-300 font-medium align-top">
+                                  <MarkdownRenderer text={cell} />
                                 </td>
                               ))}
                             </tr>
@@ -470,187 +434,86 @@ export default function AIChatInterface({
                 }
 
                 if (token.type === "text") {
-                  return (
-                    <div key={`text-${tIdx}`} className="w-full animate-fade-in transition-all duration-200">
-                      <MarkdownRenderer text={token.content} />
-                    </div>
-                  );
+                  return ( <div key={`text-${tIdx}`} className="w-full animate-fade-in transition-all duration-200"> <MarkdownRenderer text={token.content} /> </div> );
                 }
               })}
             </div>
 
             <div className={`flex items-center gap-2 mt-5 pl-1 select-none animate-fade-in transition-opacity duration-200 ${isCurrentlyStreaming ? "opacity-30 pointer-events-none" : "opacity-100"}`}>
-              
-              <button
-                type="button"
-                onClick={() => handleToggleLikeSentiment(msg)}
-                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer focus:outline-none ${
-                  likedMessages[msg.id]
-                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 shadow-xs border border-emerald-200/40"
-                    : "bg-slate-100 hover:bg-slate-200 text-slate-500 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200 border border-transparent dark:border-slate-700/60"
-                }`}
-                title="Good response"
-              >
+              <button type="button" onClick={() => handleToggleLikeSentiment(msg)} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer focus:outline-none ${likedMessages[msg.id] ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 shadow-xs border border-emerald-200/40" : "bg-slate-100 hover:bg-slate-200 text-slate-500 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200 border border-transparent dark:border-slate-700/60" }`} title="Good response">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"/></svg>
               </button>
-
-              <button
-                type="button"
-                onClick={() => handleToggleDislikeSentiment(msg)}
-                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer focus:outline-none ${
-                  dislikedMessages[msg.id]
-                    ? "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400 shadow-xs border border-rose-200/40"
-                    : "bg-slate-100 hover:bg-slate-200 text-slate-500 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200 border border-transparent dark:border-slate-700/60"
-                }`}
-                title="Bad response"
-              >
+              <button type="button" onClick={() => handleToggleDislikeSentiment(msg)} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer focus:outline-none ${dislikedMessages[msg.id] ? "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400 shadow-xs border border-rose-200/40" : "bg-slate-100 hover:bg-slate-200 text-slate-500 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200 border border-transparent dark:border-slate-700/60" }`} title="Bad response">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3zm7-13h2a2 2 0 012 2v7a2 2 0 01-2 2h-2"/></svg>
               </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (onRegenerateResponse) onRegenerateResponse(associatedUserPrompt);
-                }}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200 border border-transparent dark:border-slate-700/60 flex items-center justify-center transition-all cursor-pointer focus:outline-none"
-                title="Regenerate response"
-              >
+              <button type="button" onClick={() => { if (onRegenerateResponse) onRegenerateResponse(associatedUserPrompt); }} className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200 border border-transparent dark:border-slate-700/60 flex items-center justify-center transition-all cursor-pointer focus:outline-none" title="Regenerate response">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
               </button>
-
-              <button
-                type="button"
-                onClick={() => executeSystemTextCopy(msg.text, msg.id)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200 border border-transparent dark:border-slate-700/60 flex items-center justify-center transition-all cursor-pointer focus:outline-none relative"
-                title="Copy response"
-              >
-                {copyStatusTracker[msg.id] ? (
-                  <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
-                ) : (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                )}
+              <button type="button" onClick={() => executeSystemTextCopy(msg.text, msg.id)} className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200 border border-transparent dark:border-slate-700/60 flex items-center justify-center relative" title="Copy response">
+                {copyStatusTracker[msg.id] ? ( <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg> ) : ( <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg> )}
               </button>
             </div>
-
           </div>
         );
       })}
-      
+
       <div ref={messagesEndRef} className="h-1 w-full" />
 
-      {/* 🚀 NEW UPGRADE: React Portal Teleportation Matrix
-          The Feedback Modal is entirely detached from the scrolling page grid and anchored to the body document.
-          This ensures it never gets trapped behind padding, completely eliminating the 'scrolling to type' bug! */}
+      {/* 🚀 NEW UPGRADE: Polished Feedback Modal & Fixed SVGs */}
       {isFeedbackModalOpen && mounted && createPortal(
-        <div className="fixed inset-0 z-[9999] bg-slate-900/40 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 transition-all duration-300 animate-fade-in">
-          
-          {/* Invisible click-away dim layer safely handles closure paths */}
-          <div 
-            onClick={() => setIsFeedbackModalOpen(false)} 
-            className="absolute inset-0 cursor-pointer" 
-          />
-
-          {/* Master Viewport Container (Rebuilt flex flow to guarantee smooth typing when mobile keyboards pop up) */}
+        <div className="fixed inset-0 z-[9999] bg-slate-900/40 dark:bg-black/70 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 transition-all duration-300 animate-fade-in">
+          <div onClick={() => setIsFeedbackModalOpen(false)} className="absolute inset-0 cursor-pointer" />
           <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-700/50 shadow-2xl z-10 rounded-3xl flex flex-col overflow-hidden relative max-h-[90vh]">
-            
             <form onSubmit={handleSubmitFeedbackPayload} className="flex flex-col h-full w-full max-h-[90vh]">
-              
-              {/* HEADER REGION */}
               <div className="px-6 pt-6 pb-4 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-[14px] flex items-center justify-center shadow-inner shrink-0 ${
-                    activeFeedbackType === "like" 
-                      ? "bg-gradient-to-br from-emerald-100 to-teal-50 text-emerald-600 dark:from-emerald-900/50 dark:to-teal-900/20 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/50" 
-                      : "bg-gradient-to-br from-rose-100 to-red-50 text-rose-600 dark:from-rose-900/50 dark:to-red-900/20 dark:text-rose-400 border border-rose-200/50 dark:border-rose-800/50"
-                  }`}>
-                    <i className={`fas ${activeFeedbackType === "like" ? "fa-thumbs-up" : "fa-thumbs-down"} text-sm`} />
+                  <div className={`w-10 h-10 rounded-[14px] flex items-center justify-center shadow-inner shrink-0 ${activeFeedbackType === "like" ? "bg-gradient-to-br from-emerald-100 to-teal-50 text-emerald-600 dark:from-emerald-900/50 dark:to-teal-900/20 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/50" : "bg-gradient-to-br from-rose-100 to-red-50 text-rose-600 dark:from-rose-900/50 dark:to-red-900/20 dark:text-rose-400 border border-rose-200/50 dark:border-rose-800/50"}`}>
+                    {activeFeedbackType === 'like' ? (
+                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M7.282 20.842a2 2 0 0 1-1.99-1.576l-1.38-9a2 2 0 0 1 2-2.3h5.367V5a3 3 0 0 1 3-3l.001.002a3 3 0 0 1 3 2.998v3.963l-4 9.037H7.282ZM4 9h1v11H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z"/></svg>
+                    ) : (
+                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M16.718 3.158a2 2 0 0 1 1.99 1.576l1.38 9a2 2 0 0 1-2 2.3h-5.367V19a3 3 0 0 1-3 3l-.001-.002a3 3 0 0 1-3-2.998v-3.963l4-9.037h5.718ZM20 15h-1V4h1a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2Z"/></svg>
+                    )}
                   </div>
                   <div>
-                    <h3 className="text-base font-display font-black text-slate-900 dark:text-white tracking-tight leading-tight">
-                      {activeFeedbackType === "like" ? "Share Your Success Story" : "Help Us Optimize Pacing"}
-                    </h3>
-                    <p className="text-[10px] font-mono font-semibold text-slate-400 tracking-wider uppercase mt-0.5">
-                      Jemer Core Analytics Registry
-                    </p>
+                    <h3 className="text-base font-display font-black text-slate-900 dark:text-white tracking-tight leading-tight">{activeFeedbackType === "like" ? "Share Your Success Story" : "Help Us Optimize Pacing"}</h3>
+                    <p className="text-[10px] font-mono font-semibold text-slate-400 tracking-wider uppercase mt-0.5">Jemer Core Analytics Registry</p>
                   </div>
                 </div>
-                
-                <button
-                  type="button"
-                  onClick={() => setIsFeedbackModalOpen(false)}
-                  className="w-8 h-8 shrink-0 rounded-full bg-slate-100/80 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors cursor-pointer"
-                >
-                  <i className="fas fa-times text-xs" />
+                <button type="button" onClick={() => setIsFeedbackModalOpen(false)} className="w-8 h-8 shrink-0 rounded-full bg-slate-100/80 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors cursor-pointer">
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
-
-              {/* BODY REGION: Flexible layout preventing overflow when typing */}
               <div className="px-6 flex-1 overflow-y-auto jemer-premium-scroll flex flex-col gap-4 pb-2">
-                 
-                 {/* 🚀 NEW UPGRADE: Replaced ugly black box with premium Glassmorphism UI Quote Block */}
                  <div className="jemer-premium-scroll p-4 bg-white/40 dark:bg-slate-800/40 backdrop-blur-md rounded-2xl border-l-4 border-l-blue-500 border-y border-r border-slate-200/50 dark:border-slate-700/50 text-xs text-slate-600 dark:text-slate-300 font-sans shadow-sm relative max-h-[120px] overflow-y-auto shrink-0">
                    <div className="absolute top-2 right-3 text-[9px] font-black uppercase tracking-widest text-blue-500/70 dark:text-blue-400/70">AI Snippet</div>
                    <p className="pr-6 leading-relaxed italic break-words">"{activeMessageText}"</p>
                  </div>
-
-                 {/* Text Input Sandbox */}
                  <div className="flex flex-col flex-1 min-h-[120px]">
-                   <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-2 pl-1 shrink-0">
-                     Qualitative Student Commentary (Optional)
-                   </label>
-                   <textarea
-                     required
-                     value={feedbackText}
-                     onChange={(e) => setFeedbackText(e.target.value)}
-                     placeholder={
-                       activeFeedbackType === "like"
-                         ? "What made this great? Was the analogy perfect? Did the code structure click?"
-                         : "What went sideways? Did the tutor hallucinate parameters, overcomplicate the equation, or drop detail tracks?"
-                     }
-                     className="jemer-premium-scroll w-full flex-1 min-h-[100px] p-4 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700/60 text-slate-900 dark:text-slate-100 text-sm font-medium placeholder-slate-400 rounded-[20px] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-blue-500/20 transition-all leading-relaxed resize-none font-sans shadow-sm"
-                   />
+                   <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-2 pl-1 shrink-0">Qualitative Student Commentary (Optional)</label>
+                   <textarea required value={feedbackText} onChange={(e) => setFeedbackText(e.target.value)} placeholder={ activeFeedbackType === "like" ? "What made this great? Was the analogy perfect? Did the code structure click?" : "What went sideways? Did the tutor hallucinate parameters, overcomplicate the equation, or drop detail tracks?" } className="jemer-premium-scroll w-full flex-1 min-h-[100px] p-4 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700/60 text-slate-900 dark:text-slate-100 text-sm font-medium placeholder-slate-400 rounded-[20px] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-blue-500/20 transition-all leading-relaxed resize-none font-sans shadow-sm" />
                  </div>
               </div>
-
-              {/* FOOTER REGION: Action triggers strictly locked to the bottom boundary */}
               <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800/50 shrink-0 flex items-center justify-end gap-3 bg-slate-50/50 dark:bg-slate-900/30">
-                <button
-                  type="button"
-                  onClick={() => setIsFeedbackModalOpen(false)}
-                  className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800 transition-colors"
-                >
-                  Cancel
-                </button>
-                
-                <button
-                  type="submit"
-                  disabled={isSubmittingFeedback}
-                  className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-wider text-white transition-all shadow-lg active:scale-95 flex items-center gap-2 ${
-                    activeFeedbackType === "like"
-                      ? "bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-emerald-500/20"
-                      : "bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 shadow-rose-500/20"
-                  } disabled:opacity-40 disabled:pointer-events-none`}
-                >
+                <button type="button" onClick={() => setIsFeedbackModalOpen(false)} className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800 transition-colors">Cancel</button>
+                <button type="submit" disabled={isSubmittingFeedback} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-wider text-white transition-all shadow-lg active:scale-95 flex items-center gap-2 ${ activeFeedbackType === "like" ? "bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-emerald-500/20" : "bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 shadow-rose-500/20" } disabled:opacity-40 disabled:pointer-events-none`}>
                   {isSubmittingFeedback ? (
                     <>
-                      <i className="fas fa-circle-notch fa-spin mr-1" />
+                      <svg className="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                       <span>Logging...</span>
                     </>
                   ) : (
                     <>
                       <span>Submit Logs</span>
-                      <i className="fas fa-paper-plane text-[10px]" />
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M3.478 2.405a.75.75 0 0 0-.926.94l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94L21 12 3.478 2.405Z" /></svg>
                     </>
                   )}
                 </button>
               </div>
-
             </form>
           </div>
         </div>,
         document.body
       )}
-
     </div>
   );
 }

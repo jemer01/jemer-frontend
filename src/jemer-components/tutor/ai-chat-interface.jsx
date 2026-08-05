@@ -6,7 +6,7 @@
  * ================================================================================================
  * [NEW UPGRADE]
  * SUMMARY: Comprehensive UI/UX Overhaul & Layout Fortification.
- * 1. RESPONSIVE MOBILE LAYOUT: Ripped out the restrictive `max-w-4xl` on the parent container for mobile
+ * 1. RESPONSIVE MOBILE LAYOUT: Ripped out  restrictive `max-w-4xl` on the parent container for mobile
  *    views. Message bubbles now span nearly the full width on phones (`px-2`), providing a modern,
  *    spacious chat experience, while retaining the centered, focused layout on desktops (`md:px-6`).
  * 2. HIGH-CONTRAST SHIMMER (DARK MODE): Upgraded the `.dark .animate-chat-shimmer` gradient to a

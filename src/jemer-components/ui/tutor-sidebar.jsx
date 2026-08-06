@@ -2,20 +2,29 @@
 
 /**
  * ================================================================================================
- * 🆕 NEW UPGRADES SUMMARY (v6.0.0 - ON-DEMAND JWT & SHIMMER FIX)
+ * 🆕 NEW UPGRADES SUMMARY (v6.1.0 - CROSS-MODULE REFRESH LOCK, MOUNT-LEVEL GUARD & SHIMMER FIX)
  * ================================================================================================
- * 1. ON-DEMAND JWT FETCH ARCHITECTURE: Replicated the ultra-fast `fetchJwtOnDemand` and 
- *    `jemerAuthenticatedFetch` logic from `page.js`. The sidebar no longer relies on background 
- *    polling or direct `/api/auth/refresh` hits. It strictly interfaces with the native Neon Auth 
- *    SDK (`window.JemerAuth.refreshSession()`) the exact millisecond a user triggers a network request[cite: 3].
- * 2. HARD SECURITY REDIRECTS: If local storage lacks a JWT, or the SDK explicitly fails to refresh 
- *    the token, the proxy intercepts the failure and instantly evicts the user to `/login.html` 
- *    instead of throwing silent console errors or crashing the layout[cite: 3].
- * 3. DARK MODE SHIMMER VISIBILITY: Upgraded the `.dark .animate-shimmer` CSS keyframes. Shifted 
- *    the gradient from `slate-800` to a higher-contrast `slate-700` & `slate-600` mix so the 
- *    skeleton loaders are highly visible against the dark sidebar background[cite: 3].
+ * 1. CROSS-MODULE REFRESH LOCK (root-cause fix for the login-bounce bug): v6.0.0 replicated
+ *    `fetchJwtOnDemand`'s de-dupe lock, but that lock (`isRefreshing`/`refreshPromise`) was
+ *    file-local, so it only prevented this file's own calls from racing each other — it did
+ *    NOT prevent this file racing `page.js`, which mounts as a sibling and can independently
+ *    trigger its own refresh at the same instant. Since the SDK's refresh token is single-use,
+ *    the losing concurrent call got `success: false` and force-redirected to login. The lock now
+ *    lives on `window.__jemerAuthRefreshLock`, shared with `page.js`, so only one refresh is ever
+ *    in flight for the whole app and every other caller just awaits it.
+ * 2. MOUNT-LEVEL SESSION GUARD: Added a dedicated check on mount — if `jemer_session_jwt` or
+ *    `jemer_user_uuid` is missing from local storage, the sidebar redirects to `/login.html`
+ *    immediately instead of waiting for a fetch to fail first. (This is a UX/hygiene redirect,
+ *    not a security boundary by itself — actual enforcement is still the backend's 401 on every
+ *    authenticated call, which `jemerAuthenticatedFetch` already handles.)
+ * 3. DARK MODE SHIMMER VISIBILITY (real fix): v6.0.0's `.dark .animate-shimmer` override in the
+ *    raw <style> block wasn't reliably matching against however the active theme is actually
+ *    applied to the DOM. Moved the shimmer's colors onto the same `dark:` Tailwind utility
+ *    classes already working correctly everywhere else in this file, so it rides the same
+ *    proven mechanism instead of a second untested selector. `.animate-shimmer` now only owns
+ *    the animation timing.
  * ================================================================================================
- * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM SCALABLE SIDE PANEL FRAMEWORK[cite: 3]
+ * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM SCALABLE SIDE PANEL FRAMEWORK
  * ================================================================================================
  */
 
@@ -54,8 +63,15 @@ const isTokenExpiringSoon = (token, thresholdSeconds = 300) => {
   return (payload.exp - currentUnixTime) < thresholdSeconds;
 };
 
-let isRefreshing = false;
-let refreshPromise = null;
+// 🚀 v6.1.0: Shared cross-module lock — lives on `window` so this file and `page.js`
+// coordinate through the SAME in-flight refresh instead of each racing its own copy.
+const getAuthRefreshLock = () => {
+  if (typeof window === "undefined") return { isRefreshing: false, refreshPromise: null };
+  if (!window.__jemerAuthRefreshLock) {
+    window.__jemerAuthRefreshLock = { isRefreshing: false, refreshPromise: null };
+  }
+  return window.__jemerAuthRefreshLock;
+};
 
 const waitForAuthSDKReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
   const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.refreshSession === "function";
@@ -68,12 +84,13 @@ const waitForAuthSDKReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
   return false;
 };
 
-// 🚀 ON-DEMAND JWT FETCHER
+// 🚀 ON-DEMAND JWT FETCHER (v6.1.0: now backed by the shared window-level lock above)
 const fetchJwtOnDemand = async () => {
-  if (isRefreshing) return refreshPromise;
-  isRefreshing = true;
+  const lock = getAuthRefreshLock();
+  if (lock.isRefreshing) return lock.refreshPromise;
+  lock.isRefreshing = true;
 
-  refreshPromise = (async () => {
+  lock.refreshPromise = (async () => {
     try {
       const sdkIsReady = await waitForAuthSDKReady();
       if (sdkIsReady) {
@@ -94,11 +111,11 @@ const fetchJwtOnDemand = async () => {
     } catch (error) {
       return null;
     } finally {
-      isRefreshing = false;
+      lock.isRefreshing = false;
     }
   })();
 
-  return refreshPromise;
+  return lock.refreshPromise;
 };
 
 // 🚀 SECURE PROXY WRAPPER
@@ -157,6 +174,16 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
   const observerTarget = useRef(null); 
   const isFetchingRef = useRef(false); 
   const menuRef = useRef(null); 
+
+  // ── v6.1.0 SESSION GUARD: instantly evict if no session artifacts exist locally,
+  // rather than letting the profile/session fetches discover that on their own ──
+  useEffect(() => {
+    const hasToken = localStorage.getItem("jemer_session_jwt");
+    const hasUserId = localStorage.getItem("jemer_user_uuid");
+    if (!hasToken || !hasUserId) {
+      window.location.href = "/login.html";
+    }
+  }, []);
 
   // ── HYDRATION LIFECYCLE ──
   useEffect(() => {
@@ -369,8 +396,7 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
           .sidebar-scroll::-webkit-scrollbar-thumb { background-color: rgba(148,163,184,0.2); border-radius: 10px; }
           .sidebar-scroll::-webkit-scrollbar-thumb:hover { background-color: rgba(148,163,184,0.4); }
           @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-          .animate-shimmer { background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
-          .dark .animate-shimmer { background: linear-gradient(90deg, #334155 25%, #475569 50%, #334155 75%); }
+          .animate-shimmer { background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; }
         `}} />
 
         <div className="flex-1 overflow-y-auto px-4 pt-5 pb-8 flex flex-col gap-6 sidebar-scroll min-h-0 relative">
@@ -416,7 +442,7 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
             <div className="flex-1 overflow-y-auto space-y-0.5 pr-0.5 sidebar-scroll relative pb-6">
               {isLoading ? (
                 <div className="space-y-3 px-3 py-2">
-                   {[1,2,3,4,5].map(i => <div key={`skel-${i}`} className="w-full h-6 rounded-md animate-shimmer" />)}
+                   {[1,2,3,4,5].map(i => <div key={`skel-${i}`} className="w-full h-6 rounded-md bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 dark:from-slate-700 dark:via-slate-600 dark:to-slate-700 animate-shimmer" />)}
                 </div>
               ) : (
                 <>
@@ -473,7 +499,7 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
                     </div>
                   )}
                   <div ref={observerTarget} className="h-4 w-full" />
-                  {isFetchingMore && <div className="px-3 py-2"><div className="w-full h-6 rounded-md animate-shimmer" /></div>}
+                  {isFetchingMore && <div className="px-3 py-2"><div className="w-full h-6 rounded-md bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 dark:from-slate-700 dark:via-slate-600 dark:to-slate-700 animate-shimmer" /></div>}
                 </>
               )}
             </div>

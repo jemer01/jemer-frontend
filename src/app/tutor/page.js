@@ -2,9 +2,19 @@
 
 /**
  * ================================================================================================
- * 🚀 JEMER ACADEMY AI TUTOR PAGE — CLIENT-SIDE ORCHESTRATOR (v3.0.0)
+ * 🚀 JEMER ACADEMY AI TUTOR PAGE — CLIENT-SIDE ORCHESTRATOR (v3.0.1)
  * ================================================================================================
- * [NEW UPGRADE]
+ * [NEW UPGRADE — v3.0.1]
+ * SUMMARY: Cross-Module Refresh Lock. `fetchJwtOnDemand` previously de-duped concurrent refresh
+ * calls using a file-local `isRefreshing`/`refreshPromise` pair, which only coordinated calls made
+ * from *this* file. Since `TutorSidebar` mounts as a sibling and runs its own on-demand JWT fetch
+ * at the same time this page's onboarding gate check does, both could independently call
+ * `window.JemerAuth.refreshSession()` at once. If the SDK rotates a single-use refresh token, the
+ * losing caller gets `success: false` and force-redirects to login. The lock now lives on
+ * `window.__jemerAuthRefreshLock`, shared by every module that uses this pattern, so only one
+ * refresh is ever in flight platform-wide and every other caller awaits that same promise.
+ * ================================================================================================
+ * [NEW UPGRADE — v3.0.0]
  * SUMMARY: High-Performance Stream Handshake & Latency Masking.
  * 1. Intelligent Handshake Handling: The stream reader (`handleProcessOutboundPrompt`) now
  *    explicitly looks for a preliminary `{"status":"initializing"}` message from the backend.
@@ -48,8 +58,16 @@ const isTokenExpiringSoon = (token, thresholdSeconds = 300) => {
   return (payload.exp - currentUnixTime) < thresholdSeconds;
 };
 
-let isRefreshing = false;
-let refreshPromise = null;
+// 🚀 v3.0.1: Shared cross-module lock — lives on `window` so every file using this
+// on-demand JWT pattern (this page, TutorSidebar, etc.) coordinates through the SAME
+// in-flight refresh instead of each file racing with its own private copy.
+const getAuthRefreshLock = () => {
+  if (typeof window === "undefined") return { isRefreshing: false, refreshPromise: null };
+  if (!window.__jemerAuthRefreshLock) {
+    window.__jemerAuthRefreshLock = { isRefreshing: false, refreshPromise: null };
+  }
+  return window.__jemerAuthRefreshLock;
+};
 
 const waitForAuthSDKReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
   const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.refreshSession === "function";
@@ -62,12 +80,13 @@ const waitForAuthSDKReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
   return false;
 };
 
-// 🚀 ON-DEMAND JWT FETCHER
+// 🚀 ON-DEMAND JWT FETCHER (v3.0.1: now backed by the shared window-level lock above)
 const fetchJwtOnDemand = async () => {
-  if (isRefreshing) return refreshPromise;
-  isRefreshing = true;
+  const lock = getAuthRefreshLock();
+  if (lock.isRefreshing) return lock.refreshPromise;
+  lock.isRefreshing = true;
 
-  refreshPromise = (async () => {
+  lock.refreshPromise = (async () => {
     try {
       const sdkIsReady = await waitForAuthSDKReady();
       if (sdkIsReady) {
@@ -88,11 +107,11 @@ const fetchJwtOnDemand = async () => {
     } catch (error) {
       return null;
     } finally {
-      isRefreshing = false;
+      lock.isRefreshing = false;
     }
   })();
 
-  return refreshPromise;
+  return lock.refreshPromise;
 };
 
 const jemerAuthenticatedFetch = async (url, options = {}) => {

@@ -2,23 +2,23 @@
 
 /**
  * ================================================================================================
- * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR CHAT ARENA COMPONENT (v6.0.0)
+ * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR CHAT ARENA COMPONENT (v7.0.0)
  * ================================================================================================
  * [NEW UPGRADE]
- * SUMMARY: Agentic File & Source Tracking Frontend Engine + Critical Syntax Patch
- * 1. BUG FIX: Resolved "Expected ident" build errors by removing phantom editor artifacts in 
- *    array methods (`push`) and string methods (`trim`). Correctly mapped regex capture arrays 
- *    (match[1], match[2]) to ensure the web sources modal populates accurate titles and URLs.
- * 2. PREMIUM SOURCES MODAL: Added a 'Sources' pill button to AI responses. Extracts Markdown links
- *    and displays them in a sleek, centered modal with Google Favicons and target="_blank" routing.
- * 3. FILE UPLOAD SHOWCASE: The User Bubble now detects `attached_files` and renders them in a 
- *    horizontal, scrollbar-free swipeable track above the prompt.
- * 4. DYNAMIC USER BUBBLE WIDTH: Replaced fixed `w-full` with `w-fit` on user text containers so 
- *    short messages ("hi") wrap perfectly without empty negative space.
- * 5. AI BREATHING ROOM: Expanded AI response containers slightly to `max-w-4xl xl:max-w-5xl` 
- *    to give academic density and tables a premium, wider reading layout.
- * 6. HIGH-CONTRAST SHIMMER: Upgraded the `.dark` skeleton shimmer to a vibrant blue gradient sweep 
- *    so it looks highly active and "thinking", completely eliminating the frozen look on dark mode.
+ * SUMMARY: Multi-Modal Image Parsing & Inline Carousel Engine.
+ * 1. INLINE XML PARSER: Upgraded `tokenizeBlocks` to seamlessly detect `<jemer-image-showcase>` 
+ *    blocks returned by the backend's `image_search` tool.
+ * 2. DYNAMIC CAROUSEL RENDERING: Images are now rendered directly inline exactly where the AI 
+ *    places them in the text (e.g. after a paragraph explanation), wrapped in a sleek, horizontal, 
+ *    scrollbar-free swipeable track.
+ * 3. PREMIUM IMAGE MODAL: Clicking an image triggers a dedicated Mini-Modal showing the high-res 
+ *    image, Title, Author, License info, and a one-click "Download to Device" utility button.
+ * ================================================================================================
+ * [PREVIOUS UPGRADES RETAINED]
+ * - Premium Sources Modal & Markdown extraction
+ * - Attached Files horizontal showcase
+ * - Dynamic User Bubble widths (`w-fit`)
+ * - High-Contrast Dark Mode Shimmer
  * ================================================================================================
  */
 
@@ -27,10 +27,35 @@ import { createPortal } from "react-dom";
 import { useTheme } from "@/jemer-components/context/ThemeContext.jsx";
 import MarkdownRenderer from "@/jemer-components/ui/markdown-renderer.jsx";
 
-// Advanced Markdown Pre-Processor
+// 🚀 NEW UPGRADE: Advanced Markdown Pre-Processor with XML Image Parsing
 const tokenizeBlocks = (text) => {
   if (!text) return [];
-  const lines = text.split('\n');
+  
+  // First, extract all XML image blocks and replace them with placeholders
+  const imageBlocks = [];
+  const imageRegex = /<jemer-image-showcase>([\s\S]*?)<\/jemer-image-showcase>/g;
+  
+  let processedText = text.replace(imageRegex, (match, innerXML) => {
+    const images = [];
+    const imgTagRegex = /<img\s+src="([^"]+)"\s+thumb="([^"]+)"\s+title="([^"]+)"\s+author="([^"]+)"\s+license="([^"]+)"\s*\/>/g;
+    
+    let imgMatch;
+    while ((imgMatch = imgTagRegex.exec(innerXML)) !== null) {
+      images.push({
+        src: imgMatch[1],
+        thumb: imgMatch[2],
+        title: imgMatch[3],
+        author: imgMatch[4],
+        license: imgMatch[5]
+      });
+    }
+    
+    const placeholder = `___JEMER_IMAGE_BLOCK_${imageBlocks.length}___`;
+    imageBlocks.push({ type: 'images', images });
+    return `\n${placeholder}\n`;
+  });
+
+  const lines = processedText.split('\n');
   const tokens = [];
   let currentText = [];
   let currentTable = [];
@@ -38,6 +63,24 @@ const tokenizeBlocks = (text) => {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    
+    // Check for our injected image block placeholder
+    const imageBlockMatch = line.match(/___JEMER_IMAGE_BLOCK_(\d+)___/);
+    if (imageBlockMatch) {
+        // Flush any pending text or tables before inserting the image block
+        if (currentText.length > 0) {
+            tokens.push({ type: 'text', content: currentText.join('\n') });
+            currentText = [];
+        }
+        if (inTable) {
+            inTable = false;
+            tokens.push({ type: 'table', content: currentTable.join('\n') });
+            currentTable = [];
+        }
+        tokens.push(imageBlocks[parseInt(imageBlockMatch[1])]);
+        continue;
+    }
+
     const isTableLine = line.trim().startsWith('|') && line.indexOf('|', 1) !== -1;
 
     if (isTableLine) {
@@ -65,7 +108,7 @@ const tokenizeBlocks = (text) => {
   return tokens;
 };
 
-// 🚀 NEW: Helper function to extract markdown links for the Sources Modal
+// Helper function to extract markdown links for the Sources Modal
 const extractSourcesFromMarkdown = (text) => {
   if (!text) return [];
   const regex = /\[([^\]]+)\]\((https?:\/\/[^\s]+)\)/g;
@@ -102,9 +145,13 @@ export default function AIChatInterface({
   const [feedbackText, setFeedbackText] = useState("");
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
   
-  // 🚀 NEW: Sources Modal States
+  // Sources Modal States
   const [isSourcesModalOpen, setIsSourcesModalOpen] = useState(false);
   const [activeSources, setActiveSources] = useState([]);
+
+  // 🚀 NEW: Image Showcase Modal States
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [activeImageData, setActiveImageData] = useState(null);
 
   const [mounted, setMounted] = useState(false);
   const messagesEndRef = useRef(null);
@@ -137,8 +184,8 @@ export default function AIChatInterface({
   }, [activeChatLog, isStreaming, autoScroll]);
 
   const fallbackChatData = [
-    { id: "mock-msg-1", sender: "user", text: "Explain how structural parameters dictate thermodynamics and system entropy boundaries.", isThinking: false, reasoning: "" },
-    { id: "mock-msg-2", sender: "ai", text: `### Understanding System Entropy & Thermodynamic Boundaries\n\nIn structural physics and chemistry, **Entropy** serves as the mathematical metric tracking molecular disorder within an isolated system. To break this down step-by-step:\n\n1. **The Second Law Parameter:** Any natural thermodynamic sequence moves toward an escalated boundary of state chaos.\n2. **Structural Envelopes:** When matter undergoes conversion limits, the geometric alignment of system nodes dictates total heat capacity.\n\n| Concept | Definition | Impact |\n|---|---|---|\n| Entropy | Measure of disorder | Increases naturally |\n| Enthalpy | Total heat content | Dictates energy flow |\n\n> *Core Takeaway:* To suppress system entropy escalations, thermal input weights must cross matching structural threshold resistances.\n\n[Advanced Thermodynamics](https://example.com/thermo) [Entropy Basics](https://example.com/entropy)`, isThinking: false, reasoning: "" }
+    { id: "mock-msg-1", sender: "user", text: "Explain how structural parameters dictate thermodynamics.", isThinking: false, reasoning: "" },
+    { id: "mock-msg-2", sender: "ai", text: `### Thermodynamics\n\nThermodynamics tracks molecular disorder.\n\n<jemer-image-showcase>\n  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Thermodynamics.jpg/800px-Thermodynamics.jpg" thumb="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Thermodynamics.jpg/320px-Thermodynamics.jpg" title="Thermodynamics System" author="John Doe" license="CC BY-SA 4.0" />\n  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Entropy.png/800px-Entropy.png" thumb="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Entropy.png/320px-Entropy.png" title="Entropy Map" author="Jane Smith" license="Public Domain" />\n</jemer-image-showcase>\n\nThis diagram demonstrates the concept visually.`, isThinking: false, reasoning: "" }
   ];
 
   const visibleMessages = (activeChatLog && activeChatLog.length > 0) ? activeChatLog : fallbackChatData;
@@ -170,11 +217,36 @@ export default function AIChatInterface({
     setIsFeedbackModalOpen(true);
   };
 
-  // 🚀 NEW: Handle Sources Modal
   const handleOpenSources = (msgText) => {
     const extracted = extractSourcesFromMarkdown(msgText);
     setActiveSources(extracted);
     setIsSourcesModalOpen(true);
+  };
+
+  // 🚀 NEW: Trigger the Image Details Modal
+  const handleOpenImageModal = (imgData) => {
+    setActiveImageData(imgData);
+    setIsImageModalOpen(true);
+  };
+
+  // 🚀 NEW: Handle Cross-Origin Image Downloading
+  const handleDownloadImage = async (imgUrl, title) => {
+    try {
+      const response = await fetch(imgUrl);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error("Failed to download image:", err);
+      // Fallback: just open it in a new tab if cors blocks the blob fetch
+      window.open(imgUrl, '_blank');
+    }
   };
 
   const togglePromptExpansion = (id) => {
@@ -254,7 +326,6 @@ export default function AIChatInterface({
     }
   };
 
-  // Helper to extract clean filename from R2 keys
   const getCleanFilename = (key) => {
       const parts = key.split('-');
       if (parts.length > 5) {
@@ -273,7 +344,6 @@ export default function AIChatInterface({
         .jemer-premium-scroll::-webkit-scrollbar-thumb { background-color: rgba(148,163,184,0.3); border-radius: 10px; }
         .jemer-premium-scroll::-webkit-scrollbar-thumb:hover { background-color: rgba(148,163,184,0.5); }
         
-        /* 🚀 NEW: Invisible scrollbar for horizontal file swipe */
         .jemer-scrollbar-hide::-webkit-scrollbar { display: none; }
         .jemer-scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
@@ -283,7 +353,6 @@ export default function AIChatInterface({
           background-size: 200% 100%;
           animation: chatShimmer 1.5s infinite linear;
         }
-        /* 🚀 NEW UPGRADE: High-contrast moving blue gradient shimmer for dark mode so it looks ALIVE */
         .dark .animate-chat-shimmer {
           background: linear-gradient(90deg, rgba(30,58,138,0.4) 25%, rgba(59,130,246,0.6) 50%, rgba(30,58,138,0.4) 75%);
           background-size: 200% 100%;
@@ -361,7 +430,6 @@ export default function AIChatInterface({
                     </button>
                   </div>
                   
-                  {/* 🚀 NEW UPGRADE: Horizontal File Upload Showcase */}
                   {msg.attached_files && msg.attached_files.length > 0 && (
                       <div className="w-full flex justify-end mb-2">
                         <div className="flex items-center gap-2 overflow-x-auto jemer-scrollbar-hide max-w-[95%] sm:max-w-[85%] md:max-w-[75%] px-1 py-1">
@@ -375,7 +443,6 @@ export default function AIChatInterface({
                       </div>
                   )}
 
-                  {/* 🚀 NEW UPGRADE: Dynamic Bubble Width (w-fit) so "hi" doesn't stretch */}
                   <div className="w-fit max-w-[95%] sm:max-w-[85%] md:max-w-[75%] bg-slate-100 dark:bg-slate-800 border border-slate-200/40 dark:border-slate-700/50 rounded-3xl rounded-tr-sm px-5 py-4 text-left shadow-md dark:shadow-[0_8px_16px_rgba(0,0,0,0.3)] group-hover:shadow-lg transition-shadow duration-200">
                     <p className="text-sm sm:text-base font-sans font-medium text-slate-800 dark:text-slate-100 leading-relaxed whitespace-pre-wrap break-words">
                       {displayText}
@@ -400,7 +467,6 @@ export default function AIChatInterface({
         const internalReasoningText = msg.reasoning || "";
         const isReasoningExpanded = expandedReasoning[msg.id] || false;
         
-        // 🚀 NEW: Detect if AI message has sources to activate the button
         const extractedSources = extractSourcesFromMarkdown(msg.text);
         const hasSources = extractedSources.length > 0;
 
@@ -414,7 +480,6 @@ export default function AIChatInterface({
         const responseTokens = tokenizeBlocks(msg.text);
 
         return (
-          // 🚀 NEW UPGRADE: Expanded max-width wrapper (max-w-4xl/5xl) for premium breathing room
           <div
             key={msg.id}
             className="w-full max-w-4xl xl:max-w-5xl mx-auto px-2 md:px-4 flex flex-col items-start text-left border-b border-slate-100/60 dark:border-slate-800/40 pb-6 animate-fade-in"
@@ -444,7 +509,6 @@ export default function AIChatInterface({
                   <svg className="w-2.5 h-2.5 text-blue-500 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3v1m0 16v1m8.66-12.66l-.707.707M4.04 19.96l-.707.707M21 12h-1M4 12H3m16.96-7.96l-.707-.707M7.07 16.93l-.707-.707"/></svg>
                   <span className="text-xs font-mono font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">{stageWord}</span>
                 </div>
-                {/* 🚀 These now use the upgraded, highly visible blue shimmering effect */}
                 <div className="w-[85%] h-4 rounded-md animate-chat-shimmer" />
                 <div className="w-[100%] h-4 rounded-md animate-chat-shimmer" />
                 <div className="w-[60%] h-4 rounded-md animate-chat-shimmer" />
@@ -456,7 +520,6 @@ export default function AIChatInterface({
                 if (token.type === "table") {
                   const tableLines = token.content.split('\n').map(l => l.trim()).filter(Boolean);
                   if (tableLines.length < 2) return null;
-                  // NEW: Fixed TypeError by targeting tableLines[1] (a string) instead of tableLines (an array) so .replace() can properly evaluate the Markdown separator row.
                   const headers = tableLines[0].split('|').filter(Boolean).map(h => h.trim());
                   let dataStartIndex = 1;
                   if (tableLines[1] && tableLines[1].replace(/[-:| ]/g, '') === '') { dataStartIndex = 2; }
@@ -492,10 +555,33 @@ export default function AIChatInterface({
                 if (token.type === "text") {
                   return ( <div key={`text-${tIdx}`} className="w-full animate-fade-in transition-all duration-200"> <MarkdownRenderer text={token.content} /> </div> );
                 }
+
+                // 🚀 NEW UPGRADE: Inline Image Carousel Rendering
+                // This renders the horizontal scrollable image cards exactly where the AI placed the XML in the text flow.
+                if (token.type === "images") {
+                  return (
+                    <div key={`images-${tIdx}`} className="w-full my-6 overflow-hidden">
+                      <div className="flex items-center gap-4 overflow-x-auto jemer-scrollbar-hide pb-4 px-1 snap-x snap-mandatory">
+                        {token.images.map((img, iIdx) => (
+                          <div 
+                            key={iIdx} 
+                            onClick={() => handleOpenImageModal(img)}
+                            className="shrink-0 w-64 h-48 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 overflow-hidden shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer relative group snap-start"
+                          >
+                            <img src={img.thumb} alt={img.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
+                              <h4 className="text-white text-xs font-bold line-clamp-2 leading-tight">{img.title}</h4>
+                              <p className="text-white/70 text-[10px] font-medium mt-1 truncate">© {img.author}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
               })}
             </div>
 
-            {/* 🚀 NEW UPGRADE: Control Ribbon with Sources Modal Trigger */}
             <div className={`flex items-center flex-wrap gap-2 mt-5 pl-1 select-none animate-fade-in transition-opacity duration-200 ${isCurrentlyStreaming ? "opacity-30 pointer-events-none" : "opacity-100"}`}>
               <button type="button" onClick={() => handleToggleLikeSentiment(msg)} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer focus:outline-none ${likedMessages[msg.id] ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 shadow-xs border border-emerald-200/40" : "bg-slate-100 hover:bg-slate-200 text-slate-500 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200 border border-transparent dark:border-slate-700/60" }`} title="Good response">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"/></svg>
@@ -510,7 +596,6 @@ export default function AIChatInterface({
                 {copyStatusTracker[msg.id] ? ( <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg> ) : ( <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg> )}
               </button>
               
-              {/* 🚀 NEW UPGRADE: The Sources Pill Button */}
               {hasSources && (
                 <button type="button" onClick={() => handleOpenSources(msg.text)} className="h-8 px-3 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/50 flex items-center justify-center gap-1.5 transition-all cursor-pointer focus:outline-none shadow-sm ml-2">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
@@ -524,7 +609,6 @@ export default function AIChatInterface({
 
       <div ref={messagesEndRef} className="h-1 w-full" />
 
-      {/* Existing Feedback Modal */}
       {isFeedbackModalOpen && mounted && createPortal(
         <div className="fixed inset-0 z-[9999] bg-slate-900/40 dark:bg-black/70 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 transition-all duration-300 animate-fade-in">
           <div onClick={() => setIsFeedbackModalOpen(false)} className="absolute inset-0 cursor-pointer" />
@@ -580,7 +664,6 @@ export default function AIChatInterface({
         document.body
       )}
 
-      {/* 🚀 NEW UPGRADE: Premium Sources Modal */}
       {isSourcesModalOpen && mounted && createPortal(
         <div className="fixed inset-0 z-[9999] bg-slate-900/40 dark:bg-black/70 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 transition-all duration-300 animate-fade-in">
           <div onClick={() => setIsSourcesModalOpen(false)} className="absolute inset-0 cursor-pointer" />
@@ -626,6 +709,58 @@ export default function AIChatInterface({
             
             <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800/50 shrink-0 flex items-center justify-center bg-slate-50/50 dark:bg-slate-900/30">
               <p className="text-[10px] font-medium text-slate-400 text-center">Data fetched autonomously by Jemer AI.</p>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* 🚀 NEW UPGRADE: Premium Image Viewer & Download Modal */}
+      {isImageModalOpen && activeImageData && mounted && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-slate-900/80 dark:bg-black/90 backdrop-blur-lg flex items-center justify-center p-4 sm:p-6 transition-all duration-300 animate-fade-in">
+          <div onClick={() => setIsImageModalOpen(false)} className="absolute inset-0 cursor-pointer" />
+          <div className="w-full max-w-4xl bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-700/50 shadow-2xl z-10 rounded-3xl flex flex-col overflow-hidden relative">
+            
+            {/* Modal Header */}
+            <div className="absolute top-0 inset-x-0 p-4 flex items-center justify-between z-20 bg-gradient-to-b from-black/60 to-transparent">
+              <div className="bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 flex items-center gap-2 max-w-[70%]">
+                 <svg className="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                 <span className="text-white text-xs font-bold truncate tracking-wide">{activeImageData.title}</span>
+              </div>
+              <button type="button" onClick={() => setIsImageModalOpen(false)} className="w-10 h-10 shrink-0 rounded-full bg-black/40 backdrop-blur-md hover:bg-black/60 border border-white/10 flex items-center justify-center text-white transition-colors cursor-pointer focus:outline-none">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            {/* High-Res Image Display */}
+            <div className="w-full h-[50vh] sm:h-[60vh] bg-slate-100 dark:bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden group">
+              <div className="absolute inset-0 bg-slate-200 dark:bg-slate-800 animate-pulse -z-10" />
+              <img src={activeImageData.src} alt={activeImageData.title} className="w-full h-full object-contain drop-shadow-2xl z-10 transition-transform duration-300 group-hover:scale-[1.02]" />
+            </div>
+
+            {/* Info & Action Footer */}
+            <div className="p-5 sm:p-6 bg-white dark:bg-slate-900 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">{activeImageData.title}</h3>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5">
+                  <p className="text-[11px] font-mono font-medium text-slate-500 flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                    {activeImageData.author}
+                  </p>
+                  <p className="text-[11px] font-mono font-medium text-slate-500 flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
+                    License: {activeImageData.license}
+                  </p>
+                </div>
+              </div>
+              
+              <button 
+                onClick={() => handleDownloadImage(activeImageData.src, activeImageData.title)}
+                className="shrink-0 px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-xl active:scale-95 focus:outline-none"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                Download to Device
+              </button>
             </div>
           </div>
         </div>,

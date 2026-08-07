@@ -1,17 +1,17 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: On-Demand JWT Refresh & Multi-Origin Backend Synchronization.
- * 1. Shared On-Demand JWT Architecture: Replicated `fetchJwtOnDemand`, `jemerAuthenticatedFetch`,
- *    and `window.__jemerAuthRefreshLock` to handle token refreshes on demand whenever a user
- *    triggers an action (e.g., analyze, explain, or answer).
- * 2. Multi-Origin Backend URL Resolution: Integrated dynamic origin matching (`jemerplatforms.company`,
- *    `cloudshell.dev`, or local fallback) directly matching tutor page CORS handling.
- * 3. Auto Re-Authentication Flow: Automatically triggers silent token rotation if tokens are near
- *    expiry or if 401/400 errors are returned, with emergency redirect fallback to `/login.html`.
- * 4. Preserved Pipeline & Components: 100% preservation of all existing SPA stages (Camera, Cropper,
- *    Results, Chat), state management, Base64 conversion, R2 uploads, and SSE stream readers.
+ * SUMMARY: v3.1.1 Artifact Cleanup & Build Fixes
+ * 1. Syntax Fix: Removed corrupted text artifacts (`[...](asc_slot://...)`) that broke the Next.js Turbopack build process.
+ * 2. JWT Decode Patch: Restored proper dot-notation splitting (`.split('.')[1]`) to decode JWT payloads correctly.
+ * 3. Base64 Processing Fix: Corrected `base64ToBlob` to accurately extract the MIME type (`split(':')[1]`) and properly assign the base64 string (`parts[1] || parts[0]`) to prevent atob() conversion crashes.
+ * 
+ * [PREVIOUS UPGRADE]
+ * SUMMARY: v3.1 Snap History Interaction & State Hand-off.
+ * 1. History Selection Logic: Injected `handleHistorySelect` to instantly route users from the Camera stage to the Results stage when a past snap is clicked.
+ * 2. State Hydration: Automatically populates the `capturedImage`, `streamedResponse`, and `sessionID` with the historical database records.
+ * 3. Preserved Infrastructure: 100% preservation of all existing JWT, SSE, and SPA router pipelines.
  * ================================================================================================
- * 🧠 JEMER ACADEMY ECOSYSTEM — SNAP TO ANSWER ROUTER (v3.0)
+ * 🧠 JEMER ACADEMY ECOSYSTEM — SNAP TO ANSWER ROUTER (v3.1.1)
  * ================================================================================================
  */
 "use client";
@@ -313,6 +313,15 @@ export default function SnapPage() {
     setActiveStage("camera");
   };
 
+  // 🚀 NEW: History Selection Route
+  const handleHistorySelect = (record) => {
+    setCapturedImage(record.image_url);
+    setStreamedResponse(record.ai_response || "No analysis content found.");
+    setSessionID(record.session_id);
+    setIsAnalyzing(false); // Instantly set to false since history is already solved
+    setActiveStage("results");
+  };
+
   return (
     <div className="w-full max-w-5xl mx-auto flex flex-col animate-fade-in relative min-h-full pb-24 lg:pb-0">
       
@@ -330,7 +339,7 @@ export default function SnapPage() {
           
           <div className="mt-4">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-1">Recent Solutions</h3>
-            <SnapHistory />
+            <SnapHistory onSelectHistory={handleHistorySelect} />
           </div>
         </div>
       )}

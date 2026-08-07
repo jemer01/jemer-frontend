@@ -133,14 +133,18 @@ export default function SnapResults({ imageUrl, onReset, onChat, streamedRespons
               <div className="w-2/3 h-4 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse"></div>
             </div>
           ) : streamedResponse ? (
+                     
             /* Rendered Markdown + Math Engine Output */
-            <div className="relative">
+            // 🚀 FIXED: Added layout flow classes (whitespace-pre-wrap, break-words, overflow-x-hidden) 
+            // to completely stop Tailwind from clipping standard text and only showing headers!
+            <div className="relative w-full whitespace-pre-wrap break-words overflow-x-hidden">
               <MarkdownRenderer text={streamedResponse} />
               {isAnalyzing && (
                 <span className="inline-block w-2 h-4 bg-blue-500 animate-pulse ml-1 align-middle" />
               )}
             </div>
           ) : (
+
             /* Empty Fallback State */
             <div className="flex flex-col items-center justify-center text-center py-12 text-slate-400">
               <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300 dark:text-slate-700 mb-3">

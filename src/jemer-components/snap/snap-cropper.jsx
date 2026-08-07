@@ -1,15 +1,12 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed Build Error Fix - CSS Resolution Bypass.
- * 1. Module Not Found Fix: Removed the local `import "cropperjs/dist/cropper.css"` which was causing the Next.js Turbopack build to crash due to missing node_modules paths.
- * 2. CDN Injection: Surgically injected the official CropperJS CSS directly via a high-speed CDN `<link>` tag inside the component. This makes the file 100% plug-and-play and bulletproof against npm dependency routing errors.
+ * SUMMARY: Executed v2.2 - Mode Mapping Integration.
+ * 1. Backend Mode Alignment: Updated `handleCropExecution` triggers to pass the exact strings our Go backend expects ('explain', 'analyze', 'answer') instead of the frontend-only UI labels.
  * ================================================================================================
- * ✂️ JEMER ACADEMY DESIGN SYSTEM — SNAP CROPPER ENGINE (v2.1)
+ * ✂️ JEMER ACADEMY DESIGN SYSTEM — SNAP CROPPER ENGINE (v2.2)
  * ================================================================================================
  */
-
 "use client"; // Enforces client-side execution for browser APIs
-
 import React, { useRef } from "react";
 // Imports the official React wrapper for the cropping engine
 // (Removed the local CSS import that was breaking the Next.js build)
@@ -87,9 +84,9 @@ export default function SnapCropper({ imageSource, onAction, onCancel }) {
       <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl p-4 sm:p-6 border-t border-slate-200 dark:border-slate-800 shrink-0 z-10">
         <div className="grid grid-cols-3 gap-3 sm:gap-4 max-w-2xl mx-auto w-full">
           
-          {/* Action: SOLVE */}
+          {/* Action: SOLVE -> 'explain' mode */}
           <button 
-            onClick={() => handleCropExecution('solve')} 
+            onClick={() => handleCropExecution('explain')} 
             className="group bg-gradient-to-br from-blue-500 to-indigo-600 text-white p-3 sm:p-4 rounded-[1.25rem] flex flex-col items-center justify-center gap-1 transition-all active:scale-[0.96] shadow-xl shadow-blue-500/30 hover:shadow-blue-500/40 border border-blue-400/30"
           >
               <i className="fas fa-brain text-xl sm:text-2xl mb-1 drop-shadow-md group-hover:scale-110 transition-transform"></i>
@@ -97,7 +94,7 @@ export default function SnapCropper({ imageSource, onAction, onCancel }) {
               <span className="text-[9px] sm:text-[10px] text-blue-100 font-medium leading-tight opacity-90 hidden sm:block">Step-by-step</span>
           </button>
           
-          {/* Action: ANALYZE */}
+          {/* Action: ANALYZE -> 'analyze' mode */}
           <button 
             onClick={() => handleCropExecution('analyze')} 
             className="group bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900 text-slate-800 dark:text-white p-3 sm:p-4 rounded-[1.25rem] flex flex-col items-center justify-center gap-1 transition-all active:scale-[0.96] shadow-xl shadow-slate-200/50 dark:shadow-black/50 border border-slate-300/50 dark:border-slate-700 hover:border-teal-500/50 dark:hover:border-teal-500/50"
@@ -107,19 +104,17 @@ export default function SnapCropper({ imageSource, onAction, onCancel }) {
               <span className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 opacity-60 font-medium leading-tight group-hover:opacity-100 transition-opacity hidden sm:block">Deep dive</span>
           </button>
           
-          {/* Action: GRADE */}
+          {/* Action: GRADE -> 'answer' mode */}
           <button 
-            onClick={() => handleCropExecution('grade')} 
+            onClick={() => handleCropExecution('answer')} 
             className="group bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900 text-slate-800 dark:text-white p-3 sm:p-4 rounded-[1.25rem] flex flex-col items-center justify-center gap-1 transition-all active:scale-[0.96] shadow-xl shadow-slate-200/50 dark:shadow-black/50 border border-slate-300/50 dark:border-slate-700 hover:border-pink-500/50 dark:hover:border-pink-500/50"
           >
               <i className="fas fa-marker text-xl sm:text-2xl text-pink-600 dark:text-pink-400 mb-1 drop-shadow-sm group-hover:scale-110 transition-transform"></i>
               <span className="text-xs sm:text-sm font-black tracking-wide uppercase">Grade</span>
               <span className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 opacity-60 font-medium leading-tight group-hover:opacity-100 transition-opacity hidden sm:block">Mark & Fix</span>
           </button>
-
         </div>
       </div>
-
     </div>
   );
 }

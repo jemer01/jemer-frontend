@@ -1,19 +1,21 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v2.0 AI Results Output Matrix.
- * 1. Dynamic Image Rendering: Replaced the dummy placeholder with a functional `<img />` tag that perfectly renders the high-quality cropped base64 string passed down from the cropper.
- * 2. Premium Header Upgrade: Injected the Next.js-optimized `lucide-brain` SVG into the results header, housing it inside a premium blue/indigo gradient container with deep drop shadows.
- * 3. Elevated Output UI: Upgraded the solution container with heavy `shadow-2xl` drops, sleek borders, and an elegant typography layout that anticipates the AI's markdown/LaTeX rendering.
+ * SUMMARY: Executed v2.1 AI Results Live Markdown Renderer.
+ * 1. Props Addition: Brought in `streamedResponse` and `isAnalyzing`.
+ * 2. Markdown Integration: Replaced dummy UI lines with a dynamic `<ReactMarkdown>` engine equipped with `remarkMath` and `rehypeKatex` to properly render math formatting.
+ * 3. Loading State: Displays the original shimmering pulses only while `isAnalyzing` is true and `streamedResponse` is empty.
  * ================================================================================================
- * ✨ JEMER ACADEMY DESIGN SYSTEM — SNAP RESULTS ENGINE (v2.0)
+ * ✨ JEMER ACADEMY DESIGN SYSTEM — SNAP RESULTS ENGINE (v2.1)
  * ================================================================================================
  */
-
 "use client";
-
 import React from "react";
+import ReactMarkdown from "react-markdown";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import 'katex/dist/katex.min.css';
 
-export default function SnapResults({ imageUrl, onReset, onChat }) {
+export default function SnapResults({ imageUrl, onReset, onChat, streamedResponse, isAnalyzing }) {
   return (
     <div className="w-full flex flex-col gap-6 animate-fade-in max-w-4xl mx-auto">
       
@@ -59,7 +61,7 @@ export default function SnapResults({ imageUrl, onReset, onChat }) {
           {/* Header Bar */}
           <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-slate-50 to-white dark:from-slate-950 dark:to-slate-900 flex items-center gap-4 shrink-0">
               
-              {/* 🚀 UPGRADED: Next.js Optimized Lucide Brain SVG */}
+              {/* Next.js Optimized Lucide Brain SVG */}
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-500/30">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-brain">
                     <path d="M12 18V5"/>
@@ -78,33 +80,30 @@ export default function SnapResults({ imageUrl, onReset, onChat }) {
                   AI Solution Engine
                 </h2>
                 <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono uppercase tracking-widest mt-1.5">
-                  Analysis Complete // Ready for Review
+                  {isAnalyzing && !streamedResponse ? "Analysis Active // Computing..." : "Analysis Complete // Ready for Review"}
                 </p>
               </div>
           </div>
           
-          {/* Dummy Markdown/Content Body */}
-          <div className="p-6 md:p-8 space-y-6 flex-1 bg-slate-50/50 dark:bg-slate-950/30">
-              {/* Simulated UI Shimmer loading lines mimicking text layout */}
-              <div className="space-y-3">
-                <div className="w-3/4 h-4 bg-slate-200 dark:bg-slate-800 rounded animate-pulse"></div>
-                <div className="w-full h-4 bg-slate-200 dark:bg-slate-800 rounded animate-pulse"></div>
-                <div className="w-5/6 h-4 bg-slate-200 dark:bg-slate-800 rounded animate-pulse"></div>
-              </div>
-              
-              {/* Dummy Code/Math Block */}
-              <div className="w-full h-32 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col items-center justify-center shadow-sm">
-                 <i className="fas fa-square-root-alt text-3xl text-slate-300 dark:text-slate-700 mb-3"></i>
-                 <span className="text-xs text-slate-400 font-mono tracking-wider">[ Markdown / LaTeX Render Frame ]</span>
-              </div>
-
-              <div className="space-y-3">
-                <div className="w-full h-4 bg-slate-200 dark:bg-slate-800 rounded animate-pulse"></div>
-                <div className="w-2/3 h-4 bg-slate-200 dark:bg-slate-800 rounded animate-pulse"></div>
-              </div>
+          {/* Dynamic Content Body */}
+          <div className="p-6 md:p-8 space-y-6 flex-1 bg-slate-50/50 dark:bg-slate-950/30 text-slate-800 dark:text-slate-200">
+              {isAnalyzing && !streamedResponse ? (
+                  /* Simulated UI Shimmer loading lines mimicking text layout */
+                  <div className="space-y-3">
+                    <div className="w-3/4 h-4 bg-slate-200 dark:bg-slate-800 rounded animate-pulse"></div>
+                    <div className="w-full h-4 bg-slate-200 dark:bg-slate-800 rounded animate-pulse"></div>
+                    <div className="w-5/6 h-4 bg-slate-200 dark:bg-slate-800 rounded animate-pulse"></div>
+                  </div>
+              ) : (
+                  /* Live Rendered AI Output */
+                  <div className="prose dark:prose-invert prose-blue max-w-none prose-p:leading-relaxed prose-pre:bg-slate-900 prose-pre:border prose-pre:border-slate-800">
+                    <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                      {streamedResponse}
+                    </ReactMarkdown>
+                  </div>
+              )}
           </div>
       </div>
-
     </div>
   );
 }

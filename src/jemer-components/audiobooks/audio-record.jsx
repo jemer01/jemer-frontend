@@ -1,11 +1,11 @@
 /**
- * [NEW UPGRADE]
- * SUMMARY: Executed v2.3 Premium Orb Physics & Seamless Theme Integration.
- * 1. Root Theme Fix: Completely stripped the `bg-slate-50`, `dark:bg-slate-900`, `rounded-[2rem]`, and `shadow-inner` classes from the master container. This eliminates the "card" effect and edge-clipping, allowing the component to seamlessly inherit the exact global background color used in the Audio Results page.
- * 2. Advanced 3D Orb Mechanics: Upgraded the idle state orb into a complex UI element. Injected custom CSS keyframes (`orb-spin-slow`, `orb-spin-fast`, `core-pulse`) to create counter-rotating rings, dynamic shadows, and a multi-layered pulsating energy core that feels premium and highly interactive.
- * 3. Component Integrity: Preserved all core recording logic, state management, and functional UI elements strictly without breaking any existing features.
+ * [NEW] v2.5
+ * SUMMARY: Implemented 97MB Strict Upload Limit Guard.
+ * 1. File Upload Guard: Intercepts `handleFileUpload` to instantly check `file.size`. Blocks any file over 97MB and triggers a browser alert.
+ * 2. Live Record Guard: Intercepts the generated `audioBlob.size` in the `onstop` function. Discards the recording and warns the user if it exceeds 97MB.
+ * 3. Preserved Infrastructure: 100% preservation of all animations, Blob extraction fixes, timer logic, and state management.
  * ================================================================================================
- * 🎙️ JEMER ACADEMY DESIGN SYSTEM — AUDIO RECORD ENGINE (v2.3)
+ * 🎙️ JEMER ACADEMY DESIGN SYSTEM — AUDIO RECORD ENGINE (v2.5)
  * ================================================================================================
  */
 
@@ -118,10 +118,22 @@ export default function AudioRecord({ onCapture, onOpenHistory }) {
         if (audioChunksRef.current.length > 0) {
           // Compile all audio chunks into a single Blob (WebM format)
           const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          
+          // 🚀 97MB Strict Guard Limit (97 * 1024 * 1024 bytes)
+          if (audioBlob.size > 101711872) {
+            alert("Recording exceeds the maximum allowed size of 97MB. Please record a shorter session.");
+            if (streamRef.current) {
+              streamRef.current.getTracks().forEach(track => track.stop());
+            }
+            setRecordingTime(0);
+            setIsPaused(false);
+            return;
+          }
+
           // Create a temporary local URL for the Blob so we can play it back
           const audioUrl = URL.createObjectURL(audioBlob);
           // Pass the generated URL, a timestamped name, and the file size up to the parent component
-          onCapture({ url: audioUrl, name: `Live Recording - ${new Date().toLocaleTimeString()}`, size: audioBlob.size });
+          onCapture({ blob: audioBlob, url: audioUrl, name: `Live Recording - ${new Date().toLocaleTimeString()}`, size: audioBlob.size });
         }
         
         // Loop through all hardware tracks in the stream and force them to stop (turns off mic light)
@@ -195,10 +207,17 @@ export default function AudioRecord({ onCapture, onOpenHistory }) {
     // If no file was selected (user hit cancel), abort
     if (!file) return;
 
+    // 🚀 97MB Strict Guard Limit (97 * 1024 * 1024 bytes)
+    if (file.size > 101711872) {
+      alert("File exceeds the maximum allowed size of 97MB. Please select a smaller audio file.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
     // Create a local URL for the selected file
     const audioUrl = URL.createObjectURL(file);
     // Dispatch the file data directly to the parent component for review
-    onCapture({ url: audioUrl, name: file.name, size: file.size });
+    onCapture({ blob: file, url: audioUrl, name: file.name, size: file.size });
     
     // Reset the file input value so the same file can be uploaded again if needed
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -209,7 +228,6 @@ export default function AudioRecord({ onCapture, onOpenHistory }) {
   // ==========================================
   
   return (
-    // 🚀 THE FIX: Removed `bg-slate-50`, `dark:bg-slate-900`, and `rounded-[2rem]` entirely.
     // The container is now transparent, inheriting the exact global root background from your app seamlessly.
     <div className="w-full min-h-[calc(100vh-80px)] flex flex-col justify-between items-center relative animate-fade-in p-6 lg:p-12">
       

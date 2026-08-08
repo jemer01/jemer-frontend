@@ -1,5 +1,19 @@
 /**
  * [NEW UPGRADE]
+ * SUMMARY: v3.2.0 Official Neon Auth SDK JWT Migration
+ * 1. Root cause fix for the 5-minute logout bug: replaced the manual JWT `exp`-decoding /
+ *    threshold-guessing / cross-module refresh-lock stack (`decodeJWTPayload`, `isTokenExpiringSoon`,
+ *    `getAuthRefreshLock`, `waitForAuthSDKReady`, `fetchJwtOnDemand`, `window.__jemerAuthRefreshLock`,
+ *    `window.JemerAuth.refreshSession()`, and the `jemer_session_jwt`/`access_token`/`token`
+ *    localStorage fallback chain) with a single `getCurrentJwt()` helper backed by a dedicated
+ *    `@neondatabase/neon-js/auth` client (`neonAuthClient`). `getSession()` mints a fresh JWT for
+ *    the live session on every call and silently refreshes it under the hood if needed.
+ * 2. `jemerAuthenticatedFetch` and the pre-flight check in `executeSnapAnalysis` now call
+ *    `getCurrentJwt()` directly instead of reading/decoding a cached `localStorage` token first.
+ *    The `Authorization`/`apikey` headers sent to the Go backend, the presigned-URL/R2-upload/SSE
+ *    pipeline, and the existing 401-retry-once behavior are all unchanged.
+ * 
+ * [PREVIOUS UPGRADE]
  * SUMMARY: v3.1.1 Artifact Cleanup & Build Fixes
  * 1. Syntax Fix: Removed corrupted text artifacts (`[...](asc_slot://...)`) that broke the Next.js Turbopack build process.
  * 2. JWT Decode Patch: Restored proper dot-notation splitting (`.split('.')[1]`) to decode JWT payloads correctly.
@@ -17,6 +31,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { createAuthClient } from "@neondatabase/neon-js/auth";
 import SnapCamera from "@/jemer-components/snap/snap-camera.jsx";
 import SnapCropper from "@/jemer-components/snap/snap-cropper.jsx";
 import SnapResults from "@/jemer-components/snap/snap-results.jsx";
@@ -27,92 +42,37 @@ import SnapHistory from "@/jemer-components/snap/snap-history.jsx";
 // 🔐 AUTHENTICATION & JWT UTILITIES
 // ================================================================================================
 
-const decodeJWTPayload = (token) => {
+// 🚀 v3.2.0: Official Neon Auth SDK client, used only to mint on-demand JWTs for the
+// Go backend calls below. Separate instance from auth.js's sign-in/sign-up client;
+// both share the browser's httpOnly session cookie, so there's no conflict.
+// Same origin as auth.js's NEON_AUTH_BASE_URL constant — keep in sync if that ever changes.
+const NEON_AUTH_URL = "https://ep-wandering-bird-abdexk6a.neonauth.eu-west-2.aws.neon.tech/neondb/auth";
+const neonAuthClient = createAuthClient(NEON_AUTH_URL, {
+  fetchOptions: { credentials: "include" },
+});
+
+// 🚀 v3.2.0: Single source of truth for "get me a currently-valid JWT." Replaces
+// decodeJWTPayload / isTokenExpiringSoon / getAuthRefreshLock / waitForAuthSDKReady /
+// fetchJwtOnDemand. getSession() mints a fresh token for the live session (and silently
+// refreshes it under the hood if needed) on every call, or returns a null session if
+// the user isn't authenticated -- no manual exp checking, no lock, no polling.
+const getCurrentJwt = async () => {
   try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
+    const { data, error } = await neonAuthClient.getSession();
+    if (error || !data?.session?.access_token) return null;
+    return data.session.access_token;
   } catch (e) {
     return null;
   }
 };
 
-const isTokenExpiringSoon = (token, thresholdSeconds = 300) => {
-  if (!token) return true;
-  const payload = decodeJWTPayload(token);
-  if (!payload || !payload.exp) return true;
-
-  const currentUnixTime = Math.floor(Date.now() / 1000);
-  return (payload.exp - currentUnixTime) < thresholdSeconds;
-};
-
-// Shared cross-module lock for JWT refresh synchronization
-const getAuthRefreshLock = () => {
-  if (typeof window === "undefined") return { isRefreshing: false, refreshPromise: null };
-  if (!window.__jemerAuthRefreshLock) {
-    window.__jemerAuthRefreshLock = { isRefreshing: false, refreshPromise: null };
-  }
-  return window.__jemerAuthRefreshLock;
-};
-
-const waitForAuthSDKReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
-  const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.refreshSession === "function";
-  if (isReady()) return true;
-  const startTime = Date.now();
-  while (Date.now() - startTime < timeoutMs) {
-    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
-    if (isReady()) return true;
-  }
-  return false;
-};
-
-// ON-DEMAND JWT FETCHER
-const fetchJwtOnDemand = async () => {
-  const lock = getAuthRefreshLock();
-  if (lock.isRefreshing) return lock.refreshPromise;
-  lock.isRefreshing = true;
-
-  lock.refreshPromise = (async () => {
-    try {
-      const sdkIsReady = await waitForAuthSDKReady();
-      if (sdkIsReady) {
-        const refreshOutcome = await window.JemerAuth.refreshSession();
-        if (refreshOutcome && refreshOutcome.success === false) return null;
-
-        let attempts = 0;
-        while (attempts < 100) {
-          const currentToken = localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token");
-          if (currentToken && !isTokenExpiringSoon(currentToken, 300)) {
-            return currentToken;
-          }
-          await new Promise(resolve => setTimeout(resolve, 50));
-          attempts++;
-        }
-      }
-      return localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token") || null;
-    } catch (error) {
-      return null;
-    } finally {
-      lock.isRefreshing = false;
-    }
-  })();
-
-  return lock.refreshPromise;
-};
-
 // AUTHENTICATED FETCH WRAPPER WITH RETRY & HEADERS
 const jemerAuthenticatedFetch = async (url, options = {}) => {
-  let activeToken = localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token");
+  let activeToken = await getCurrentJwt();
 
-  if (!activeToken || isTokenExpiringSoon(activeToken, 300)) {
-     activeToken = await fetchJwtOnDemand();
-     if (!activeToken) {
-         window.location.href = "/login.html";
-         return new Response(null, { status: 401 });
-     }
+  if (!activeToken) {
+      window.location.href = "/login.html";
+      return new Response(null, { status: 401 });
   }
 
   const headers = new Headers(options.headers || {});
@@ -122,7 +82,7 @@ const jemerAuthenticatedFetch = async (url, options = {}) => {
   let response = await fetch(url, { ...options, headers });
 
   if (response.status === 401 || response.status === 400) {
-     const emergencyToken = await fetchJwtOnDemand();
+     const emergencyToken = await getCurrentJwt();
      if (emergencyToken) {
         headers.set("Authorization", `Bearer ${emergencyToken}`);
         headers.set("apikey", emergencyToken);
@@ -134,6 +94,7 @@ const jemerAuthenticatedFetch = async (url, options = {}) => {
 
   return response;
 };
+
 
 // DYNAMIC MULTI-ORIGIN BACKEND RESOLVER
 const getBackendUrl = () => {
@@ -183,11 +144,10 @@ export default function SnapPage() {
     setSessionID(newSessionID);
 
     try {
-      // 🚀 ON-DEMAND PRE-FLIGHT CHECK: Refresh JWT right before dispatching network calls
-      const onDemandToken = await fetchJwtOnDemand();
-      const currentToken = onDemandToken || localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token");
+      // 🚀 ON-DEMAND PRE-FLIGHT CHECK: Fetch JWT from Neon SDK right before dispatching network calls
+      const currentToken = await getCurrentJwt();
 
-      if (!currentToken || isTokenExpiringSoon(currentToken, 60)) {
+      if (!currentToken) {
         window.location.href = "/login.html";
         return;
       }

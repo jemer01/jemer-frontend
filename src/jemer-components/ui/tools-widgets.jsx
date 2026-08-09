@@ -35,7 +35,7 @@ export default function ToolsWidgets() {
         {/* ── WIDGET CARD 1: VID2NOTES ENGINE ── */}
         <Link 
           // Target page route for YouTube video transcript note generator
-          href="/vid2notes"
+          href="/jemerplay"
           // Outer Card Container: Styled with subtle dark mode borders and controlled ambient depth
           className="group relative w-full flex-1 min-h-[240px] rounded-[28px] bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-900/95 backdrop-blur-xl border border-slate-300 dark:border-slate-800 p-6 sm:p-8 flex flex-col justify-between overflow-hidden transition-all duration-500 shadow-xl shadow-slate-200/60 dark:shadow-xl dark:shadow-black/40 hover:shadow-2xl dark:hover:border-slate-700 active:scale-[0.98] cursor-pointer ring-1 ring-white/50 dark:ring-white/5"
         >

@@ -1,10 +1,11 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v1.1 JemerPlay Home Component Integration.
- * 1. Stability Check: Verified component bindings seamlessly support the newly orchestrated `page.js` API payload loop.
- * 2. Visual Persistence: Maintained 100% of the custom rotating typewriter logic, extended mobile search bar width, and premium glowing animations without alterations.
+ * SUMMARY: Executed v2.0 JemerPlay Home History Integration.
+ * 1. Live History Rail: Replaced `dummyVideos` with the live `watchHistory` prop fetched from the Postgres database.
+ * 2. Conditional Rendering: The "Continue Watching" rail now completely hides itself cleanly if the user has no watch history, maintaining a flawless UI layout.
+ * 3. Preserved Animations & Structure: The rotating typewriter, glow edge animations, and feature advertisement grid are 100% untouched.
  * ================================================================================================
- * 🏠 JEMERPLAY — HOME VIEW COMPONENT (v1.1)
+ * 🏠 JEMERPLAY — HOME VIEW COMPONENT (v2.0)
  * ================================================================================================
  */
 
@@ -26,7 +27,7 @@ const PLACEHOLDER_TEXTS = [
   "What do you want to master today?"
 ];
 
-export default function JemerPlayHome({ searchQuery, setSearchQuery, handleSearch, onVideoSelect, dummyVideos }) {
+export default function JemerPlayHome({ searchQuery, setSearchQuery, handleSearch, onVideoSelect, watchHistory }) {
   const [placeholder, setPlaceholder] = useState("");
   const [textIndex, setTextIndex] = useState(0);
   const [charIndex, setCharIndex] = useState(0);
@@ -115,7 +116,10 @@ export default function JemerPlayHome({ searchQuery, setSearchQuery, handleSearc
       </div>
 
       {/* ── CONTINUE WATCHING RAIL ── */}
-      <HorizontalVideoList title="Continue Watching" videos={dummyVideos} onSelect={onVideoSelect} />
+      {/* 🚀 NEW: Dynamically renders the horizontal rail ONLY if there is actual watch history data */}
+      {watchHistory && watchHistory.length > 0 && (
+        <HorizontalVideoList title="Continue Watching" videos={watchHistory} onSelect={onVideoSelect} />
+      )}
 
       {/* ── FEATURE ADVERTISEMENT SECTION ── */}
       <div className="px-4 mt-6">

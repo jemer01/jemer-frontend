@@ -1,18 +1,16 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v1.0 JemerPlay Network Integration & Auth Guard.
- * 1. JIT Token Refresh: Intercepts `handleSearch`, forces a fresh JWT fetch from Neon, and updates local storage before executing the Vector search.
- * 2. Relaxed Auth Guard: Kicks the user to login ONLY if BOTH the JWT and the `user_id` are completely missing from local storage, allowing legal idling.
- * 3. Live Data Mapping: Hits `/api/v1/jemerplay/search`, formats the ISO 8601 duration and view counts dynamically, and passes `searchResults` and `isSearching` down to the components.
- * 4. Preserved Component UI: Zero changes to the component mounting logic or UI structure.
+ * SUMMARY: Executed v2.1 JemerPlay State Handoff for Related Videos.
+ * 1. State Handoff: Upgraded the `<JemerPlayMediaPlayer />` component mount to receive the live `searchResults` array. This allows the player to dynamically render the remaining 19 videos in the "More related videos" section.
+ * 2. Preserved Infrastructure: Maintained 100% of the JWT auth wrappers, vector search backend fetching, atomic watch history logging, and SPA routing logic.
  * ================================================================================================
- * 🧠 JEMER ACADEMY ECOSYSTEM — JEMERPLAY MASTER VIEW CONTROLLER (v1.0)
+ * 🧠 JEMER ACADEMY ECOSYSTEM — JEMERPLAY MASTER VIEW CONTROLLER (v2.1)
  * ================================================================================================
  */
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 // ── IMPORT MODULAR COMPONENT FILES ──
 import JemerPlayHome from "@/jemer-components/jemerplay/jemerplay-home.jsx";
@@ -25,7 +23,7 @@ import JemerPlayMediaPlayer from "@/jemer-components/jemerplay/jemerplay-media-p
 
 const decodeJWTPayload = (token) => {
   try {
-    const base64Url = token.split('.[...](asc_slot://start-slot-1)');
+    const base64Url = token.split('.')[1];
     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
     const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
       return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
@@ -100,7 +98,7 @@ const jemerAuthenticatedFetch = async (url, options = {}) => {
   let activeToken = localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token");
   const userId = localStorage.getItem("jemer_user_id") || localStorage.getItem("user_id");
 
-  // 🚀 FIXED UX: Only redirect to login if BOTH the JWT and User ID are completely missing.
+  // Only redirect to login if BOTH the JWT and User ID are completely missing.
   if (!activeToken && !userId) {
      window.location.href = "/login.html";
      return new Response(null, { status: 401 });
@@ -156,30 +154,20 @@ const formatViews = (num) => {
   if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
   return num.toString();
 };
+
 const parseDuration = (isoString) => {
   if (!isoString) return "0:00";
-  
+  // Matches PT1H2M10S, PT5M33S, etc. safely
   const match = isoString.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
   if (!match) return "0:00";
-
+  
   const h = match[1] ? parseInt(match[1], 10) : 0;
   const m = match[2] ? parseInt(match[2], 10) : 0;
   const s = match[3] ? parseInt(match[3], 10) : 0;
-
-  if (h > 0) {
-    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  }
+  
+  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   return `${m}:${s.toString().padStart(2, '0')}`;
 };
-
-// ── DUMMY DATABASE PAYLOAD ──
-const DUMMY_VIDEOS = [
-  { id: "1", youtube_id: "dQw4w9WgXcQ", title: "Introduction to React Next.js Architecture", channel: "Jemer Code", duration: "14:20", views: "1.2M", thumbnail: "https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=800&q=80" },
-  { id: "2", youtube_id: "dQw4w9WgXcQ", title: "Advanced Quantum Mechanics Simplified", channel: "Science Academy", duration: "45:00", views: "340K", thumbnail: "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=800&q=80" },
-  { id: "3", youtube_id: "dQw4w9WgXcQ", title: "The History of Ancient Civilizations", channel: "History Daily", duration: "22:15", views: "890K", thumbnail: "https://images.unsplash.com/photo-1518991669955-9c7e78ec80ca?w=800&q=80" },
-  { id: "4", youtube_id: "dQw4w9WgXcQ", title: "Understanding Graph Data Structures", channel: "Dev Mastery", duration: "18:45", views: "2.1M", thumbnail: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&q=80" },
-  { id: "5", youtube_id: "dQw4w9WgXcQ", title: "Mastering Tailwind CSS Grids", channel: "UI Wizards", duration: "30:10", views: "450K", thumbnail: "https://images.unsplash.com/photo-1587620962725-abab7fe55159?w=800&q=80" },
-];
 
 export default function JemerPlayPage() {
   // ── ROUTING STATE MACHINE ──
@@ -190,8 +178,37 @@ export default function JemerPlayPage() {
   // ── LIVE DATA STATES ──
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [watchHistory, setWatchHistory] = useState([]); 
 
-   // ── ACTION HANDLERS ──
+  // Fetch User Watch History on Mount
+  useEffect(() => {
+    fetchWatchHistory();
+  }, []);
+
+  const fetchWatchHistory = async () => {
+    try {
+      await fetchJwtOnDemand();
+      const BACKEND_URL = getBackendUrl();
+      const res = await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/jemerplay/history`);
+      if (res.ok) {
+        const data = await res.json();
+        const mappedHistory = (data || []).map(v => ({
+          id: v.youtube_id,
+          youtube_id: v.youtube_id,
+          title: v.title,
+          channel: v.channel_title,
+          duration: parseDuration(v.duration),
+          views: formatViews(v.view_count),
+          thumbnail: v.thumbnail_url
+        }));
+        setWatchHistory(mappedHistory);
+      }
+    } catch (err) {
+      console.error("Failed to fetch watch history:", err);
+    }
+  };
+
+  // ── ACTION HANDLERS ──
   const handleSearch = async (e) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
@@ -201,7 +218,7 @@ export default function JemerPlayPage() {
     setIsSearching(true);
 
     try {
-      // 🚀 ON-DEMAND PRE-FLIGHT CHECK: Force fetch fresh JWT before running the search
+      // ON-DEMAND PRE-FLIGHT CHECK: Force fetch fresh JWT before running the search
       await fetchJwtOnDemand();
       
       const BACKEND_URL = getBackendUrl();
@@ -209,7 +226,7 @@ export default function JemerPlayPage() {
       
       const res = await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/jemerplay/search?q=${encodedQuery}`);
       
-      // 🚀 FIXED: Robust error interceptor. Pulls the exact backend failure message.
+      // Robust error interceptor. Pulls the exact backend failure message.
       if (!res.ok) {
         let backendErrorMsg = "Unknown backend error";
         try {
@@ -224,7 +241,7 @@ export default function JemerPlayPage() {
       
       const data = await res.json();
       
-      // Map backend database format perfectly to frontend dummy component props
+      // Map backend database format perfectly to frontend component props
       const mappedResults = (data || []).map(v => ({
         id: v.youtube_id,
         youtube_id: v.youtube_id,
@@ -245,11 +262,28 @@ export default function JemerPlayPage() {
     }
   };
 
-
   const handleVideoSelect = (video) => {
     setActiveVideo(video);
     setActiveView("player");
     window.scrollTo({ top: 0, behavior: "smooth" }); // Auto-scroll to top when a video is clicked
+
+    // Asynchronously log the watch event (upserts DB timestamp)
+    const logWatchEvent = async () => {
+      try {
+        const BACKEND_URL = getBackendUrl();
+        await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/jemerplay/history`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ youtube_id: video.youtube_id || video.id })
+        });
+        // Silent refresh of history rail in background
+        fetchWatchHistory();
+      } catch (err) {
+        console.error("Failed to log watch event:", err);
+      }
+    };
+    
+    logWatchEvent();
   };
 
   const resetToHome = () => {
@@ -267,7 +301,7 @@ export default function JemerPlayPage() {
           setSearchQuery={setSearchQuery} 
           handleSearch={handleSearch} 
           onVideoSelect={handleVideoSelect} 
-          dummyVideos={DUMMY_VIDEOS} // Remains dummy for the "Continue Watching" rail
+          watchHistory={watchHistory} 
         />
       )}
       {activeView === "results" && (
@@ -275,8 +309,8 @@ export default function JemerPlayPage() {
           searchQuery={searchQuery} 
           goHome={resetToHome} 
           onVideoSelect={handleVideoSelect} 
-          searchResults={searchResults} // Passing live mapped data
-          isSearching={isSearching}     // Passing loading state
+          searchResults={searchResults} 
+          isSearching={isSearching}     
         />
       )}
       {activeView === "player" && (
@@ -284,7 +318,7 @@ export default function JemerPlayPage() {
           video={activeVideo} 
           goHome={resetToHome} 
           onVideoSelect={handleVideoSelect} 
-          dummyVideos={DUMMY_VIDEOS} // Related videos rail
+          searchResults={searchResults} // 🚀 NEW: Passing live search results instead of dummy data
         />
       )}
     </div>

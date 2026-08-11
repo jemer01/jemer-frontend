@@ -2,31 +2,31 @@
 "use client";
 /**
  * [NEW UPGRADE]
- * SUMMARY: v2.0 Live Syllabus & SSE State Integration.
- * 1. Live SSE Integration: Now uses `isGenerating` and `generationStatus` from `page.js` to render real-time pipeline telemetry while the 550B model thinks.
- * 2. Dynamic Curriculum Hydration: Instantly drops the dummy `mockSyllabus` and renders the actual `curriculum_plan` JSON payload parsed from the database.
- * 3. Perfect Handoff: Seamlessly passes the `realSessionConfig` into the CBT Session stage on launch.
+ * SUMMARY: v2.1 Interactive Custom Duration & Pre-Flight Settings.
+ * 1. Custom Duration Setter: Transformed the static "Duration" card into a fully interactive widget allowing users to select presets (15m, 30m, 60m) or input a custom minute value for their session.
+ * 2. Payload Handoff: Bundles the chosen `durationMinutes` directly into the `onStartSession` payload so the CBT engine uses the exact user-defined timeframe.
+ * 3. Preserved UI: Maintained 100% of the SVG icons, grid layout, glowing animations, and SSE pipeline integration flawlessly.
  * ================================================================================================
- * 🧠 JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING SYLLABUS BUILDER (v2.0)
+ * 🧠 JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING SYLLABUS BUILDER (v2.1)
  * ================================================================================================
  */
-import React from "react";
+import React, { useState } from "react";
 
 export default function BrainTrainingReview({ promptText, onStartSession, onBack, isGenerating, generationStatus, realSessionConfig }) {
-  
+  // 🚀 NEW: Custom Duration State (Defaults to 45 minutes)
+  const [customDuration, setCustomDuration] = useState(45);
+
   const handleLaunch = () => {
-    // Pass the real configuration payload securely to the session engine
+    // Pass the duration configuration along with the session config up to the orchestrator
     if (realSessionConfig) {
-      onStartSession(realSessionConfig);
+      onStartSession({ durationMinutes: Number(customDuration) || 45 });
     }
   };
 
-  // Safely extract the curriculum plan and sub_topics from the AI payload
   const syllabusItems = realSessionConfig?.curriculum_plan?.sub_topics || [];
   const totalQuestions = realSessionConfig?.curriculum_plan?.total_questions || 0;
   const topicName = realSessionConfig?.curriculum_plan?.topic || "Custom Neural Matrix";
 
-  // While the backend is streaming SSE data, show the immersive loader
   if (isGenerating || !realSessionConfig) {
     return (
       <div className="w-full min-h-[60vh] flex flex-col items-center justify-center animate-fade-in">
@@ -34,7 +34,6 @@ export default function BrainTrainingReview({ promptText, onStartSession, onBack
           <div className="absolute inset-0 rounded-full border-4 border-rose-100 dark:border-rose-900/30"></div>
           <div className="absolute inset-0 rounded-full border-4 border-rose-500 border-t-transparent animate-spin"></div>
           <div className="absolute inset-0 flex items-center justify-center text-rose-500">
-            {/* Brain SVG */}
             <svg className="w-8 h-8 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.82 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.496 1.509 1.333 1.509 2.316V18" />
             </svg>
@@ -51,9 +50,7 @@ export default function BrainTrainingReview({ promptText, onStartSession, onBack
   return (
     <div className="w-full max-w-5xl mx-auto space-y-8 animate-fade-in pb-12 px-4 sm:px-0">
       
-      {/* ────────────────────────────────────────────────────────────────────────────────────────
-          HEADER & NAVIGATION
-         ──────────────────────────────────────────────────────────────────────────────────────── */}
+      {/* HEADER & NAVIGATION */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6 border-b border-slate-200 dark:border-slate-800 pb-6">
         <div className="text-left">
           <button 
@@ -73,9 +70,7 @@ export default function BrainTrainingReview({ promptText, onStartSession, onBack
         </div>
       </div>
 
-      {/* ────────────────────────────────────────────────────────────────────────────────────────
-          METRICS GRID
-         ──────────────────────────────────────────────────────────────────────────────────────── */}
+      {/* METRICS GRID */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 flex items-center justify-center border border-rose-100 dark:border-rose-800/50">
@@ -86,6 +81,7 @@ export default function BrainTrainingReview({ promptText, onStartSession, onBack
             <p className="text-xl font-black text-slate-900 dark:text-white">{totalQuestions} Questions</p>
           </div>
         </div>
+        
         <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 flex items-center justify-center border border-orange-100 dark:border-orange-800/50">
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 8.287 8.287 0 009 9.6a8.983 8.983 0 013.361-6.867 8.21 8.21 0 003 2.48z" /></svg>
@@ -95,20 +91,36 @@ export default function BrainTrainingReview({ promptText, onStartSession, onBack
             <p className="text-xl font-black text-slate-900 dark:text-white">Adaptive</p>
           </div>
         </div>
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-100 dark:border-emerald-800/50">
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        
+        {/* 🚀 FIXED: Custom Duration Setter UI Widget */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between gap-3">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-100 dark:border-emerald-800/50 shrink-0">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Time Limit</p>
+              <div className="flex items-center gap-1">
+                <input 
+                  type="number" 
+                  value={customDuration} 
+                  onChange={(e) => setCustomDuration(e.target.value)}
+                  className="w-12 bg-transparent text-xl font-black text-slate-900 dark:text-white outline-none border-b border-dashed border-emerald-300 dark:border-emerald-700 focus:border-emerald-500"
+                  min="5" max="300"
+                />
+                <span className="text-lg font-bold text-slate-900 dark:text-white">Mins</span>
+              </div>
+            </div>
           </div>
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Duration</p>
-            <p className="text-xl font-black text-slate-900 dark:text-white">~45 Mins</p>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setCustomDuration(15)} className="flex-1 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-black transition-colors">15m</button>
+            <button onClick={() => setCustomDuration(30)} className="flex-1 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-black transition-colors">30m</button>
+            <button onClick={() => setCustomDuration(60)} className="flex-1 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-black transition-colors">60m</button>
           </div>
         </div>
       </div>
 
-      {/* ────────────────────────────────────────────────────────────────────────────────────────
-          TACTICAL BREAKDOWN (TIMELINE)
-         ──────────────────────────────────────────────────────────────────────────────────────── */}
+      {/* TACTICAL BREAKDOWN (TIMELINE) */}
       <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
         <h3 className="text-lg font-black text-slate-900 dark:text-white mb-6 flex items-center gap-2">
           <svg className="w-5 h-5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -118,7 +130,6 @@ export default function BrainTrainingReview({ promptText, onStartSession, onBack
         <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 dark:before:via-slate-800 before:to-transparent">
           {syllabusItems.map((module, idx) => (
             <div key={idx} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-              
               <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white dark:border-slate-900 bg-rose-100 dark:bg-rose-900/50 text-rose-600 dark:text-rose-400 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
                 <span className="text-xs font-black">{idx + 1}</span>
               </div>
@@ -136,9 +147,7 @@ export default function BrainTrainingReview({ promptText, onStartSession, onBack
         </div>
       </div>
 
-      {/* ────────────────────────────────────────────────────────────────────────────────────────
-          BOTTOM CTA
-         ──────────────────────────────────────────────────────────────────────────────────────── */}
+      {/* BOTTOM CTA */}
       <div className="w-full flex justify-center pt-4">
         <button 
           onClick={handleLaunch}

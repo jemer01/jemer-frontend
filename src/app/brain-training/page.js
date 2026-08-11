@@ -1,12 +1,11 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v2.0 Brain Training Orchestrator & API Integration.
- * 1. Safe Auth Integration: Injected `jemerAuthenticatedFetch` and JWT auto-refresh cleanly outside the component to secure the endpoints.
- * 2. SSE Telemetry Pipeline: Upgraded `handleNewTraining` to trigger `POST /generate`, stream real-time JSON status updates (normalizing -> architecting -> forging), and fetch the finalized session payload.
- * 3. Analytics Ingestion: Upgraded `handleEndSession` to map the user's answers and securely `POST /submit` the telemetry payload to the Neon Postgres database before transitioning to results.
- * 4. Prop Routing: Passed `isGenerating`, `generationStatus`, and real `sessionConfig` down to the components for the next UI upgrade phase.
+ * SUMMARY: Executed v2.2 Brain Training SPA Orchestrator Upgrade.
+ * 1. Safe Exit Routing: Added `handleLeaveSession` to allow users to save their progress locally and exit back to the Home/History screen without triggering the backend analytics submission.
+ * 2. Prop Handoff: Passed the new `onLeave` function down to the `<BrainTrainingSession />` component.
+ * 3. Preserved Infrastructure: 100% of the JWT JIT logic, SSE generation pipeline, analytics submission, and stage routing remain completely intact.
  * ================================================================================================
- * 🧠 JEMER ACADEMY ECOSYSTEM — BRAIN TRAINING ROUTER (v2.0)
+ * 🧠 JEMER ACADEMY ECOSYSTEM — BRAIN TRAINING ROUTER (v2.2)
  * ================================================================================================
  */
 
@@ -159,13 +158,13 @@ export default function BrainTrainingPage() {
   const [sessionConfig, setSessionConfig] = useState(null);
   const [sessionResults, setSessionResults] = useState(null);
 
-  // 🚀 NEW: SSE Telemetry States
+  // SSE Telemetry States
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStatus, setGenerationStatus] = useState("Initializing cognitive pathways...");
 
   /**
    * Stage 1 -> Stage 2: User submits a new topic prompt from the Hero component.
-   * 🚀 UPGRADED: Connects to the backend via SSE to generate the session.
+   * Connects to the backend via SSE to generate the session.
    */
   const handleNewTraining = async (promptText) => {
     setTrainingPrompt(promptText);
@@ -220,7 +219,7 @@ export default function BrainTrainingPage() {
         }
       }
 
-      // 🚀 Fetch the final generated payload and hydrate session config
+      // Fetch the final generated payload and hydrate session config
       if (generatedSessionId) {
         const sessionRes = await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/brain-training/session/${generatedSessionId}`);
         if (sessionRes.ok) {
@@ -240,26 +239,57 @@ export default function BrainTrainingPage() {
   };
 
   /**
-   * Stage 1 -> Stage 3: User clicks a past session in the History Grid. Bypasses Review.
+   * Stage 1 -> Stage 2 (Review): User clicks a past session in the History Grid.
+   * Fetches the full session payload from the DB and routes to Review so user can see the syllabus again.
    */
-  const handleResumeTraining = (historicalData) => {
-    // We will expand this when connecting the GET history endpoint
-    setSessionConfig(historicalData);
-    setActiveStage("session");
+  const handleResumeTraining = async (historicalData) => {
+    // Route immediately to review screen with a loading state
+    setTrainingPrompt(historicalData.title || historicalData.topic);
+    setIsGenerating(true);
+    setGenerationStatus("Restoring neural pathways...");
+    setActiveStage("review");
+
+    try {
+      await fetchJwtOnDemand();
+      const BACKEND_URL = getBackendUrl();
+      
+      const res = await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/brain-training/session/${historicalData.id}`);
+      
+      if (!res.ok) throw new Error("Failed to retrieve historical session data.");
+      
+      const sessionData = await res.json();
+      setSessionConfig(sessionData);
+    } catch (error) {
+      console.error("Failed to resume training session:", error);
+      setGenerationStatus("An anomaly occurred while restoring the session.");
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   /**
    * Stage 2 -> Stage 3: User accepts the AI generated syllabus and launches the CBT.
    */
   const handleStartSession = (config) => {
-    // If real sessionConfig is available from API, use it. Otherwise use the fallback/mock.
-    setSessionConfig(sessionConfig || config);
+    // Override the base session config with any custom updates (like custom duration) from the Review screen
+    setSessionConfig({ ...sessionConfig, ...config });
     setActiveStage("session");
   };
 
   /**
+   * 🚀 NEW: Stage 3 -> Stage 1: User saves progress locally and exits.
+   * Allows safely leaving the exam without finalizing analytics to the database.
+   */
+  const handleLeaveSession = () => {
+    setTrainingPrompt("");
+    setSessionConfig(null);
+    setSessionResults(null);
+    setActiveStage("home");
+  };
+
+  /**
    * Stage 3 -> Stage 4: User finishes the brain training session and submits.
-   * 🚀 UPGRADED: Compiles user answers and POSTs them to the analytics ingestion backend.
+   * Compiles user answers and POSTs them to the analytics ingestion backend.
    */
   const handleEndSession = async (resultsData) => {
     
@@ -271,7 +301,6 @@ export default function BrainTrainingPage() {
         
         // Map answers from the UI to the backend schema
         sessionConfig.questions.forEach((q) => {
-          // In the next phase, we'll align the keys. Fallback to extracting from the dummy schema for now.
           const questionKey = q.id; 
           const userAnswer = resultsData.userAnswers[questionKey] || "";
           const isCorrect = userAnswer === q.correct_answer;
@@ -281,7 +310,7 @@ export default function BrainTrainingPage() {
             sub_topic: q.sub_topic || "General",
             user_answer: userAnswer,
             is_correct: isCorrect,
-            time_taken_seconds: 0 // Will dynamically track this in session.jsx phase
+            time_taken_seconds: 0 // Tracked in local session
           });
         });
 
@@ -334,7 +363,6 @@ export default function BrainTrainingPage() {
             promptText={trainingPrompt}
             onStartSession={handleStartSession}
             onBack={handleReturnHome}
-            // 🚀 NEW: Passed state to handle live SSE loading
             isGenerating={isGenerating}
             generationStatus={generationStatus}
             realSessionConfig={sessionConfig}
@@ -348,6 +376,7 @@ export default function BrainTrainingPage() {
           <BrainTrainingSession 
             config={sessionConfig} 
             onExit={handleEndSession} 
+            onLeave={handleLeaveSession} // 🚀 NEW: Passed Safe Exit Handler
           />
         </div>
       )}

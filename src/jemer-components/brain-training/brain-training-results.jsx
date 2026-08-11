@@ -1,19 +1,13 @@
 // src/jemer-components/brain-training/brain-training-results.jsx
 "use client";
-
 /**
+ * [NEW UPGRADE]
+ * SUMMARY: v2.0 Live Cognitive Analytics Grading Engine.
+ * 1. Absolute Real Grading: Completely replaced random dummy numbers with mathematically precise grading based on actual DB telemetry. Compares `userAnswers` against `q.correct_answer`.
+ * 2. Plotly Bar Chart Hydration: Dynamically groups the real questions by `sub_topic` and evaluates performance per module to render accurate analytical columns.
+ * 3. Review Render Handoff: Correctly loops through the `realSession` questions to populate the post-quiz review log so the user can verify mistakes exactly as the AI graded them.
  * ================================================================================================
- * 🆕 NEW COMPONENT SUMMARY (v1.0 - BRAIN TRAINING COGNITIVE ANALYTICS)
- * ================================================================================================
- * 1. UNIVERSAL COGNITIVE GRADING: Replaced regional grading (WAEC/JAMB) with a universal, 
- *    e-sports style "S-Tier to D-Tier" ranking system to evaluate global intellectual mastery.
- * 2. ROSE/CRIMSON THEME: Deeply integrated the Rose (`rose-600`, `#e11d48`) colorway across all 
- *    metrics, SVGs, Plotly charts, and scrollbars, reinforcing the intense focus of Brain Training.
- * 3. DYNAMIC SUB-METRIC CHARTING: Since Brain Training operates on a single custom topic, a 
- *    1-bar chart looks empty. The engine intelligently splits the performance into 3 cognitive 
- *    phases (Recall, Application, Synthesis) to beautifully populate the Bar Chart.
- * 4. PURE NATIVE SVGS & UI PERFECTION: Utilized 100% native inline SVGs. Preserved the 
- *    flawless, zero-blank-space grid architecture between the Data Table and the Plotly Data Viz.
+ * ✨ JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING COGNITIVE ANALYTICS (v2.0)
  * ================================================================================================
  */
 
@@ -50,28 +44,53 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
   const secondaryChartColor = "#f43f5e"; // rose-500
   const neutralChartColor = "#94a3b8"; // slate-400
 
-  // Core Grading Engine
+  // 🚀 FIXED: Genuine Grading Engine Processing Live Telemetry
   const gradedData = useMemo(() => {
-    // If sessionData exists, we use it. Otherwise, fallback to a robust dummy payload for UI rendering
-    const totalMaxRaw = 30; // Default questions
-    const rawScore = Math.floor(totalMaxRaw * (Math.random() * 0.4 + 0.6)); // Random score between 60% and 100%
-    const percentage = Math.round((rawScore / totalMaxRaw) * 100);
+    const { userAnswers = {}, realSession = {} } = sessionData || {};
+    const questions = realSession.questions || [];
+    const topicName = realSession.topic || "Custom Neural Matrix";
+    
+    const totalMaxRaw = questions.length || 1; 
+
+    let totalCorrect = 0;
+    let totalWrong = 0;
+    const subTopicStats = {};
+
+    // Execute grading sequence
+    questions.forEach(q => {
+      const topicKey = q.sub_topic || "General";
+      if (!subTopicStats[topicKey]) {
+        subTopicStats[topicKey] = { total: 0, correct: 0 };
+      }
+      subTopicStats[topicKey].total += 1;
+
+      const ans = userAnswers[q.id];
+      if (ans) {
+        if (ans === q.correct_answer) {
+          totalCorrect++;
+          subTopicStats[topicKey].correct += 1;
+        } else {
+          totalWrong++;
+        }
+      }
+    });
+
+    const totalSkipped = totalMaxRaw - totalCorrect - totalWrong;
+    const percentage = Math.round((totalCorrect / totalMaxRaw) * 100) || 0;
     const tier = getCognitiveTier(percentage);
 
-    const totalCorrect = rawScore;
-    const totalWrong = Math.floor((totalMaxRaw - totalCorrect) * 0.8);
-    const totalSkipped = totalMaxRaw - totalCorrect - totalWrong;
-
-    // Split the single topic into 3 cognitive sub-phases to make the bar chart look highly analytical
-    const subPhases = [
-      { name: "Memory Recall", score: Math.min(100, percentage + Math.floor(Math.random() * 10)) },
-      { name: "Logic Application", score: Math.max(0, percentage - Math.floor(Math.random() * 5)) },
-      { name: "Deep Synthesis", score: Math.max(0, percentage - Math.floor(Math.random() * 15)) }
-    ];
+    // Map stats safely to Bar Chart data structure based on actual sub_topics
+    const subPhases = Object.keys(subTopicStats).map(sub => {
+      const stat = subTopicStats[sub];
+      const sc = stat.total > 0 ? Math.round((stat.correct / stat.total) * 100) : 0;
+      // Abbreviate very long subtopic names for the chart x-axis
+      const shortName = sub.length > 20 ? sub.substring(0, 20) + "..." : sub;
+      return { name: shortName, score: sc };
+    });
 
     return {
-      topicName: "Custom Neural Matrix",
-      rawScore,
+      topicName,
+      rawScore: totalCorrect,
       maxRaw: totalMaxRaw,
       percentage,
       tier,
@@ -82,31 +101,36 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
     };
   }, [sessionData]);
 
-  // Mock Review Data Generator
+  // 🚀 FIXED: Map Real Questions for Post-Quiz Review
   const reviewQuestions = useMemo(() => {
-    return [
-      {
-        subject: gradedData.topicName,
-        questions: Array.from({ length: 5 }).map((_, i) => {
-          const isCorrect = Math.random() > 0.3;
-          const correctOpt = ["A", "B", "C", "D"][Math.floor(Math.random() * 4)];
-          const userOpt = isCorrect ? correctOpt : ["A", "B", "C", "D"].find(o => o !== correctOpt);
-          
-          return {
-            id: `q-${i + 1}`,
-            number: i + 1,
-            questionText: `Neural Prompt ${i + 1}: Analyze the theoretical framework generated by the AI and determine the most logically sound conclusion.`,
-            userAnswer: userOpt,
-            correctAnswer: correctOpt,
-            isCorrect,
-          };
-        }),
-      }
-    ];
-  }, [gradedData]);
+    const { userAnswers = {}, realSession = {} } = sessionData || {};
+    const questions = realSession.questions || [];
+    
+    const grouped = {};
+    questions.forEach((q, i) => {
+      const topicKey = q.sub_topic || "General";
+      if (!grouped[topicKey]) grouped[topicKey] = [];
+      
+      const uAns = userAnswers[q.id];
+      const isCorrect = uAns === q.correct_answer;
+      
+      grouped[topicKey].push({
+        id: q.id,
+        number: i + 1,
+        questionText: q.question_text,
+        userAnswer: uAns,
+        correctAnswer: q.correct_answer,
+        isCorrect
+      });
+    });
+
+    return Object.keys(grouped).map(key => ({
+      subject: key,
+      questions: grouped[key]
+    }));
+  }, [sessionData]);
 
   // ── 📊 PLOTLY CONFIGURATIONS ──────────────────────────────────────────────────────────────
-
   const barChartData = [
     {
       x: gradedData.subPhases.map(p => p.name),
@@ -180,7 +204,6 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
       <div className="relative rounded-3xl p-5 sm:p-8 bg-gradient-to-br from-rose-900 via-slate-900 to-pink-950 border border-rose-500/20 text-white overflow-hidden shadow-2xl">
         <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full blur-3xl pointer-events-none bg-rose-500/20" />
         <div className="absolute -bottom-20 -left-20 w-72 h-72 rounded-full blur-3xl pointer-events-none bg-pink-500/10" />
-
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 w-full">
           <div className="space-y-3 min-w-0 w-full md:w-auto">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider font-mono border bg-rose-500/20 text-rose-300 border-rose-500/30">
@@ -188,7 +211,7 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
               Neural Pathway Calibrated
             </div>
             <h1 className="text-2xl sm:text-4xl font-display font-black tracking-tight text-white truncate">
-              Candidate: <span className="text-rose-400">John Jonathan</span>
+              Topic: <span className="text-rose-400">{gradedData.topicName}</span>
             </h1>
             <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs font-medium text-slate-300">
               <span className="flex items-center gap-1.5 shrink-0">
@@ -199,19 +222,12 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
               </span>
               <span className="flex items-center gap-1.5 shrink-0">
                 <svg className="w-4 h-4 shrink-0 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Active Time: 42 mins
-              </span>
-              <span className="flex items-center gap-1.5 shrink-0">
-                <svg className="w-4 h-4 shrink-0 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
                 Cognitive Focus
               </span>
             </div>
           </div>
-
           <button onClick={onRestart} className="w-full sm:w-auto px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs shadow-md backdrop-blur-sm transition-all active:scale-95 shrink-0 text-center flex items-center justify-center gap-2 focus:outline-none">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
             Back to Hub
@@ -240,7 +256,6 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
               </span>
               <span className="text-xl sm:text-2xl font-bold text-slate-400">%</span>
             </div>
-
             <div className="mt-4 px-5 py-2 rounded-full text-xs font-black uppercase tracking-widest border bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800/50 shadow-sm flex items-center gap-2">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
@@ -275,6 +290,7 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
               </table>
             </div>
           </div>
+
         </div>
 
         {/* RIGHT COLUMN: Plotly Data Visualization Stack */}
@@ -283,7 +299,7 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
             <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[280px] sm:h-[300px] w-full min-w-0">
               <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full shrink-0 bg-rose-500" /> 
-                Synaptic Output Phases
+                Sub-Topic Accuracy
               </h3>
               <div className="flex-1 w-full h-full min-h-0 relative">
                 <Plot data={barChartData} layout={barChartLayout} config={{ displayModeBar: false, responsive: true }} style={{ width: "100%", height: "100%", position: "absolute" }} useResizeHandler={true} />
@@ -310,6 +326,7 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
               <Plot data={gaugeChartData} layout={gaugeChartLayout} config={{ displayModeBar: false, responsive: true }} style={{ width: "100%", height: "100%", position: "absolute" }} useResizeHandler={true} />
             </div>
           </div>
+
         </div>
 
       </div>
@@ -323,15 +340,14 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
             <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
         </div>
-
         <div className="relative z-10 flex-1 space-y-2 min-w-0">
           <h3 className="text-base sm:text-lg font-black text-rose-900 dark:text-rose-300">
             Jemer Tutor AI Insight
           </h3>
           <p className="text-xs sm:text-sm font-medium leading-relaxed break-words text-rose-950/80 dark:text-rose-200/80">
             {gradedData.percentage >= 80 
-              ? `"Incredible cognitive focus, John! Attaining ${gradedData.tier} status confirms your deep understanding of this topic. Review the few questions below where your logic slipped to achieve absolute perfection."`
-              : `"Solid effort, John. You secured a ${gradedData.tier} ranking. Your Memory Recall is sharp, but Deep Synthesis needs work. Open the AI Corrections below to see exactly how to bridge the logic gaps."`
+              ? `"Incredible cognitive focus! Attaining ${gradedData.tier} status confirms your deep understanding of this topic. Review the few questions below where your logic slipped to achieve absolute perfection."`
+              : `"Solid effort. You secured a ${gradedData.tier} ranking. Open the AI Corrections below to see exactly how to bridge the logic gaps and master the neural matrix next time."`
             }
           </p>
         </div>
@@ -361,7 +377,6 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
                       <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 font-mono font-black text-sm flex items-center justify-center shrink-0 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                         {q.number}
                       </div>
-
                       <div className="flex-1 space-y-3 min-w-0">
                         <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-relaxed break-words">
                           {q.questionText}
@@ -380,7 +395,7 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
                               <svg className="w-4 h-4 shrink-0 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                             )}
                           </div>
-
+                          
                           {!q.isCorrect && (
                             <div className="px-3 py-1.5 rounded-lg text-white flex items-center gap-2 shadow-sm bg-emerald-500">
                               <span>Optimal Vector: {q.correctAnswer}</span>
@@ -389,7 +404,6 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
                           )}
                         </div>
                       </div>
-
                     </div>
                   ))}
                 </div>

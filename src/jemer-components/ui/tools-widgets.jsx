@@ -31,10 +31,9 @@ export default function ToolsWidgets() {
           Mobile Order Fix: 'order-2' puts this below Snap on mobile, 'lg:order-1' restores desktop left column positioning
          ──────────────────────────────────────────────────────────────────────────────────────── */}
       <div className="col-span-1 lg:col-span-5 flex flex-col gap-6 w-full h-full order-2 lg:order-1">
-        
-        {/* ── WIDGET CARD 1: VID2NOTES ENGINE ── */}
+         {/* ── WIDGET CARD 1: JEMERPLAY MEDIA PLATFORM ── */}
         <Link 
-          // Target page route for YouTube video transcript note generator
+          // Target page route for JemerPlay video streaming and cache platform
           href="/jemerplay"
           // Outer Card Container: Styled with subtle dark mode borders and controlled ambient depth
           className="group relative w-full flex-1 min-h-[240px] rounded-[28px] bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-900/95 backdrop-blur-xl border border-slate-300 dark:border-slate-800 p-6 sm:p-8 flex flex-col justify-between overflow-hidden transition-all duration-500 shadow-xl shadow-slate-200/60 dark:shadow-xl dark:shadow-black/40 hover:shadow-2xl dark:hover:border-slate-700 active:scale-[0.98] cursor-pointer ring-1 ring-white/50 dark:ring-white/5"
@@ -44,7 +43,7 @@ export default function ToolsWidgets() {
 
           {/* Card Main Content Header Stack */}
           <div className="z-10 flex flex-col items-start gap-4">
-            {/* Custom SVG Container Badge for Vid2Notes */}
+            {/* Custom SVG Container Badge for JemerPlay */}
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-red-500 to-rose-600 text-white flex items-center justify-center shadow-lg shadow-red-500/25 group-hover:scale-105 transition-transform duration-300 ring-2 ring-white/20">
               {/* Play / Video Document Icon */}
               <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -56,10 +55,10 @@ export default function ToolsWidgets() {
             {/* Title & Description Typography Stack */}
             <div className="space-y-1.5">
               <h3 className="text-xl lg:text-2xl font-display font-black text-slate-900 dark:text-white tracking-tight">
-                Vid<span className="text-red-500">2</span>Notes
+                Jemer<span className="text-red-500">Play</span>
               </h3>
               <p className="text-sm font-medium text-slate-600 dark:text-slate-300 leading-relaxed max-w-[90%]">
-                Paste any YouTube link. We extract the transcript, synthesize the core concepts, and generate structured study guides instantly.
+                Search and explore thousands of educational video lectures. Watch natively in theater-mode and build your own library with our advanced semantic vector cache.
               </p>
             </div>
           </div>

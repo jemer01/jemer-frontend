@@ -1,53 +1,33 @@
 // src/jemer-components/brain-training/brain-training-review.jsx
 "use client";
-
 /**
+ * [NEW UPGRADE]
+ * SUMMARY: v2.0 Live Syllabus & SSE State Integration.
+ * 1. Live SSE Integration: Now uses `isGenerating` and `generationStatus` from `page.js` to render real-time pipeline telemetry while the 550B model thinks.
+ * 2. Dynamic Curriculum Hydration: Instantly drops the dummy `mockSyllabus` and renders the actual `curriculum_plan` JSON payload parsed from the database.
+ * 3. Perfect Handoff: Seamlessly passes the `realSessionConfig` into the CBT Session stage on launch.
  * ================================================================================================
- * 🆕 NEW COMPONENT SUMMARY (v1.0 - BRAIN TRAINING SYLLABUS BUILDER)
- * ================================================================================================
- * 1. AI SYLLABUS STAGING AREA: Acts as the transitional "Stage 2" view where the AI breaks down 
- *    the user's prompt into a structured, step-by-step cognitive training plan.
- * 2. ROSE/CRIMSON THEME: Beautifully styled with `rose-600` and `pink-500` gradients, featuring 
- *    glassmorphism metric widgets (Total Questions, Difficulty, Duration).
- * 3. TACTICAL BREAKDOWN UI: Utilizes a sleek vertical timeline layout to display the dynamically 
- *    generated learning modules, keeping the user engaged and prepared for the upcoming session.
- * 4. PURE NATIVE SVGS: Zero external icon dependencies. All graphics (Brain, Clock, Shield, Target) 
- *    are crisp, inline SVG elements.
+ * 🧠 JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING SYLLABUS BUILDER (v2.0)
  * ================================================================================================
  */
+import React from "react";
 
-import React, { useState, useEffect } from "react";
-
-export default function BrainTrainingReview({ promptText, onStartSession, onBack }) {
-  const [isCompiling, setIsCompiling] = useState(true);
-
-  // Simulate AI compilation delay for UX effect
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsCompiling(false);
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Mock generated syllabus data
-  const mockSyllabus = [
-    { phase: "Phase 1", title: "Foundational Mechanics", desc: "Core terminology and basic principles." },
-    { phase: "Phase 2", title: "Structural Application", desc: "Applying concepts to standard scenarios." },
-    { phase: "Phase 3", title: "Advanced Edge-Cases", desc: "High-level problem solving and outliers." },
-  ];
-
+export default function BrainTrainingReview({ promptText, onStartSession, onBack, isGenerating, generationStatus, realSessionConfig }) {
+  
   const handleLaunch = () => {
-    // Package the configuration for the session engine
-    const sessionConfig = {
-      mode: "brain-training",
-      promptUsed: promptText,
-      durationMinutes: 45,
-      subjects: [{ id: "cognitive_matrix", name: "Neural Matrix", count: 30 }]
-    };
-    onStartSession(sessionConfig);
+    // Pass the real configuration payload securely to the session engine
+    if (realSessionConfig) {
+      onStartSession(realSessionConfig);
+    }
   };
 
-  if (isCompiling) {
+  // Safely extract the curriculum plan and sub_topics from the AI payload
+  const syllabusItems = realSessionConfig?.curriculum_plan?.sub_topics || [];
+  const totalQuestions = realSessionConfig?.curriculum_plan?.total_questions || 0;
+  const topicName = realSessionConfig?.curriculum_plan?.topic || "Custom Neural Matrix";
+
+  // While the backend is streaming SSE data, show the immersive loader
+  if (isGenerating || !realSessionConfig) {
     return (
       <div className="w-full min-h-[60vh] flex flex-col items-center justify-center animate-fade-in">
         <div className="relative w-24 h-24 mb-6">
@@ -60,14 +40,16 @@ export default function BrainTrainingReview({ promptText, onStartSession, onBack
             </svg>
           </div>
         </div>
-        <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-widest">Synthesizing Syllabus...</h2>
-        <p className="text-sm text-slate-500 mt-2 font-mono">Parsing prompt and generating neural pathways.</p>
+        <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-widest text-center px-4">
+          {generationStatus || "Synthesizing Syllabus..."}
+        </h2>
+        <p className="text-sm text-slate-500 mt-2 font-mono text-center px-4">Parsing prompt and generating neural pathways.</p>
       </div>
     );
   }
 
   return (
-    <div className="w-full max-w-5xl mx-auto space-y-8 animate-fade-in pb-12">
+    <div className="w-full max-w-5xl mx-auto space-y-8 animate-fade-in pb-12 px-4 sm:px-0">
       
       {/* ────────────────────────────────────────────────────────────────────────────────────────
           HEADER & NAVIGATION
@@ -82,7 +64,7 @@ export default function BrainTrainingReview({ promptText, onStartSession, onBack
             Back to Hub
           </button>
           <h1 className="text-3xl sm:text-4xl font-display font-black tracking-tight text-slate-900 dark:text-white">
-            AI Syllabus Generated
+            {topicName}
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 font-medium max-w-2xl mt-2 flex items-start gap-2 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
             <svg className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
@@ -101,10 +83,9 @@ export default function BrainTrainingReview({ promptText, onStartSession, onBack
           </div>
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Output</p>
-            <p className="text-xl font-black text-slate-900 dark:text-white">30 Questions</p>
+            <p className="text-xl font-black text-slate-900 dark:text-white">{totalQuestions} Questions</p>
           </div>
         </div>
-
         <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 flex items-center justify-center border border-orange-100 dark:border-orange-800/50">
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 8.287 8.287 0 009 9.6a8.983 8.983 0 013.361-6.867 8.21 8.21 0 003 2.48z" /></svg>
@@ -114,7 +95,6 @@ export default function BrainTrainingReview({ promptText, onStartSession, onBack
             <p className="text-xl font-black text-slate-900 dark:text-white">Adaptive</p>
           </div>
         </div>
-
         <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-100 dark:border-emerald-800/50">
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -136,7 +116,7 @@ export default function BrainTrainingReview({ promptText, onStartSession, onBack
         </h3>
         
         <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 dark:before:via-slate-800 before:to-transparent">
-          {mockSyllabus.map((module, idx) => (
+          {syllabusItems.map((module, idx) => (
             <div key={idx} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
               
               <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white dark:border-slate-900 bg-rose-100 dark:bg-rose-900/50 text-rose-600 dark:text-rose-400 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
@@ -145,10 +125,11 @@ export default function BrainTrainingReview({ promptText, onStartSession, onBack
               
               <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 shadow-sm">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-rose-500">{module.phase}</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-rose-500">Module {idx + 1}</span>
+                  <span className="text-[10px] font-bold text-slate-500">{module.question_count} Qs</span>
                 </div>
-                <h4 className="text-sm font-bold text-slate-900 dark:text-white">{module.title}</h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">{module.desc}</p>
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white">{module.name}</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">{module.description}</p>
               </div>
             </div>
           ))}
@@ -167,7 +148,6 @@ export default function BrainTrainingReview({ promptText, onStartSession, onBack
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
         </button>
       </div>
-
     </div>
   );
 }

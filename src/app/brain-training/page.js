@@ -1,11 +1,12 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v2.2 Brain Training SPA Orchestrator Upgrade.
- * 1. Safe Exit Routing: Added `handleLeaveSession` to allow users to save their progress locally and exit back to the Home/History screen without triggering the backend analytics submission.
- * 2. Prop Handoff: Passed the new `onLeave` function down to the `<BrainTrainingSession />` component.
- * 3. Preserved Infrastructure: 100% of the JWT JIT logic, SSE generation pipeline, analytics submission, and stage routing remain completely intact.
+ * SUMMARY: Executed v3.0 Brain Training Performance History Routing.
+ * 1. Performance History Integration: Added `activeStage === 'performance'` to route users to the new completed exams archive.
+ * 2. Analytics Handoff: Implemented `handleReviewCompletedExam` to securely fetch a completed session's JSON payload from the Neon DB and inject it directly into the Results dashboard.
+ * 3. Component Wiring: Passed `onOpenPerformance` down to the Home component so users can toggle the new view seamlessly.
+ * 4. Preserved Infrastructure: 100% of the JWT JIT logic, SSE telemetry, safe exit routing, and existing SPA state machine remain absolutely untouched.
  * ================================================================================================
- * 🧠 JEMER ACADEMY ECOSYSTEM — BRAIN TRAINING ROUTER (v2.2)
+ * 🧠 JEMER ACADEMY ECOSYSTEM — BRAIN TRAINING ROUTER (v3.0)
  * ================================================================================================
  */
 
@@ -16,6 +17,8 @@ import BrainTraining from "@/jemer-components/brain-training/brain-training";
 import BrainTrainingReview from "@/jemer-components/brain-training/brain-training-review";
 import BrainTrainingSession from "@/jemer-components/brain-training/brain-training-session";
 import BrainTrainingResults from "@/jemer-components/brain-training/brain-training-results";
+// 🚀 NEW: Import the Performance History Archive component
+import BrainTrainingPerformanceHistory from "@/jemer-components/brain-training/brain-training-performance-history";
 
 // ================================================================================================
 // 🔐 AUTHENTICATION & JWT UTILITIES
@@ -277,7 +280,7 @@ export default function BrainTrainingPage() {
   };
 
   /**
-   * 🚀 NEW: Stage 3 -> Stage 1: User saves progress locally and exits.
+   * Stage 3 -> Stage 1: User saves progress locally and exits.
    * Allows safely leaving the exam without finalizing analytics to the database.
    */
   const handleLeaveSession = () => {
@@ -334,6 +337,46 @@ export default function BrainTrainingPage() {
   };
 
   /**
+   * 🚀 NEW: Route User to Performance History Dashboard
+   */
+  const handleOpenPerformance = () => {
+    setActiveStage("performance");
+  };
+
+  /**
+   * 🚀 NEW: Fetch Completed Exam Payload and Route to Results
+   * Parses historical session config to re-hydrate the AI Insight & Grading layout perfectly.
+   */
+  const handleReviewCompletedExam = async (historicalData) => {
+    setIsGenerating(true);
+    setGenerationStatus("Retrieving cognitive analytics...");
+    setActiveStage("performance"); // Maintain stage while loader overlays
+    
+    try {
+      await fetchJwtOnDemand();
+      const BACKEND_URL = getBackendUrl();
+      
+      const res = await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/brain-training/session/${historicalData.id}`);
+      if (!res.ok) throw new Error("Failed to retrieve historical session data.");
+      
+      const sessionData = await res.json();
+      
+      // Feed historical session safely into the results UI structure
+      setSessionResults({
+         realSession: sessionData,
+         userAnswers: {} // User answers are processed in backend logs; charts will display cached DB data
+      });
+      
+      setActiveStage("results");
+    } catch (error) {
+      console.error("Failed to retrieve completed exam:", error);
+      alert("Failed to retrieve completed exam record. Please try again.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  /**
    * Universal Return Handler
    */
   const handleReturnHome = () => {
@@ -352,6 +395,7 @@ export default function BrainTrainingPage() {
           <BrainTraining 
             onStartNew={handleNewTraining} 
             onResume={handleResumeTraining} 
+            onOpenPerformance={handleOpenPerformance} // 🚀 NEW: Handoff prop for performance button
           />
         </div>
       )}
@@ -376,7 +420,7 @@ export default function BrainTrainingPage() {
           <BrainTrainingSession 
             config={sessionConfig} 
             onExit={handleEndSession} 
-            onLeave={handleLeaveSession} // 🚀 NEW: Passed Safe Exit Handler
+            onLeave={handleLeaveSession} 
           />
         </div>
       )}
@@ -387,6 +431,18 @@ export default function BrainTrainingPage() {
           <BrainTrainingResults 
             sessionData={sessionResults} 
             onRestart={handleReturnHome} 
+          />
+        </div>
+      )}
+
+      {/* 🚀 NEW: STAGE 5: PERFORMANCE HISTORY ARCHIVE */}
+      {activeStage === "performance" && (
+        <div className="w-full animate-fade-in">
+          <BrainTrainingPerformanceHistory 
+            onBack={handleReturnHome}
+            onReviewExam={handleReviewCompletedExam}
+            isGenerating={isGenerating}
+            generationStatus={generationStatus}
           />
         </div>
       )}

@@ -2,23 +2,19 @@
 "use client";
 
 /**
+ * [NEW UPGRADE]
+ * SUMMARY: v2.0 Performance Archive Route Integration.
+ * 1. Performance Dashboard CTA: Injected a premium "View Past Results & Analytics" button below the history grid. When clicked, it triggers the `onOpenPerformance` prop to route the user seamlessly into the completed exams archive.
+ * 2. Component Integrity: Preserved 100% of the glowing orbs, typewriter layout, prompt logic, and history grid integration.
  * ================================================================================================
- * 🆕 NEW COMPONENT SUMMARY (v1.0 - BRAIN TRAINING HOME)
- * ================================================================================================
- * 1. EDGE-TO-EDGE PROMPT BOX: Built a massive, beautifully centered prompt input acting as the 
- *    gateway to global cognitive mastery. Features a glowing Rose/Crimson aura.
- * 2. SUGGESTION PILLS: Added quick-click topics (Quantum Physics, Closures, etc.) to instantly 
- *    fill the prompt box and accelerate UX.
- * 3. HISTORY INTEGRATION: Flawlessly imports and renders the `<BrainTrainingHistory />` component 
- *    directly below the hero section so users can scroll to see past modules.
- * 4. PURE REACT SVGS: Utilized ultra-crisp native SVGs for the send arrow and UI accents.
+ * 🧠 JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING HOME (v2.0)
  * ================================================================================================
  */
 
 import React, { useState } from "react";
 import BrainTrainingHistory from "./brain-training-history";
 
-export default function BrainTraining({ onStartNew, onResume }) {
+export default function BrainTraining({ onStartNew, onResume, onOpenPerformance }) {
   const [promptText, setPromptText] = useState("");
 
   const handleLaunch = () => {
@@ -112,10 +108,25 @@ export default function BrainTraining({ onStartNew, onResume }) {
       </div>
 
       {/* ────────────────────────────────────────────────────────────────────────────────────────
-          SCROLL REVEAL: HISTORY GRID
+          SCROLL REVEAL: HISTORY GRID & PERFORMANCE ARCHIVE CTA
          ──────────────────────────────────────────────────────────────────────────────────────── */}
-      <div className="w-full pt-10 border-t border-slate-200 dark:border-slate-800">
-        <BrainTrainingHistory onResume={onResume} />
+      <div className="w-full pt-10 border-t border-slate-200 dark:border-slate-800 flex flex-col items-center">
+        <div className="w-full">
+          <BrainTrainingHistory onResume={onResume} />
+        </div>
+
+        {/* 🚀 NEW: Performance Dashboard Link */}
+        <div className="mt-12 mb-4 w-full flex justify-center px-4">
+          <button 
+            onClick={onOpenPerformance}
+            className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 font-black text-xs sm:text-sm uppercase tracking-widest shadow-sm hover:shadow-lg hover:border-rose-300 dark:hover:border-rose-700 transition-all flex items-center justify-center gap-3 active:scale-95 focus:outline-none"
+          >
+            <svg className="w-5 h-5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+            </svg>
+            <span>View Past Results & Analytics</span>
+          </button>
+        </div>
       </div>
 
     </div>

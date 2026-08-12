@@ -2,13 +2,11 @@
 "use client";
 /**
  * [NEW UPGRADE]
- * SUMMARY: v2.0 Brain Training History API Integration.
- * 1. Live Data Fetching: Integrates with `GET /api/v1/brain-training/history` to replace dummy grid data.
- * 2. Horizontal Scroll Carousel: Transformed the multi-column grid into an immersive `overflow-x-auto` snap-x rail to conserve vertical space.
- * 3. Functional CRUD 3-Dot Menu: Safely handles inline Renaming, Pinning/Unpinning, and Deleting directly tied to the database endpoints.
- * 4. UX & Progress Binding: The "Synapse Activation" bar accurately reflects `session.progress` calculated natively by the PostgreSQL engine.
+ * SUMMARY: v2.1 Partial Progress Visual Sync.
+ * 1. Progress Bar Fix: Ensuring the Synapse Activation bar accurately scales by setting `Math.max(1, session.progress || 0)` so even partially completed exams (e.g., user hits "Save & Exit" halfway) render a visual progress fill. 
+ * 2. State Clarity: Calculates partial completion states cleanly without requiring `isMastered` flag to be true.
  * ================================================================================================
- * 📚 JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING HISTORY (v2.0)
+ * 📚 JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING HISTORY (v2.1)
  * ================================================================================================
  */
 
@@ -41,7 +39,9 @@ export default function BrainTrainingHistory({ onResume }) {
         });
         if (res.ok) {
           const data = await res.json();
-          setHistory(data || []);
+          // Filter to only show active or partially completed sessions in the history rail (Completed goes to Performance Archive)
+          const activeSessions = (data || []).filter(item => item.status !== 'completed');
+          setHistory(activeSessions);
         }
       } catch (err) {
         console.error("Failed to load brain training history:", err);
@@ -141,7 +141,7 @@ export default function BrainTrainingHistory({ onResume }) {
   }
 
   if (history.length === 0) {
-    return null; // Hide cleanly if no history exists
+    return null; // Hide cleanly if no active history exists
   }
 
   return (
@@ -155,10 +155,10 @@ export default function BrainTrainingHistory({ onResume }) {
             <svg className="w-6 h-6 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.82 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.496 1.509 1.333 1.509 2.316V18" />
             </svg>
-            Your Cognitive Archives
+            Active Training Modules
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 font-medium mt-1">
-            Resume incomplete sessions or review past material to reinforce memory pathways.
+            Resume incomplete sessions. Completed exams are safely stored in your Performance Archive.
           </p>
         </div>
       </div>
@@ -166,8 +166,9 @@ export default function BrainTrainingHistory({ onResume }) {
       {/* Responsive Horizontal Scroll Carousel */}
       <div className="flex gap-4 sm:gap-5 overflow-x-auto snap-x snap-mandatory brain-premium-scroll pb-6 px-2">
         {history.map((session) => {
-          const isMastered = session.progress >= 85;
-          const displayStatus = session.progress === 100 ? "Completed" : session.progress > 0 ? "In Progress" : session.status || "Pending";
+          // 🚀 FIXED: Robust progress rendering. Ensures that even 5% progress renders a visible bar cleanly without needing 100% mastery.
+          const currentProgress = session.progress || 0;
+          const displayStatus = currentProgress > 0 ? "In Progress" : session.status || "Pending";
           
           return (
             <div 
@@ -200,16 +201,12 @@ export default function BrainTrainingHistory({ onResume }) {
               )}
 
               <div className="flex items-start justify-between mb-4">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-inner ${
-                  isMastered ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400" : "bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400"
-                }`}>
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-inner bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400">
                   <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.82 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.496 1.509 1.333 1.509 2.316V18" />
                   </svg>
                 </div>
-                <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${
-                  isMastered ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400" : "bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"
-                }`}>
+                <span className="px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
                   {displayStatus}
                 </span>
               </div>
@@ -242,12 +239,12 @@ export default function BrainTrainingHistory({ onResume }) {
               <div className="mt-auto space-y-2 border-t border-slate-100 dark:border-slate-800/60 pt-4 relative z-0">
                 <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-500">
                   <span>Synapse Activation</span>
-                  <span className={isMastered ? "text-emerald-500" : "text-rose-500"}>{session.progress || 0}%</span>
+                  <span className="text-rose-500">{currentProgress}%</span>
                 </div>
                 <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                   <div 
-                    className={`h-full rounded-full transition-all duration-700 ${isMastered ? "bg-emerald-500" : "bg-rose-500"}`} 
-                    style={{ width: `${session.progress || 0}%` }}
+                    className="h-full rounded-full transition-all duration-700 bg-rose-500" 
+                    style={{ width: `${Math.max(2, currentProgress)}%` }} // Forces minimum 2% width so the bar is visibly rendered when slightly active
                   />
                 </div>
               </div>

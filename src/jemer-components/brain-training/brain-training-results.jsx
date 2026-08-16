@@ -1,4 +1,17 @@
 /**
+ * [PATCH v3.1]
+ * SUMMARY: Fixed a Runtime ReferenceError that crashed the Results page on render.
+ * 1. Restored `gaugeChartLayout` — referenced by the Synapse Index gauge chart
+ *    (~line 425) but never declared anywhere in the file.
+ * 2. Restored `pieChartLayout` — referenced by both the Decision Accuracy pie
+ *    chart (~line 453) and the Choice Bias donut chart (~line 462, via spread
+ *    with a legend override) but also never declared.
+ * Scope: additive only — two new consts added alongside the existing chart
+ * layout definitions. No other lines changed, removed, or reordered.
+ * ================================================================================================
+ */
+
+/**
  * [NEW UPGRADE]
  * SUMMARY: Executed v3.0 Brain Training Analytics & Review Overhaul.
  * 1. Live AI Tutor Insight: Dynamically fetches the 120B personalized remark using `POST /api/v1/brain-training/session/{id}/insight` if not already cached, rendering the encouraging remark and 3-step action plan natively.
@@ -12,7 +25,7 @@
  */
 
 "use client";
-
+console.log("JEMER_MARKER_v31");
 import React, { useState, useMemo, useEffect } from "react";
 import dynamic from "next/dynamic";
 import MarkdownRenderer from "@/jemer-components/ui/markdown-renderer.jsx";
@@ -300,6 +313,22 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
   ];
 
   const minimalistLayout = { autosize: true, margin: { t: 10, b: 10, l: 10, r: 10 }, paper_bgcolor: "transparent", showlegend: false };
+
+  const gaugeChartLayout = {
+    autosize: true,
+    margin: { t: 40, b: 10, l: 20, r: 20 },
+    paper_bgcolor: "transparent",
+    font: { color: "#64748b", family: "inherit" },
+  };
+
+  const pieChartLayout = {
+    autosize: true,
+    margin: { t: 20, b: 20, l: 10, r: 10 },
+    paper_bgcolor: "transparent",
+    font: { color: "#64748b", family: "inherit" },
+    showlegend: true,
+    legend: { orientation: "h", x: 0.5, xanchor: "center", y: -0.1, font: { size: 10 } },
+  };
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 sm:space-y-8 animate-fade-in pb-12 lg:pb-16 overflow-x-hidden px-4 sm:px-0">

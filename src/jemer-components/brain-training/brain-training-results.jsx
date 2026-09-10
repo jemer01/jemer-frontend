@@ -1,16 +1,20 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v3.4 Bulletproof Grading Engine (Intelligent Cross-Referencing).
- * 1. Advanced Choice Resolution: Replaced the naive `sanitizeChoiceKey` with `resolveChoiceKey`. This function now explicitly cross-references the AI's `correct_answer` string with the actual `q.options` object texts. 
- * 2. Bug Eliminated: If the AI hallucinates and returns a full sentence (e.g., "Because...") instead of a letter ("A"), the grader no longer blindly matches the "B" in "Because". It accurately maps the sentence back to its originating option letter, guaranteeing a 100% flawless grade.
- * 3. Preserved Local Compute: All advanced matching executes natively inside the React `useMemo` hooks, costing zero additional database overhead.
+ * SUMMARY: Executed v3.5 Results UI Restructure, Chart Ergonomics & Benchmark Modals.
+ * 1. Mobile Edge-to-Edge: Relaxed outer padding to `px-2 sm:px-4 lg:px-6` and set max-width to `max-w-7xl` so cards fit edge-to-edge on mobile phones without awkward slim letterboxing.
+ * 2. Full-Width Cognitive Stamina: Scaled the Cognitive Stamina line chart to `lg:col-span-12` for expansive horizontal fidelity and rich spline rendering.
+ * 3. Enlarged Knowledge Radar: Upgraded Knowledge Radar to `lg:col-span-6` and balanced it cleanly alongside the Synapse Index (`lg:col-span-6`) with zero blank space.
+ * 4. Interactive Benchmark Info Modals: Injected info (`i`) triggers onto all 10 metric cards and charts. Clicking opens a clean modal explaining the exact cognitive rationale.
+ * 5. Fresh Insight on Retake: Nullifies stale cached insights on newly submitted retakes and adds an on-demand "Refresh Analysis" trigger.
+ * 6. Markdown Layout Fix: Expanded the AI Insight container with `prose-sm sm:prose-base max-w-none` so bullet points, headers, and recommendations display in full markdown.
+ * 7. Navigation Label: Renamed "Back to Hub" to "Back to Home".
  * ================================================================================================
- * ✨ JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING COGNITIVE ANALYTICS (v3.4)
+ * ✨ JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING COGNITIVE ANALYTICS (v3.5)
  * ================================================================================================
  */
 
 "use client";
-console.log("JEMER_MARKER_v34");
+console.log("JEMER_MARKER_v35");
 import React, { useState, useMemo, useEffect } from "react";
 import dynamic from "next/dynamic";
 import MarkdownRenderer from "@/jemer-components/ui/markdown-renderer.jsx";
@@ -35,7 +39,7 @@ const cleanTextForLaTeX = (text) => {
     .replace(/\u00A0/g, ' '); // Non-breaking space
 };
 
-// 🚀 NEW: Intelligent Cross-Referencing Choice Resolver
+// Intelligent Cross-Referencing Choice Resolver
 const resolveChoiceKey = (choice, optionsObj) => {
   if (!choice) return "";
   const strChoice = String(choice).trim();
@@ -53,13 +57,11 @@ const resolveChoiceKey = (choice, optionsObj) => {
     for (const [key, val] of Object.entries(optionsObj)) {
       const valStr = String(val).trim().toLowerCase();
       const targetStr = strChoice.toLowerCase();
-      // Exact string match
       if (valStr === targetStr) {
         const keyMatch = String(key).match(/[A-D]/i);
         return keyMatch ? keyMatch[0].toUpperCase() : String(key).toUpperCase();
       }
     }
-    // Partial Match: Check if the option text is heavily included in the choice string (or vice versa)
     for (const [key, val] of Object.entries(optionsObj)) {
       const valStr = String(val).trim().toLowerCase();
       const targetStr = strChoice.toLowerCase();
@@ -74,7 +76,7 @@ const resolveChoiceKey = (choice, optionsObj) => {
   const isolatedMatch = upperChoice.match(/\b([A-D])\b/i);
   if (isolatedMatch) return isolatedMatch[1].toUpperCase();
 
-  // 5. Last Resort: First A, B, C, D it finds
+  // 5. Last Resort
   const lastResort = upperChoice.match(/[A-D]/i);
   return lastResort ? lastResort[0].toUpperCase() : upperChoice;
 };
@@ -102,6 +104,9 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
   const [expandedExplanations, setExpandedExplanations] = useState({});
   const [aiInsight, setAiInsight] = useState(sessionData?.realSession?.ai_insight || null);
   const [isFetchingInsight, setIsFetchingInsight] = useState(false);
+
+  // 🚀 NEW: Benchmark Educational Modal State
+  const [activeBenchmarkInfo, setActiveBenchmarkInfo] = useState(null);
 
   const primaryChartColor = "#e11d48"; // rose-600
   const secondaryChartColor = "#f43f5e"; // rose-500
@@ -132,7 +137,6 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
       }
       subTopicStats[topicKey].total += 1;
 
-      // Ensure options are parsed for the intelligent resolver
       let parsedOptions = {};
       try {
         parsedOptions = typeof q.options === 'string' ? JSON.parse(q.options) : (q.options || {});
@@ -140,7 +144,6 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
         parsedOptions = q.options || {};
       }
 
-      // 🚀 FIXED: Securely resolve choices via cross-referencing options text
       const rawUserAns = userAnswers[q.id];
       const safeUserAns = resolveChoiceKey(rawUserAns, parsedOptions);
       const safeCorrectAns = resolveChoiceKey(q.correct_answer, parsedOptions);
@@ -167,7 +170,7 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
     const totalSkipped = totalMaxRaw - totalCorrect - totalWrong;
     const percentage = Math.round((totalCorrect / totalMaxRaw) * 100) || 0;
     const tier = getCognitiveTier(percentage);
-    const percentile = Math.min(99, Math.max(1, Math.round(percentage * 1.1))); // Gamified Percentile Estimate
+    const percentile = Math.min(99, Math.max(1, Math.round(percentage * 1.1)));
 
     let blindSpot = "None";
     let lowestScore = 100;
@@ -179,7 +182,7 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
         lowestScore = sc;
         blindSpot = sub;
       }
-      const shortName = sub.length > 25 ? sub.substring(0, 25) + "..." : sub;
+      const shortName = sub.length > 22 ? sub.substring(0, 22) + "..." : sub;
       return { name: shortName, score: sc, rawName: sub };
     });
 
@@ -204,54 +207,46 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
     };
   }, [sessionData]);
 
-  // AI Tutor Insight Fetcher
+  // 🚀 FIXED: Reliable AI Tutor Insight Fetcher with force-refresh support
+  const requestFreshInsight = async () => {
+    if (!sessionData?.realSession?.id) return;
+    setIsFetchingInsight(true);
+    try {
+      const payload = `Score: ${gradedData.percentage}% | Tier: ${gradedData.tier} | Weakest Area: ${gradedData.blindSpot} | Longest Streak: ${gradedData.maxStreak} | Total Correct: ${gradedData.totalCorrect} / ${gradedData.maxRaw} | Pacing: ~${gradedData.mockPacingSeconds}s/Q`;
+      const res = await fetch(`${getBackendUrl()}/api/v1/brain-training/session/${sessionData.realSession.id}/insight`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`
+        },
+        body: JSON.stringify({ telemetry_data: payload })
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ai_insight && data.ai_insight.length > 10) {
+          setAiInsight(cleanTextForLaTeX(data.ai_insight));
+        } else {
+          setAiInsight("The AI Tutor was unable to generate a detailed review at this time. Please check your metrics manually.");
+        }
+      } else {
+        setAiInsight("Connection to Jemer AI Core failed while retrieving insight.");
+      }
+    } catch (err) {
+      console.error("Failed to fetch AI insight:", err);
+      setAiInsight("An anomaly occurred while connecting to the intelligence core.");
+    } finally {
+      setIsFetchingInsight(false);
+    }
+  };
+
   useEffect(() => {
-    if (aiInsight && aiInsight.length > 20) {
+    // If an existing insight is already cached and valid, use it unless it's a freshly submitted retake
+    if (aiInsight && aiInsight.length > 25) {
       setIsFetchingInsight(false);
       return;
     }
-
-    if (!sessionData?.realSession?.id) {
-      setAiInsight("Unable to generate performance insight: Mission session identifiers.");
-      return;
-    }
-
-    let isMounted = true;
-
-    const fetchInsight = async () => {
-      setIsFetchingInsight(true);
-      try {
-        const payload = `Score: ${gradedData.percentage}% | Tier: ${gradedData.tier} | Weakest Area: ${gradedData.blindSpot} | Longest Streak: ${gradedData.maxStreak} | Total Correct: ${gradedData.totalCorrect} / ${gradedData.maxRaw}`;
-        const res = await fetch(`${getBackendUrl()}/api/v1/brain-training/session/${sessionData.realSession.id}/insight`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${getToken()}`
-          },
-          body: JSON.stringify({ telemetry_data: payload })
-        });
-        
-        if (res.ok && isMounted) {
-          const data = await res.json();
-          if (data.ai_insight && data.ai_insight.length > 10) {
-            setAiInsight(cleanTextForLaTeX(data.ai_insight));
-          } else {
-            setAiInsight("The AI Tutor was unable to generate a detailed review at this time. Please review your metrics manually.");
-          }
-        } else if (isMounted) {
-          setAiInsight("Connection to Jemer AI Core failed while retrieving insight.");
-        }
-      } catch (err) {
-        console.error("Failed to fetch AI insight:", err);
-        if (isMounted) setAiInsight("An anomaly occurred while connecting to the intelligence core.");
-      } finally {
-        if (isMounted) setIsFetchingInsight(false);
-      }
-    };
-
-    fetchInsight();
-
-    return () => { isMounted = false; };
+    requestFreshInsight();
   }, [sessionData?.realSession?.id, gradedData]);
 
   // 🚀 REVIEW GROUPING ENGINE
@@ -303,28 +298,29 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
       x: gradedData.subPhases.map(p => p.name),
       y: gradedData.subPhases.map(p => p.score),
       type: "bar",
-      marker: { color: primaryChartColor, borderRadius: 4 },
+      marker: { color: primaryChartColor, borderRadius: 6 },
       text: gradedData.subPhases.map(p => `${p.score}%`),
       textposition: "auto",
-      hoverinfo: "y",
+      hoverinfo: "y+x",
     },
   ];
 
   const barChartLayout = {
-    autosize: true, margin: { t: 20, b: 60, l: 30, r: 15 },
+    autosize: true, 
+    margin: { t: 25, b: Math.max(60, Math.min(100, gradedData.subPhases.length * 10)), l: 35, r: 15 },
     paper_bgcolor: "transparent", plot_bgcolor: "transparent",
     font: { color: "#64748b", family: "inherit" },
-    xaxis: { fixedrange: true, showgrid: false, automargin: true, tickfont: { size: 9, color: "#64748b" }, tickangle: -15 },
-    yaxis: { fixedrange: true, range: [0, 105], showgrid: true, gridcolor: "rgba(148, 163, 184, 0.1)", tickfont: { size: 10 } },
+    xaxis: { fixedrange: true, showgrid: false, automargin: true, tickfont: { size: 10, color: "#64748b" }, tickangle: -20 },
+    yaxis: { fixedrange: true, range: [0, 105], showgrid: true, gridcolor: "rgba(148, 163, 184, 0.12)", tickfont: { size: 10 } },
   };
 
   const lineChartData = [
     {
       y: gradedData.rollingAccuracy,
       type: "scatter", mode: "lines+markers",
-      line: { color: secondaryChartColor, width: 3, shape: 'spline' },
-      marker: { size: 6, color: primaryChartColor },
-      fill: 'tozeroy', fillcolor: 'rgba(244, 63, 94, 0.1)',
+      line: { color: secondaryChartColor, width: 3.5, shape: 'spline' },
+      marker: { size: 6, color: primaryChartColor, symbol: "circle" },
+      fill: 'tozeroy', fillcolor: 'rgba(244, 63, 94, 0.12)',
     },
   ];
 
@@ -334,25 +330,25 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
       r: gradedData.subPhases.map(p => p.score),
       theta: gradedData.subPhases.map(p => p.name),
       fill: 'toself',
-      fillcolor: 'rgba(225, 29, 72, 0.2)',
-      line: { color: primaryChartColor, width: 2 },
+      fillcolor: 'rgba(225, 29, 72, 0.25)',
+      line: { color: primaryChartColor, width: 2.5 },
     }
   ];
 
   const radarChartLayout = {
-    autosize: true, margin: { t: 30, b: 30, l: 30, r: 30 },
+    autosize: true, margin: { t: 35, b: 35, l: 40, r: 40 },
     paper_bgcolor: "transparent", font: { color: "#64748b", family: "inherit" },
     polar: {
       radialaxis: { visible: true, range: [0, 100], gridcolor: "rgba(148, 163, 184, 0.2)" },
-      angularaxis: { tickfont: { size: 9, color: "#64748b" }, gridcolor: "rgba(148, 163, 184, 0.2)" }
+      angularaxis: { tickfont: { size: 10, color: "#64748b" }, gridcolor: "rgba(148, 163, 184, 0.2)" }
     }
   };
 
   const donutChartData = [
     {
       values: [gradedData.choiceBias.A, gradedData.choiceBias.B, gradedData.choiceBias.C, gradedData.choiceBias.D],
-      labels: ["Opt A", "Opt B", "Opt C", "Opt D"],
-      type: "pie", hole: 0.7,
+      labels: ["Option A", "Option B", "Option C", "Option D"],
+      type: "pie", hole: 0.65,
       marker: { colors: [primaryChartColor, "#fb7185", "#fca5a5", "#ffe4e6"] },
       textinfo: "none", hoverinfo: "label+value",
     },
@@ -362,7 +358,7 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
     {
       values: [gradedData.totalCorrect, gradedData.totalWrong, gradedData.totalSkipped],
       labels: ["Correct", "Incorrect", "Unanswered"],
-      type: "pie", hole: 0.6,
+      type: "pie", hole: 0.55,
       marker: { colors: [primaryChartColor, "#fb7185", neutralChartColor] },
       textinfo: "percent", hoverinfo: "label+value",
     },
@@ -372,11 +368,11 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
     {
       type: "indicator", mode: "gauge+number",
       value: gradedData.percentage,
-      number: { suffix: "%", font: { color: primaryChartColor, size: 26, family: "inherit" } },
-      title: { text: "Synapse Activation Index", font: { size: 11, color: "#64748b" } },
+      number: { suffix: "%", font: { color: primaryChartColor, size: 30, family: "inherit" } },
+      title: { text: "Synapse Activation Index", font: { size: 12, color: "#64748b" } },
       gauge: {
         axis: { range: [0, 100], tickwidth: 1, tickcolor: "#64748b" },
-        bar: { color: primaryChartColor },
+        bar: { color: primaryChartColor, width: 10 },
         bgcolor: "transparent", borderwidth: 0,
         steps: [
           { range: [0, 60], color: "rgba(225, 29, 72, 0.05)" },
@@ -387,11 +383,20 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
     },
   ];
 
-  const minimalistLayout = { autosize: true, margin: { t: 10, b: 10, l: 10, r: 10 }, paper_bgcolor: "transparent", showlegend: false };
+  const minimalistLineLayout = { 
+    autosize: true, 
+    margin: { t: 25, b: 35, l: 35, r: 20 }, 
+    paper_bgcolor: "transparent", 
+    plot_bgcolor: "transparent",
+    showlegend: false,
+    xaxis: { fixedrange: true, showgrid: true, gridcolor: "rgba(148, 163, 184, 0.1)", tickfont: { size: 10, color: "#64748b" } },
+    yaxis: { fixedrange: true, range: [0, 105], showgrid: true, gridcolor: "rgba(148, 163, 184, 0.1)", tickfont: { size: 10, color: "#64748b" } },
+    font: { color: "#64748b", family: "inherit" }
+  };
 
   const gaugeChartLayout = {
     autosize: true,
-    margin: { t: 40, b: 10, l: 20, r: 20 },
+    margin: { t: 40, b: 15, l: 20, r: 20 },
     paper_bgcolor: "transparent",
     font: { color: "#64748b", family: "inherit" },
   };
@@ -405,8 +410,23 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
     legend: { orientation: "h", x: 0.5, xanchor: "center", y: -0.1, font: { size: 10 } },
   };
 
+  // Helper function to render small Info button
+  const renderInfoBtn = (title, description) => (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        setActiveBenchmarkInfo({ title, description });
+      }}
+      className="w-5 h-5 rounded-full bg-slate-100 hover:bg-rose-100 dark:bg-slate-800 dark:hover:bg-rose-950/50 text-slate-400 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 flex items-center justify-center text-[10px] font-black transition-colors shrink-0 ml-auto focus:outline-none"
+      title={`Learn about ${title}`}
+    >
+      i
+    </button>
+  );
+
   return (
-    <div className="w-full max-w-6xl mx-auto space-y-6 sm:space-y-8 animate-fade-in pb-12 lg:pb-16 overflow-x-hidden px-4 sm:px-0">
+    <div className="w-full max-w-7xl mx-auto space-y-6 sm:space-y-8 animate-fade-in pb-12 lg:pb-16 overflow-x-hidden px-2 sm:px-4 lg:px-6">
       
       <style dangerouslySetInnerHTML={{__html: `
         .brain-premium-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -443,32 +463,46 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
               </span>
             </div>
           </div>
+          {/* 🚀 Changed "Back to Hub" to "Back to Home" */}
           <button onClick={onRestart} className="w-full sm:w-auto px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs shadow-md backdrop-blur-sm transition-all active:scale-95 shrink-0 text-center flex items-center justify-center gap-2 focus:outline-none">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-            Back to Hub
+            Back to Home
           </button>
         </div>
       </div>
 
       {/* ────────────────────────────────────────────────────────────────────────────────────────
-          SECTION 2: JEMER TUTOR AI INSIGHT (120B Cognitive Remark)
+          SECTION 2: JEMER TUTOR AI INSIGHT (Full Markdown Formatting)
          ──────────────────────────────────────────────────────────────────────────────────────── */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r shadow-md relative overflow-hidden flex flex-col md:flex-row items-start md:items-center gap-6 border from-rose-50 via-pink-50 to-rose-50 dark:from-rose-950/40 dark:via-pink-900/20 dark:to-rose-950/40 border-rose-200 dark:border-rose-800/50">
+      <div className="p-5 sm:p-8 rounded-3xl bg-gradient-to-r shadow-md relative overflow-hidden flex flex-col md:flex-row items-start gap-6 border from-rose-50 via-pink-50 to-rose-50 dark:from-rose-950/40 dark:via-pink-900/20 dark:to-rose-950/40 border-rose-200 dark:border-rose-800/50">
         <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br text-white flex items-center justify-center shadow-lg shrink-0 relative z-10 from-rose-500 to-pink-600 shadow-rose-500/30">
           <svg className="w-7 h-7 sm:w-8 sm:h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
         </div>
-        <div className="relative z-10 flex-1 min-w-0 w-full">
-          <h3 className="text-base sm:text-lg font-black text-rose-900 dark:text-rose-300 mb-2">
-            Jemer Tutor AI Insight
-          </h3>
+        <div className="relative z-10 flex-1 min-w-0 w-full space-y-3">
+          <div className="flex items-center justify-between gap-3 border-b border-rose-200/60 dark:border-rose-900/40 pb-2">
+            <h3 className="text-base sm:text-lg font-black text-rose-900 dark:text-rose-300">
+              Jemer Tutor AI Insight
+            </h3>
+            <button
+              onClick={requestFreshInsight}
+              disabled={isFetchingInsight}
+              className="text-[11px] font-bold text-rose-600 hover:text-rose-700 dark:text-rose-400 flex items-center gap-1.5 focus:outline-none disabled:opacity-50 transition-colors"
+            >
+              <svg className={`w-3.5 h-3.5 ${isFetchingInsight ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+              </svg>
+              <span>{isFetchingInsight ? "Analyzing..." : "Refresh Analysis"}</span>
+            </button>
+          </div>
+
           {isFetchingInsight ? (
-            <div className="space-y-2 animate-pulse mt-2">
+            <div className="space-y-2.5 animate-pulse pt-1">
               <div className="h-3 w-3/4 bg-rose-200 dark:bg-rose-800 rounded"></div>
               <div className="h-3 w-5/6 bg-rose-200 dark:bg-rose-800 rounded"></div>
               <div className="h-3 w-1/2 bg-rose-200 dark:bg-rose-800 rounded"></div>
             </div>
           ) : (
-            <div className="text-sm font-medium leading-relaxed break-words text-rose-950/80 dark:text-rose-200/90 prose prose-sm prose-rose dark:prose-invert">
+            <div className="text-sm font-medium leading-relaxed break-words text-rose-950/90 dark:text-rose-100 prose prose-sm sm:prose-base prose-rose dark:prose-invert max-w-none">
               <MarkdownRenderer text={aiInsight || "No insight generated."} />
             </div>
           )}
@@ -476,129 +510,182 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
       </div>
 
       {/* ────────────────────────────────────────────────────────────────────────────────────────
-          SECTION 3: 10-POINT ANALYTICS DASHBOARD
+          SECTION 3: STAT CARDS (With Benchmark Info Buttons)
          ──────────────────────────────────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        {/* STAT CARDS (4 Columns on Desktop) */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 flex items-center justify-center border border-indigo-100 dark:border-indigo-800">
-            <i className="fas fa-fire"></i>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* Card 1: Longest Streak */}
+        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 flex items-center justify-center border border-indigo-100 dark:border-indigo-800 shrink-0">
+              <i className="fas fa-fire"></i>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Longest Streak</p>
+              <p className="text-lg font-black text-slate-900 dark:text-white truncate">{gradedData.maxStreak} Correct</p>
+            </div>
           </div>
-          <div><p className="text-[10px] font-black uppercase text-slate-400">Longest Streak</p><p className="text-lg font-black text-slate-900 dark:text-white">{gradedData.maxStreak} Correct</p></div>
+          {renderInfoBtn("Longest Streak", "Tracks the highest number of consecutive prompts answered correctly without interruption, reflecting focused cognitive flow.")}
         </div>
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-orange-50 dark:bg-orange-900/30 text-orange-600 flex items-center justify-center border border-orange-100 dark:border-orange-800">
-            <i className="fas fa-stopwatch"></i>
+
+        {/* Card 2: Avg Pacing */}
+        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-orange-50 dark:bg-orange-900/30 text-orange-600 flex items-center justify-center border border-orange-100 dark:border-orange-800 shrink-0">
+              <i className="fas fa-stopwatch"></i>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Avg Pacing</p>
+              <p className="text-lg font-black text-slate-900 dark:text-white truncate">~{gradedData.mockPacingSeconds}s / Q</p>
+            </div>
           </div>
-          <div><p className="text-[10px] font-black uppercase text-slate-400">Avg Pacing</p><p className="text-lg font-black text-slate-900 dark:text-white">~{gradedData.mockPacingSeconds}s / Q</p></div>
+          {renderInfoBtn("Average Pacing", "Estimated average response latency per prompt, indicating decision fluency and time allocation under exam constraints.")}
         </div>
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center border border-emerald-100 dark:border-emerald-800">
-            <i className="fas fa-trophy"></i>
+
+        {/* Card 3: Est. Percentile */}
+        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center border border-emerald-100 dark:border-emerald-800 shrink-0">
+              <i className="fas fa-trophy"></i>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Est. Percentile</p>
+              <p className="text-lg font-black text-slate-900 dark:text-white truncate">Top {100 - gradedData.percentile}%</p>
+            </div>
           </div>
-          <div><p className="text-[10px] font-black uppercase text-slate-400">Est. Percentile</p><p className="text-lg font-black text-slate-900 dark:text-white">Top {100 - gradedData.percentile}%</p></div>
+          {renderInfoBtn("Estimated Percentile", "Simulated comparative standing against standard candidate performance thresholds on this specific curriculum.")}
         </div>
-        <div className="p-5 rounded-2xl bg-rose-50 dark:bg-rose-900/10 border border-rose-200 dark:border-rose-800/50 shadow-sm flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-900/40 text-rose-600 flex items-center justify-center border border-rose-200 dark:border-rose-800">
-            <i className="fas fa-exclamation-triangle"></i>
+
+        {/* Card 4: Blind Spot */}
+        <div className="p-5 rounded-2xl bg-rose-50/60 dark:bg-rose-900/10 border border-rose-200/80 dark:border-rose-800/50 shadow-sm flex items-center justify-between">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-900/40 text-rose-600 flex items-center justify-center border border-rose-200 dark:border-rose-800 shrink-0">
+              <i className="fas fa-exclamation-triangle"></i>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-wider text-rose-500">Blind Spot</p>
+              <p className="text-lg font-black text-slate-900 dark:text-white truncate">{gradedData.blindSpot}</p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase text-rose-500">Blind Spot</p>
-            <p className="text-lg font-black text-slate-900 dark:text-white truncate">{gradedData.blindSpot}</p>
-          </div>
+          {renderInfoBtn("Primary Blind Spot", "Identifies the sub-topic with the lowest scoring ratio. Targeted revision here yields the largest net score improvements.")}
         </div>
       </div>
 
+      {/* ────────────────────────────────────────────────────────────────────────────────────────
+          SECTION 4: RESTRUCTURED VISUAL ANALYTICS GRID
+         ──────────────────────────────────────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* FULL WIDTH BAR CHART: Sub-Topic Accuracy */}
-        <div className="lg:col-span-12 p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[320px] w-full min-w-0">
-          <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full shrink-0 bg-rose-500" /> Sub-Topic Accuracy Matrix
-          </h3>
+        
+        {/* ROW 1: Sub-Topic Accuracy Matrix (Full Width) */}
+        <div className="lg:col-span-12 p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[340px] sm:h-[360px] w-full min-w-0">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full shrink-0 bg-rose-500" /> Sub-Topic Accuracy Matrix
+            </h3>
+            {renderInfoBtn("Sub-Topic Accuracy Matrix", "Displays percentage accuracy per syllabus module so you can pinpoint exact mastery distribution across all topics.")}
+          </div>
           <div className="flex-1 w-full h-full min-h-0 relative">
             <Plot data={barChartData} layout={barChartLayout} config={{ displayModeBar: false, responsive: true }} style={{ width: "100%", height: "100%", position: "absolute" }} useResizeHandler={true} />
           </div>
         </div>
 
-        {/* ROW 2 CHARTS */}
-        <div className="lg:col-span-4 p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[280px] w-full min-w-0 relative">
-          <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white absolute top-4 left-5 flex items-center gap-2 z-10">
-            <span className="w-2 h-2 rounded-full shrink-0 bg-rose-400" /> Synapse Index
-          </h3>
-          <div className="w-full h-full pt-6 relative flex items-center justify-center">
+        {/* ROW 2: Cognitive Stamina (Full Width - Expanded as requested) */}
+        <div className="lg:col-span-12 p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[300px] sm:h-[320px] w-full min-w-0">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full shrink-0 bg-indigo-500" /> Cognitive Stamina (Chronological Accuracy Curve)
+            </h3>
+            {renderInfoBtn("Cognitive Stamina", "Plots your rolling accuracy across the entire timeline of the exam to evaluate whether fatigue caused drops toward the final modules.")}
+          </div>
+          <div className="flex-1 w-full h-full min-h-0 relative">
+            <Plot data={lineChartData} layout={minimalistLineLayout} config={{ displayModeBar: false, responsive: true }} style={{ width: "100%", height: "100%", position: "absolute" }} useResizeHandler={true} />
+          </div>
+        </div>
+
+        {/* ROW 3: Synapse Activation Index (6 cols) & Knowledge Radar (6 cols - Enlarged) */}
+        <div className="lg:col-span-6 p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[320px] w-full min-w-0 relative">
+          <div className="flex items-center justify-between z-10">
+            <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full shrink-0 bg-rose-400" /> Synapse Activation Index
+            </h3>
+            {renderInfoBtn("Synapse Activation Index", "A composite gauge summarizing your holistic mastery tier based on correct answer volume, difficulty weighting, and session completeness.")}
+          </div>
+          <div className="w-full h-full pt-4 relative flex items-center justify-center">
             <Plot data={gaugeChartData} layout={gaugeChartLayout} config={{ displayModeBar: false, responsive: true }} style={{ width: "100%", height: "100%", position: "absolute" }} useResizeHandler={true} />
           </div>
         </div>
 
-        <div className="lg:col-span-4 p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[280px] w-full min-w-0">
-          <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full shrink-0 bg-indigo-500" /> Cognitive Stamina
-          </h3>
-          <div className="flex-1 w-full h-full min-h-0 relative">
-            <Plot data={lineChartData} layout={{ ...minimalistLayout, yaxis: { range: [0, 105], showgrid: false }, xaxis: { showgrid: false } }} config={{ displayModeBar: false, responsive: true }} style={{ width: "100%", height: "100%", position: "absolute" }} useResizeHandler={true} />
+        <div className="lg:col-span-6 p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[320px] w-full min-w-0">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full shrink-0 bg-pink-500" /> Knowledge Radar (Multi-Axial Map)
+            </h3>
+            {renderInfoBtn("Knowledge Radar", "A multi-axial polar representation charting module equilibrium. Balanced polygons indicate well-rounded conceptual strength.")}
           </div>
-        </div>
-
-        <div className="lg:col-span-4 p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[280px] w-full min-w-0">
-          <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full shrink-0 bg-pink-500" /> Knowledge Radar
-          </h3>
           <div className="flex-1 w-full h-full min-h-0 relative">
             <Plot data={radarChartData} layout={radarChartLayout} config={{ displayModeBar: false, responsive: true }} style={{ width: "100%", height: "100%", position: "absolute" }} useResizeHandler={true} />
           </div>
         </div>
 
-        {/* ROW 3 CHARTS */}
-        <div className="lg:col-span-6 p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[260px] w-full min-w-0">
-          <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full shrink-0 bg-rose-500" /> Decision Accuracy
-          </h3>
+        {/* ROW 4: Decision Accuracy (6 cols) & Choice Bias Distribution (6 cols) */}
+        <div className="lg:col-span-6 p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[280px] w-full min-w-0">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full shrink-0 bg-rose-500" /> Decision Accuracy
+            </h3>
+            {renderInfoBtn("Decision Accuracy", "Breakdown of answered prompts showing true positives versus incorrect decisions and skipped items.")}
+          </div>
           <div className="flex-1 w-full h-full min-h-0 relative">
             <Plot data={pieChartData} layout={pieChartLayout} config={{ displayModeBar: false, responsive: true }} style={{ width: "100%", height: "100%", position: "absolute" }} useResizeHandler={true} />
           </div>
         </div>
 
-        <div className="lg:col-span-6 p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[260px] w-full min-w-0">
-          <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full shrink-0 bg-purple-500" /> Choice Bias Distribution
-          </h3>
+        <div className="lg:col-span-6 p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[280px] w-full min-w-0">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full shrink-0 bg-purple-500" /> Choice Bias Distribution
+            </h3>
+            {renderInfoBtn("Choice Bias Distribution", "Analyzes the frequency of your option selections (A, B, C, D) to uncover unconscious guessing patterns or letter preferences.")}
+          </div>
           <div className="flex-1 w-full h-full min-h-0 relative">
             <Plot data={donutChartData} layout={{...pieChartLayout, legend: { orientation: "v", x: 1, y: 0.5 }}} config={{ displayModeBar: false, responsive: true }} style={{ width: "100%", height: "100%", position: "absolute" }} useResizeHandler={true} />
           </div>
         </div>
+
       </div>
 
       {/* ────────────────────────────────────────────────────────────────────────────────────────
-          SECTION 4: GROUPED CORRECTIONS & REVIEW ENGINE
+          SECTION 5: GROUPED CORRECTIONS & REVIEW ENGINE
          ──────────────────────────────────────────────────────────────────────────────────────── */}
-      <div className="space-y-4 pt-6">
+      <div className="space-y-4 pt-4">
         <button onClick={() => setShowReview(!showReview)} className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 font-black uppercase tracking-wider text-xs sm:text-sm transition-all shadow-lg flex items-center justify-center gap-3 mx-auto focus:outline-none">
           <span>{showReview ? "Hide Exam Log" : "Reveal Exam Log & Corrections"}</span>
           <svg className={`w-5 h-5 transition-transform duration-300 ${showReview ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
         </button>
 
         {showReview && (
-          <div className="animate-fade-in space-y-10 pt-6">
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight text-center mb-6">Topic: {gradedData.topicName}</h2>
+          <div className="animate-fade-in space-y-8 pt-4">
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight text-center mb-6">Topic: {gradedData.topicName}</h2>
 
             {reviewGroups.map((subjectData) => (
-              <div key={subjectData.subject} className="space-y-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-8 rounded-[2rem] shadow-sm">
+              <div key={subjectData.subject} className="space-y-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-7 rounded-[2rem] shadow-sm">
                 
                 {/* SUB-TOPIC HEADER with dynamic question counts */}
-                <h4 className="text-lg sm:text-xl font-black text-rose-600 dark:text-rose-400 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-3">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16m-7 6h7" /></svg>
-                  {subjectData.subject}
-                  <span className="text-sm font-bold text-slate-400 dark:text-slate-500 ml-auto">{subjectData.questions.length} Questions</span>
+                <h4 className="text-base sm:text-lg font-black text-rose-600 dark:text-rose-400 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center justify-between gap-3">
+                  <span className="flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16m-7 6h7" /></svg>
+                    {subjectData.subject}
+                  </span>
+                  <span className="text-xs sm:text-sm font-bold text-slate-400 dark:text-slate-500 shrink-0">{subjectData.questions.length} Questions</span>
                 </h4>
                 
-                <div className="grid grid-cols-1 gap-6">
+                <div className="grid grid-cols-1 gap-5">
                   {subjectData.questions.map((q) => {
                     const isExpanded = !!expandedExplanations[q.id];
                     return (
-                      <div key={q.id} className="p-5 sm:p-6 rounded-2xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 flex flex-col gap-4">
+                      <div key={q.id} className="p-4 sm:p-6 rounded-2xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 flex flex-col gap-4">
                         
-                        <div className="flex items-start gap-4">
-                          <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 font-mono font-black text-sm flex items-center justify-center shrink-0 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <div className="flex items-start gap-3 sm:gap-4">
+                          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white dark:bg-slate-800 font-mono font-black text-xs sm:text-sm flex items-center justify-center shrink-0 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-sm">
                             {q.number}
                           </div>
                           <div className="flex-1 space-y-4 min-w-0">
@@ -624,8 +711,8 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
                               })}
                             </div>
                             
-                            <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs font-mono font-bold mt-2">
-                              <div className={`px-4 py-2 rounded-lg flex items-center gap-2 border shadow-sm ${
+                            <div className="flex flex-wrap items-center gap-2.5 sm:gap-4 text-xs font-mono font-bold mt-2">
+                              <div className={`px-3.5 py-2 rounded-lg flex items-center gap-2 border shadow-sm ${
                                 q.isCorrect 
                                   ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
                                   : "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800"
@@ -638,7 +725,7 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
                                 )}
                               </div>
                               {!q.isCorrect && (
-                                <div className="px-4 py-2 rounded-lg text-white flex items-center gap-2 shadow-sm bg-emerald-500">
+                                <div className="px-3.5 py-2 rounded-lg text-white flex items-center gap-2 shadow-sm bg-emerald-500">
                                   <span>Correct Answer: {q.correctAnswer}</span>
                                   <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                                 </div>
@@ -646,16 +733,16 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
                               
                               <button 
                                 onClick={() => toggleExplanation(q.id)}
-                                className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-slate-800 text-white font-bold text-xs hover:bg-slate-800 dark:hover:bg-slate-700 transition-colors shadow-sm flex items-center gap-2 ml-auto"
+                                className="px-3.5 py-2 rounded-lg bg-slate-900 dark:bg-slate-800 text-white font-bold text-xs hover:bg-slate-800 dark:hover:bg-slate-700 transition-colors shadow-sm flex items-center gap-2 ml-auto"
                               >
                                 {isExpanded ? "Hide AI Explanation" : "Show AI Explanation"}
                                 <svg className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                               </button>
                             </div>
 
-                            <div className={`grid transition-all duration-300 ease-in-out ${isExpanded ? 'grid-rows-[1fr] opacity-100 mt-4' : 'grid-rows-[0fr] opacity-0 mt-0'}`}>
+                            <div className={`grid transition-all duration-300 ease-in-out ${isExpanded ? 'grid-rows-[1fr] opacity-100 mt-3' : 'grid-rows-[0fr] opacity-0 mt-0'}`}>
                               <div className="overflow-hidden">
-                                <div className="p-5 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100 dark:border-indigo-800/50 text-sm font-medium leading-relaxed text-slate-800 dark:text-slate-200">
+                                <div className="p-4 sm:p-5 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100 dark:border-indigo-800/50 text-sm font-medium leading-relaxed text-slate-800 dark:text-slate-200">
                                   <h5 className="font-black text-indigo-700 dark:text-indigo-400 mb-2 flex items-center gap-2">
                                     <i className="fas fa-brain"></i> AI Tutor Diagnostic
                                   </h5>
@@ -677,6 +764,49 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
           </div>
         )}
       </div>
+
+      {/* ────────────────────────────────────────────────────────────────────────────────────────
+          BENCHMARK EDUCATIONAL MODAL (Triggered by Info Buttons)
+         ──────────────────────────────────────────────────────────────────────────────────────── */}
+      {activeBenchmarkInfo && (
+        <div 
+          className="fixed inset-0 z-[70] bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in"
+          onClick={() => setActiveBenchmarkInfo(null)}
+        >
+          <div 
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl space-y-4 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center text-xs font-black">
+                  i
+                </div>
+                <h4 className="text-base font-black text-slate-900 dark:text-white">
+                  {activeBenchmarkInfo.title}
+                </h4>
+              </div>
+              <button 
+                onClick={() => setActiveBenchmarkInfo(null)}
+                className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center text-xs font-bold transition-colors focus:outline-none"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-sm font-medium leading-relaxed text-slate-600 dark:text-slate-300">
+              {activeBenchmarkInfo.description}
+            </p>
+            <div className="pt-2 flex justify-end">
+              <button 
+                onClick={() => setActiveBenchmarkInfo(null)}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all focus:outline-none"
+              >
+                Understood
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -1,10 +1,10 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v3.1 Performance History Local Data Routing.
- * 1. "Review Results" Fix: When a session ends, answers are now securely stored in `localStorage` under a 'completed' key. When users click "Review Results" in the Performance History, `handleReviewCompletedExam` extracts this local data, restoring 100% accurate charts and options for past exams.
- * 2. "Retake Exam" Fix: Implemented `handleRetakeExam`. Clicking "Retake" now explicitly locates and wipes both the 'draft' and 'completed' local storage keys for that specific session ID, ensuring the user starts with a completely fresh, 0% record.
+ * SUMMARY: Executed v3.2 Retake Fresh Insight Enforcement.
+ * 1. Fresh Remark Guarantee: In `handleEndSession`, explicitly set `ai_insight: null` on the session payload so retakes and fresh exams never carry over stale AI reviews from prior attempts.
+ * 2. Retake Slate Wiped: In `handleRetakeExam`, purges both local storage keys and resumes with `ai_insight: null`.
  * ================================================================================================
- * 🧠 JEMER ACADEMY ECOSYSTEM — BRAIN TRAINING ROUTER (v3.1)
+ * 🧠 JEMER ACADEMY ECOSYSTEM — BRAIN TRAINING ROUTER (v3.2)
  * ================================================================================================
  */
 
@@ -233,7 +233,6 @@ export default function BrainTrainingPage() {
       const BACKEND_URL = getBackendUrl();
       
       const res = await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/brain-training/session/${historicalData.id}`);
-      
       if (!res.ok) throw new Error("Failed to retrieve historical session data.");
       
       const sessionData = await res.json();
@@ -264,7 +263,7 @@ export default function BrainTrainingPage() {
   const handleEndSession = async (resultsData) => {
     if (sessionConfig && sessionConfig.questions && sessionConfig.id) {
       try {
-        // 🚀 NEW: Save answers locally so the user can review them later via Performance History
+        // Save answers locally so the user can review them later via Performance History
         localStorage.setItem(`jemer_brain_completed_${sessionConfig.id}`, JSON.stringify(resultsData.userAnswers || {}));
 
         const BACKEND_URL = getBackendUrl();
@@ -299,7 +298,13 @@ export default function BrainTrainingPage() {
       }
     }
 
-    setSessionResults({ ...resultsData, realSession: sessionConfig });
+    // 🚀 NEW: Ensure ai_insight is null on completion so fresh analysis generates
+    const sessionForResults = {
+      ...sessionConfig,
+      ai_insight: null
+    };
+
+    setSessionResults({ ...resultsData, realSession: sessionForResults });
     setActiveStage("results");
   };
 
@@ -308,8 +313,7 @@ export default function BrainTrainingPage() {
   };
 
   /**
-   * 🚀 NEW: Review Completed Exam
-   * Checks local storage for the user's most recent saved answers for this session.
+   * Review Completed Exam
    */
   const handleReviewCompletedExam = async (historicalData) => {
     setIsGenerating(true);
@@ -325,7 +329,6 @@ export default function BrainTrainingPage() {
       
       const sessionData = await res.json();
       
-      // 🚀 NEW: Check local storage for the user's last saved exam answers
       let savedAnswers = {};
       try {
         const localData = localStorage.getItem(`jemer_brain_completed_${historicalData.id}`);
@@ -338,7 +341,7 @@ export default function BrainTrainingPage() {
       
       setSessionResults({
          realSession: sessionData,
-         userAnswers: savedAnswers // Feed local answers straight into the results
+         userAnswers: savedAnswers
       });
       
       setActiveStage("results");
@@ -351,9 +354,7 @@ export default function BrainTrainingPage() {
   };
 
   /**
-   * 🚀 NEW: Handle Exam Retakes
-   * Wipes any locally saved drafts or completed answers so the user starts totally fresh,
-   * then routes them back into the active session view.
+   * Handle Exam Retakes
    */
   const handleRetakeExam = async (historicalData) => {
     try {
@@ -363,7 +364,8 @@ export default function BrainTrainingPage() {
       console.warn("Failed to wipe local storage for retake");
     }
     
-    await handleResumeTraining(historicalData);
+    // Explicitly wipe stale ai_insight when retaking
+    await handleResumeTraining({ ...historicalData, ai_insight: null });
   };
 
   const handleReturnHome = () => {
@@ -418,13 +420,13 @@ export default function BrainTrainingPage() {
         </div>
       )}
 
-      {/* 🚀 NEW: STAGE 5: PERFORMANCE HISTORY ARCHIVE */}
+      {/* STAGE 5: PERFORMANCE HISTORY ARCHIVE */}
       {activeStage === "performance" && (
         <div className="w-full animate-fade-in">
           <BrainTrainingPerformanceHistory 
             onBack={handleReturnHome}
             onReviewExam={handleReviewCompletedExam}
-            onRetakeExam={handleRetakeExam} // 🚀 NEW: Points to the fresh retake handler
+            onRetakeExam={handleRetakeExam} 
             isGenerating={isGenerating}
             generationStatus={generationStatus}
           />

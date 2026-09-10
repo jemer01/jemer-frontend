@@ -2,11 +2,11 @@
 "use client";
 /**
  * [NEW UPGRADE]
- * SUMMARY: v2.1 Partial Progress Visual Sync.
- * 1. Progress Bar Fix: Ensuring the Synapse Activation bar accurately scales by setting `Math.max(1, session.progress || 0)` so even partially completed exams (e.g., user hits "Save & Exit" halfway) render a visual progress fill. 
- * 2. State Clarity: Calculates partial completion states cleanly without requiring `isMastered` flag to be true.
+ * SUMMARY: v2.3 Layout Bugfix & Card Visual Overhaul.
+ * 1. Layout Fix: Removed root `onMouseLeave` menu closer to eliminate blank screen / click-trap bugs, replacing it with secure event propagation control.
+ * 2. Card Visuals: Upgraded active training cards with rich gradients, micro-badges, refined typography, and glowing hover states.
  * ================================================================================================
- * 📚 JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING HISTORY (v2.1)
+ * 📚 JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING HISTORY (v2.3)
  * ================================================================================================
  */
 
@@ -39,7 +39,6 @@ export default function BrainTrainingHistory({ onResume }) {
         });
         if (res.ok) {
           const data = await res.json();
-          // Filter to only show active or partially completed sessions in the history rail (Completed goes to Performance Archive)
           const activeSessions = (data || []).filter(item => item.status !== 'completed');
           setHistory(activeSessions);
         }
@@ -141,17 +140,16 @@ export default function BrainTrainingHistory({ onResume }) {
   }
 
   if (history.length === 0) {
-    return null; // Hide cleanly if no active history exists
+    return null;
   }
 
   return (
-    <div className="w-full space-y-6 relative" onMouseLeave={() => setActiveMenuId(null)}>
+    <div className="w-full space-y-6 relative" onClick={() => setActiveMenuId(null)}>
       
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-2">
         <div>
           <h2 className="text-xl sm:text-2xl font-display font-black text-slate-900 dark:text-white flex items-center gap-2">
-            {/* Brain SVG Icon */}
             <svg className="w-6 h-6 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.82 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.496 1.509 1.333 1.509 2.316V18" />
             </svg>
@@ -166,7 +164,6 @@ export default function BrainTrainingHistory({ onResume }) {
       {/* Responsive Horizontal Scroll Carousel */}
       <div className="flex gap-4 sm:gap-5 overflow-x-auto snap-x snap-mandatory brain-premium-scroll pb-6 px-2">
         {history.map((session) => {
-          // 🚀 FIXED: Robust progress rendering. Ensures that even 5% progress renders a visible bar cleanly without needing 100% mastery.
           const currentProgress = session.progress || 0;
           const displayStatus = currentProgress > 0 ? "In Progress" : session.status || "Pending";
           
@@ -174,39 +171,39 @@ export default function BrainTrainingHistory({ onResume }) {
             <div 
               key={session.id}
               onClick={() => { if (editingId !== session.id) onResume(session); }}
-              className="group shrink-0 w-[280px] sm:w-[320px] snap-start p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-rose-300 dark:hover:border-rose-700 transition-all duration-300 cursor-pointer flex flex-col relative min-h-[200px]"
+              className="group shrink-0 w-[290px] sm:w-[330px] snap-start p-6 rounded-[2.5rem] bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-lg hover:shadow-2xl hover:border-rose-400 dark:hover:border-rose-600 transition-all duration-300 cursor-pointer flex flex-col relative min-h-[220px]"
             >
               
               {/* 3-Dot Absolute Menu Trigger */}
               <button 
                 onClick={(e) => { e.stopPropagation(); setActiveMenuId(activeMenuId === session.id ? null : session.id); }}
-                className="absolute top-4 right-3 w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity z-20"
+                className="absolute top-5 right-4 w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-rose-100 dark:hover:bg-rose-900/40 flex items-center justify-center text-slate-500 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-all z-20 shadow-sm"
               >
                 <i className="fas fa-ellipsis-v"></i>
               </button>
 
               {/* Dropdown Menu */}
               {activeMenuId === session.id && (
-                <div className="absolute top-12 right-3 z-30 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl flex flex-col overflow-hidden w-32 animate-fade-in text-xs font-medium">
-                  <button onClick={(e) => handlePin(e, session.id, session.is_pinned)} className="px-3 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                <div className="absolute top-14 right-4 z-30 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl flex flex-col overflow-hidden w-36 animate-fade-in text-xs font-bold">
+                  <button onClick={(e) => handlePin(e, session.id, session.is_pinned)} className="px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-2">
                     <i className={`fas fa-thumbtack ${session.is_pinned ? 'text-rose-500' : ''}`}></i> {session.is_pinned ? 'Unpin' : 'Pin'}
                   </button>
-                  <button onClick={(e) => startRename(e, session.id, session.title)} className="px-3 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-2 border-t border-slate-100 dark:border-slate-700/50">
+                  <button onClick={(e) => startRename(e, session.id, session.title)} className="px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-2 border-t border-slate-100 dark:border-slate-700/50">
                     <i className="fas fa-edit"></i> Rename
                   </button>
-                  <button onClick={(e) => handleDelete(e, session.id)} className="px-3 py-2.5 text-left hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 flex items-center gap-2 border-t border-slate-100 dark:border-slate-700/50">
+                  <button onClick={(e) => handleDelete(e, session.id)} className="px-4 py-3 text-left hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 flex items-center gap-2 border-t border-slate-100 dark:border-slate-700/50">
                     <i className="fas fa-trash-alt"></i> Delete
                   </button>
                 </div>
               )}
 
               <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-inner bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400">
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-inner bg-gradient-to-br from-rose-500 to-pink-600 text-white shadow-rose-500/20">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.82 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.496 1.509 1.333 1.509 2.316V18" />
                   </svg>
                 </div>
-                <span className="px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
+                <span className="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-200/50 dark:border-amber-500/30">
                   {displayStatus}
                 </span>
               </div>
@@ -221,19 +218,19 @@ export default function BrainTrainingHistory({ onResume }) {
                     onChange={(e) => setEditTitle(e.target.value)}
                     onClick={(e) => e.stopPropagation()}
                     onKeyDown={(e) => { if (e.key === 'Enter') saveRename(e, session.id); }}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-rose-300 dark:border-rose-600 rounded text-sm font-bold text-slate-900 dark:text-white px-2 py-1 outline-none"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-rose-300 dark:border-rose-600 rounded-xl text-sm font-bold text-slate-900 dark:text-white px-3 py-1.5 outline-none"
                   />
-                  <button onClick={(e) => saveRename(e, session.id)} className="text-rose-600 dark:text-rose-400 hover:scale-110 transition-transform"><i className="fas fa-check"></i></button>
+                  <button onClick={(e) => saveRename(e, session.id)} className="w-8 h-8 rounded-lg bg-rose-500 text-white flex items-center justify-center hover:scale-105 transition-transform"><i className="fas fa-check"></i></button>
                 </div>
               ) : (
-                <h3 className="text-base font-bold text-slate-900 dark:text-white line-clamp-2 mb-1 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors pr-8">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white line-clamp-2 mb-1 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors pr-6">
                   {session.is_pinned && <i className="fas fa-thumbtack text-rose-500 text-[10px] mr-1.5 transform -rotate-45"></i>}
                   {session.title || session.topic}
                 </h3>
               )}
               
-              <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500 mb-6">
-                {session.total_questions} Questions • Last active {formatTime(session.last_active)}
+              <p className="text-[11px] font-mono text-slate-400 dark:text-slate-500 mb-6">
+                {session.total_questions} Questions • Active {formatTime(session.last_active)}
               </p>
 
               <div className="mt-auto space-y-2 border-t border-slate-100 dark:border-slate-800/60 pt-4 relative z-0">
@@ -241,17 +238,20 @@ export default function BrainTrainingHistory({ onResume }) {
                   <span>Synapse Activation</span>
                   <span className="text-rose-500">{currentProgress}%</span>
                 </div>
-                <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                {/* Premium Animated CSS Progress Bar */}
+                <div className="w-full h-2 bg-slate-100 dark:bg-slate-800/80 rounded-full overflow-hidden shadow-inner relative">
                   <div 
-                    className="h-full rounded-full transition-all duration-700 bg-rose-500" 
-                    style={{ width: `${Math.max(2, currentProgress)}%` }} // Forces minimum 2% width so the bar is visibly rendered when slightly active
-                  />
+                    className="absolute top-0 left-0 h-full rounded-full transition-all duration-700 bg-gradient-to-r from-rose-500 to-pink-500 shadow-[0_0_10px_rgba(225,29,72,0.6)]" 
+                    style={{ width: `${Math.max(2, currentProgress)}%` }} 
+                  >
+                    <div className="absolute inset-0 w-full h-full bg-white/20 animate-pulse skew-x-12"></div>
+                  </div>
                 </div>
               </div>
 
               {/* Hover Play/Resume Button Overlay Effect */}
-              <div className="absolute inset-0 bg-white/0 dark:bg-slate-900/0 group-hover:bg-white/40 dark:group-hover:bg-slate-900/60 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-3xl flex items-center justify-center z-10 pointer-events-none">
-                <button className="w-14 h-14 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-xl transform scale-75 group-hover:scale-100 transition-all duration-300 pointer-events-auto">
+              <div className="absolute inset-0 bg-white/0 dark:bg-slate-900/0 group-hover:bg-white/50 dark:group-hover:bg-slate-950/70 backdrop-blur-[3px] opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-[2.5rem] flex items-center justify-center z-10 pointer-events-none">
+                <button className="w-14 h-14 rounded-full bg-gradient-to-r from-rose-600 to-pink-600 text-white flex items-center justify-center shadow-2xl shadow-rose-500/50 transform scale-75 group-hover:scale-100 transition-all duration-300 pointer-events-auto">
                   <svg className="w-6 h-6 ml-1" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M8 5v14l11-7z" />
                   </svg>

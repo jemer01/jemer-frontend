@@ -441,6 +441,7 @@ export default function BrainTrainingPage() {
           <BrainTrainingPerformanceHistory 
             onBack={handleReturnHome}
             onReviewExam={handleReviewCompletedExam}
+            onRetakeExam={handleResumeTraining}
             isGenerating={isGenerating}
             generationStatus={generationStatus}
           />

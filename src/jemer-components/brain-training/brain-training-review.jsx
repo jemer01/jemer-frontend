@@ -2,18 +2,17 @@
 "use client";
 /**
  * [NEW UPGRADE]
- * SUMMARY: v2.1 Interactive Custom Duration & Pre-Flight Settings.
- * 1. Custom Duration Setter: Transformed the static "Duration" card into a fully interactive widget allowing users to select presets (15m, 30m, 60m) or input a custom minute value for their session.
- * 2. Payload Handoff: Bundles the chosen `durationMinutes` directly into the `onStartSession` payload so the CBT engine uses the exact user-defined timeframe.
- * 3. Preserved UI: Maintained 100% of the SVG icons, grid layout, glowing animations, and SSE pipeline integration flawlessly.
+ * SUMMARY: v2.2 Defensive Curriculum Payload Hydration.
+ * 1. Missing Timeline Fix: Added a robust defensive JSON.parse() interceptor to extract `curriculum_plan` seamlessly. Even if the network passes it as a stringified object, the frontend resolves it, restoring the full step-by-step UI.
+ * 2. Stable Metrics Grid: Guaranteed `totalQuestions` and `topicName` fallback data extractions properly sync up to display in the UI cards.
  * ================================================================================================
- * 🧠 JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING SYLLABUS BUILDER (v2.1)
+ * 🧠 JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING SYLLABUS BUILDER (v2.2)
  * ================================================================================================
  */
 import React, { useState } from "react";
 
 export default function BrainTrainingReview({ promptText, onStartSession, onBack, isGenerating, generationStatus, realSessionConfig }) {
-  // 🚀 NEW: Custom Duration State (Defaults to 45 minutes)
+  // Custom Duration State (Defaults to 45 minutes)
   const [customDuration, setCustomDuration] = useState(45);
 
   const handleLaunch = () => {
@@ -23,9 +22,21 @@ export default function BrainTrainingReview({ promptText, onStartSession, onBack
     }
   };
 
-  const syllabusItems = realSessionConfig?.curriculum_plan?.sub_topics || [];
-  const totalQuestions = realSessionConfig?.curriculum_plan?.total_questions || 0;
-  const topicName = realSessionConfig?.curriculum_plan?.topic || "Custom Neural Matrix";
+  // 🚀 NEW: Defensive JSON Parsing for Curriculum Plan Data Points
+  let parsedPlan = realSessionConfig?.curriculum_plan;
+  if (typeof parsedPlan === 'string') {
+    try {
+      parsedPlan = JSON.parse(parsedPlan);
+    } catch (e) {
+      console.error("Failed to parse curriculum plan securely", e);
+      parsedPlan = {};
+    }
+  }
+
+  // Robustly extract the data points ensuring they map directly into the UI components
+  const syllabusItems = parsedPlan?.sub_topics || [];
+  const totalQuestions = parsedPlan?.total_questions || realSessionConfig?.total_questions || 0;
+  const topicName = parsedPlan?.topic || realSessionConfig?.topic || "Custom Neural Matrix";
 
   if (isGenerating || !realSessionConfig) {
     return (
@@ -92,7 +103,7 @@ export default function BrainTrainingReview({ promptText, onStartSession, onBack
           </div>
         </div>
         
-        {/* 🚀 FIXED: Custom Duration Setter UI Widget */}
+        {/* Custom Duration Setter UI Widget */}
         <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between gap-3">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-100 dark:border-emerald-800/50 shrink-0">
@@ -128,7 +139,7 @@ export default function BrainTrainingReview({ promptText, onStartSession, onBack
         </h3>
         
         <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 dark:before:via-slate-800 before:to-transparent">
-          {syllabusItems.map((module, idx) => (
+          {syllabusItems.length > 0 ? syllabusItems.map((module, idx) => (
             <div key={idx} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
               <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white dark:border-slate-900 bg-rose-100 dark:bg-rose-900/50 text-rose-600 dark:text-rose-400 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
                 <span className="text-xs font-black">{idx + 1}</span>
@@ -143,7 +154,11 @@ export default function BrainTrainingReview({ promptText, onStartSession, onBack
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">{module.description}</p>
               </div>
             </div>
-          ))}
+          )) : (
+            <div className="w-full p-8 text-center text-slate-500 dark:text-slate-400 text-sm font-medium border border-dashed border-slate-300 dark:border-slate-700 rounded-2xl">
+              Constructing training pathway...
+            </div>
+          )}
         </div>
       </div>
 

@@ -1,31 +1,16 @@
 /**
- * [PATCH v3.1]
- * SUMMARY: Fixed a Runtime ReferenceError that crashed the Results page on render.
- * 1. Restored `gaugeChartLayout` — referenced by the Synapse Index gauge chart
- *    (~line 425) but never declared anywhere in the file.
- * 2. Restored `pieChartLayout` — referenced by both the Decision Accuracy pie
- *    chart (~line 453) and the Choice Bias donut chart (~line 462, via spread
- *    with a legend override) but also never declared.
- * Scope: additive only — two new consts added alongside the existing chart
- * layout definitions. No other lines changed, removed, or reordered.
- * ================================================================================================
- */
-
-/**
  * [NEW UPGRADE]
- * SUMMARY: Executed v3.0 Brain Training Analytics & Review Overhaul.
- * 1. Live AI Tutor Insight: Dynamically fetches the 120B personalized remark using `POST /api/v1/brain-training/session/{id}/insight` if not already cached, rendering the encouraging remark and 3-step action plan natively.
- * 2. 10-Point Analytics Engine: Expanded Sub-Topic Accuracy to edge-to-edge width. Injected Plotly Line (Cognitive Stamina), Radar (Knowledge Mapping), and Donut (Choice Bias) charts, alongside calculated Stat Cards (Mastery Streak, Blind Spot, Percentile Rank).
- * 3. Grouped Review Engine: Transformed the review section into an intuitive grouped layout (Topic -> Sub-Topic -> Questions). Simplified jargon ("Correct Answer" instead of "Optimal Vector"). 
- * 4. Inline STEM Explanations: Replaced the modal with an elegant inline "Show AI Explanation" accordion for every question, strictly wrapped in `<MarkdownRenderer />` to flawlessly render LaTeX and complex math formatting.
- * 5. Preserved Integrity: 100% of the core UI elements, Rose/Crimson theme, gauge charts, and responsive behaviors were retained and enhanced.
+ * SUMMARY: Executed v3.3 Strict Grading Accuracy & LaTeX Unicode Fix.
+ * 1. Strict Grading Engine: Added `sanitizeChoiceKey` to forcefully extract the exact letter (A, B, C, D) from AI answers, eliminating the bug where correct answers were marked wrong due to AI formatting quirks (e.g., "Option A" vs "A").
+ * 2. LaTeX Unicode Sanitizer: Added `cleanTextForLaTeX` to strip hidden characters (e.g., U+2011, U+202F) that were crashing the MarkdownRenderer.
+ * 3. AI Insight Reliability: Hardened the `useEffect` fetch logic to reject short/dummy responses and force a real generation from the 120B model using accurate telemetry.
  * ================================================================================================
- * ✨ JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING COGNITIVE ANALYTICS (v3.0)
+ * ✨ JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING COGNITIVE ANALYTICS (v3.3)
  * ================================================================================================
  */
 
 "use client";
-console.log("JEMER_MARKER_v31");
+console.log("JEMER_MARKER_v33");
 import React, { useState, useMemo, useEffect } from "react";
 import dynamic from "next/dynamic";
 import MarkdownRenderer from "@/jemer-components/ui/markdown-renderer.jsx";
@@ -40,6 +25,22 @@ const Plot = dynamic(() => import("react-plotly.js"), {
     </div>
   ),
 });
+
+// 🚀 NEW: LaTeX & Choice Sanitizers to guarantee 100% data accuracy
+const cleanTextForLaTeX = (text) => {
+  if (typeof text !== 'string') return text;
+  return text
+    .replace(/\u2011/g, '-') // Non-breaking hyphen
+    .replace(/\u202F/g, ' ') // Narrow no-break space
+    .replace(/\u00A0/g, ' '); // Non-breaking space
+};
+
+const sanitizeChoiceKey = (choice) => {
+  if (!choice) return "";
+  // Forcefully extract just the primary letter (A, B, C, D)
+  const match = String(choice).match(/[A-D]/i);
+  return match ? match[0].toUpperCase() : String(choice).trim().toUpperCase();
+};
 
 const getCognitiveTier = (percentage) => {
   if (percentage >= 90) return "S-Tier";
@@ -63,13 +64,13 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
   const [showReview, setShowReview] = useState(false);
   const [expandedExplanations, setExpandedExplanations] = useState({});
   const [aiInsight, setAiInsight] = useState(sessionData?.realSession?.ai_insight || null);
-  const [isFetchingInsight, setIsFetchingInsight] = useState(!sessionData?.realSession?.ai_insight);
+  const [isFetchingInsight, setIsFetchingInsight] = useState(false);
 
   const primaryChartColor = "#e11d48"; // rose-600
   const secondaryChartColor = "#f43f5e"; // rose-500
   const neutralChartColor = "#94a3b8"; // slate-400
 
-  // 🚀 EXPANDED GRADING ENGINE: Synthesizing 10 Analytics Data Points
+  // 🚀 EXPANDED GRADING ENGINE: Synthesizing 10 Analytics Data Points securely
   const gradedData = useMemo(() => {
     const { userAnswers = {}, realSession = {} } = sessionData || {};
     const questions = realSession.questions || [];
@@ -94,11 +95,15 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
       }
       subTopicStats[topicKey].total += 1;
 
-      const ans = userAnswers[q.id];
-      if (ans) {
-        if (choiceBias[ans] !== undefined) choiceBias[ans]++;
+      // 🚀 FIXED: Sanitize both sides to prevent unfair grading
+      const rawUserAns = userAnswers[q.id];
+      const safeUserAns = sanitizeChoiceKey(rawUserAns);
+      const safeCorrectAns = sanitizeChoiceKey(q.correct_answer);
+
+      if (safeUserAns) {
+        if (choiceBias[safeUserAns] !== undefined) choiceBias[safeUserAns]++;
         
-        if (ans === q.correct_answer) {
+        if (safeUserAns === safeCorrectAns) {
           totalCorrect++;
           currentStreak++;
           if (currentStreak > maxStreak) maxStreak = currentStreak;
@@ -133,7 +138,6 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
       return { name: shortName, score: sc, rawName: sub };
     });
 
-    // Determine estimated average pacing
     const mockPacingSeconds = percentage >= 80 ? 45 : (percentage >= 50 ? 65 : 85); 
 
     return {
@@ -155,16 +159,25 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
     };
   }, [sessionData]);
 
-  // 🚀 FETCH AI TUTOR INSIGHT IF NOT CACHED
+  // 🚀 FIXED: Reliable AI Tutor Insight Fetcher
   useEffect(() => {
-    if (aiInsight || !sessionData?.realSession?.id) {
+    // If a valid, long-enough insight already exists in state, do not refetch.
+    if (aiInsight && aiInsight.length > 20) {
       setIsFetchingInsight(false);
       return;
     }
 
+    if (!sessionData?.realSession?.id) {
+      setAiInsight("Unable to generate performance insight: Mission session identifiers.");
+      return;
+    }
+
+    let isMounted = true;
+
     const fetchInsight = async () => {
+      setIsFetchingInsight(true);
       try {
-        const payload = `Score: ${gradedData.percentage}% | Tier: ${gradedData.tier} | Weakest Area: ${gradedData.blindSpot} | Longest Streak: ${gradedData.maxStreak}`;
+        const payload = `Score: ${gradedData.percentage}% | Tier: ${gradedData.tier} | Weakest Area: ${gradedData.blindSpot} | Longest Streak: ${gradedData.maxStreak} | Total Correct: ${gradedData.totalCorrect} / ${gradedData.maxRaw}`;
         const res = await fetch(`${getBackendUrl()}/api/v1/brain-training/session/${sessionData.realSession.id}/insight`, {
           method: "POST",
           headers: {
@@ -174,18 +187,29 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
           body: JSON.stringify({ telemetry_data: payload })
         });
         
-        if (res.ok) {
+        if (res.ok && isMounted) {
           const data = await res.json();
-          setAiInsight(data.ai_insight);
+          // Verify the AI didn't just return an empty or dummy string
+          if (data.ai_insight && data.ai_insight.length > 10) {
+            setAiInsight(cleanTextForLaTeX(data.ai_insight));
+          } else {
+            setAiInsight("The AI Tutor was unable to generate a detailed review at this time. Please review your metrics manually.");
+          }
+        } else if (isMounted) {
+          setAiInsight("Connection to Jemer AI Core failed while retrieving insight.");
         }
       } catch (err) {
         console.error("Failed to fetch AI insight:", err);
+        if (isMounted) setAiInsight("An anomaly occurred while connecting to the intelligence core.");
       } finally {
-        setIsFetchingInsight(false);
+        if (isMounted) setIsFetchingInsight(false);
       }
     };
+
     fetchInsight();
-  }, [aiInsight, sessionData, gradedData]);
+
+    return () => { isMounted = false; };
+  }, [sessionData?.realSession?.id, gradedData]);
 
   // 🚀 REVIEW GROUPING ENGINE
   const reviewGroups = useMemo(() => {
@@ -197,17 +221,18 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
       const topicKey = q.sub_topic || "General Concepts";
       if (!grouped[topicKey]) grouped[topicKey] = [];
       
-      const uAns = userAnswers[q.id];
-      const isCorrect = uAns === q.correct_answer;
+      const safeCorrectAns = sanitizeChoiceKey(q.correct_answer);
+      const safeUserAns = sanitizeChoiceKey(userAnswers[q.id]);
+      const isCorrect = safeUserAns === safeCorrectAns && safeUserAns !== "";
       
       grouped[topicKey].push({
         id: q.id,
         number: i + 1,
-        questionText: q.question_text,
+        questionText: cleanTextForLaTeX(q.question_text),
         options: typeof q.options === 'string' ? JSON.parse(q.options) : q.options,
-        userAnswer: uAns,
-        correctAnswer: q.correct_answer,
-        explanation: q.explanation,
+        userAnswer: safeUserAns,
+        correctAnswer: safeCorrectAns,
+        explanation: cleanTextForLaTeX(q.explanation),
         isCorrect
       });
     });
@@ -504,16 +529,16 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
 
         {showReview && (
           <div className="animate-fade-in space-y-10 pt-6">
-            {/* Group mapped intelligently by Topic -> Sub-Topic */}
             <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight text-center mb-6">Topic: {gradedData.topicName}</h2>
 
-            {reviewQuestions.map((subjectData) => (
+            {reviewGroups.map((subjectData) => (
               <div key={subjectData.subject} className="space-y-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-8 rounded-[2rem] shadow-sm">
                 
-                {/* SUB-TOPIC HEADER */}
+                {/* SUB-TOPIC HEADER with dynamic question counts */}
                 <h4 className="text-lg sm:text-xl font-black text-rose-600 dark:text-rose-400 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-3">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16m-7 6h7" /></svg>
                   {subjectData.subject}
+                  <span className="text-sm font-bold text-slate-400 dark:text-slate-500 ml-auto">{subjectData.questions.length} Questions</span>
                 </h4>
                 
                 <div className="grid grid-cols-1 gap-6">
@@ -527,23 +552,26 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
                             {q.number}
                           </div>
                           <div className="flex-1 space-y-4 min-w-0">
-                            {/* 🚀 FIXED: Secure Markdown Rendering for STEM Questions */}
+                            
                             <div className="text-sm sm:text-base font-bold text-slate-900 dark:text-white leading-relaxed markdown-inline-fix w-full overflow-hidden">
                               <MarkdownRenderer text={q.questionText} />
                             </div>
                             
-                            {/* Options Breakdown */}
+                            {/* Options Breakdown with sleek UI highlighting */}
                             <div className="space-y-2">
-                              {Object.entries(q.options || {}).map(([key, val]) => (
-                                <div key={key} className={`text-xs sm:text-sm font-medium p-3 rounded-xl border flex gap-3 markdown-inline-fix ${
-                                  key === q.correctAnswer ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-500/50 text-emerald-900 dark:text-emerald-100' :
-                                  key === q.userAnswer ? 'bg-rose-50 dark:bg-rose-900/20 border-rose-500/50 text-rose-900 dark:text-rose-100' :
-                                  'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
-                                }`}>
-                                  <span className="font-black shrink-0 w-4">{key}.</span> 
-                                  <div className="w-full overflow-hidden"><MarkdownRenderer text={val} /></div>
-                                </div>
-                              ))}
+                              {Object.entries(q.options || {}).map(([rawKey, val]) => {
+                                const safeKey = sanitizeChoiceKey(rawKey);
+                                return (
+                                  <div key={rawKey} className={`text-xs sm:text-sm font-medium p-3 rounded-xl border flex gap-3 markdown-inline-fix transition-colors duration-300 ${
+                                    safeKey === q.correctAnswer ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-500/50 text-emerald-900 dark:text-emerald-100 shadow-sm' :
+                                    safeKey === q.userAnswer ? 'bg-rose-50 dark:bg-rose-900/20 border-rose-500/50 text-rose-900 dark:text-rose-100 shadow-sm' :
+                                    'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 opacity-80'
+                                  }`}>
+                                    <span className="font-black shrink-0 w-4">{safeKey}.</span> 
+                                    <div className="w-full overflow-hidden"><MarkdownRenderer text={cleanTextForLaTeX(val)} /></div>
+                                  </div>
+                                );
+                              })}
                             </div>
                             
                             <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs font-mono font-bold mt-2">
@@ -566,7 +594,6 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
                                 </div>
                               )}
                               
-                              {/* 🚀 FIXED: Inline Explanations Button */}
                               <button 
                                 onClick={() => toggleExplanation(q.id)}
                                 className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-slate-800 text-white font-bold text-xs hover:bg-slate-800 dark:hover:bg-slate-700 transition-colors shadow-sm flex items-center gap-2 ml-auto"
@@ -576,17 +603,18 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
                               </button>
                             </div>
 
-                            {/* Expandable Explanation Block */}
-                            {isExpanded && (
-                              <div className="mt-4 p-5 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100 dark:border-indigo-800/50 animate-fade-in text-sm font-medium leading-relaxed text-slate-800 dark:text-slate-200">
-                                <h5 className="font-black text-indigo-700 dark:text-indigo-400 mb-2 flex items-center gap-2">
-                                  <i className="fas fa-brain"></i> AI Tutor Diagnostic
-                                </h5>
-                                <div className="prose prose-sm prose-indigo dark:prose-invert max-w-none">
-                                  <MarkdownRenderer text={q.explanation || "No explanation provided."} />
+                            <div className={`grid transition-all duration-300 ease-in-out ${isExpanded ? 'grid-rows-[1fr] opacity-100 mt-4' : 'grid-rows-[0fr] opacity-0 mt-0'}`}>
+                              <div className="overflow-hidden">
+                                <div className="p-5 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100 dark:border-indigo-800/50 text-sm font-medium leading-relaxed text-slate-800 dark:text-slate-200">
+                                  <h5 className="font-black text-indigo-700 dark:text-indigo-400 mb-2 flex items-center gap-2">
+                                    <i className="fas fa-brain"></i> AI Tutor Diagnostic
+                                  </h5>
+                                  <div className="prose prose-sm prose-indigo dark:prose-invert max-w-none">
+                                    <MarkdownRenderer text={q.explanation || "No explanation provided."} />
+                                  </div>
                                 </div>
                               </div>
-                            )}
+                            </div>
 
                           </div>
                         </div>

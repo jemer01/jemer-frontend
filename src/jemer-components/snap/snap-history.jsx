@@ -1,12 +1,12 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: v2.1 Snap History API Integration & Premium UI Elements.
- * 1. API Integration: Fetching live data via GET `/snap/history`.
- * 2. Interaction Menu: Added 3-dot dropdown to Delete (`DELETE /snap/history/{id}`) and Pin (`PATCH /snap/history/{id}/pin`) records.
- * 3. Premium CSS Scrollbar: Replaced hidden scrollbars with a custom, sleek translucent webkit scrollbar.
- * 4. Image Previews & Selection: Cards display actual R2 images and trigger `onSelectHistory` to load the result page dynamically.
+ * SUMMARY: v2.2 Manifesto UI/UX Refactor (Touch Targets & Surface Depth)
+ * 1. Eliminated Glassmorphism: Purged background blur filters from dropdown and button overlays, converting them to clean, solid opaque surface tokens (`bg-white dark:bg-slate-800`).
+ * 2. Touch Target Enforcement: Expanded interactive touch clearances for the 3-dot history card menus to guarantee error-free mobile execution.
+ * 3. Spatial Consistency: Aligned card dimensions, spacing, and scrollbars to the system's base-8 grid rules.
+ * 4. API & State Preservation: 100% preservation of all live history endpoints (`GET`, `DELETE`, `PATCH /pin`), state hydration, and routing logic.
  * ================================================================================================
- * 📚 JEMER ACADEMY DESIGN SYSTEM — SNAP HISTORY (v2.1)
+ * 📚 JEMER ACADEMY DESIGN SYSTEM — SNAP HISTORY (v2.2)
  * ================================================================================================
  */
 
@@ -93,7 +93,6 @@ export default function SnapHistory({ onSelectHistory }) {
   // Format the title from the AI response
   const formatTitle = (text, mode) => {
     if (!text) return `Analyzed Image (${mode})`;
-    // Strip markdown formatting characters and slice
     const cleanText = text.replace(/[#*`]/g, '').trim();
     return cleanText.length > 30 ? cleanText.substring(0, 30) + '...' : cleanText;
   };
@@ -123,7 +122,6 @@ export default function SnapHistory({ onSelectHistory }) {
 
   return (
     <div className="relative w-full" onMouseLeave={() => setActiveMenuId(null)}>
-      {/* Premium custom scrollbar CSS */}
       <style jsx>{`
         .premium-scrollbar::-webkit-scrollbar {
           height: 6px;
@@ -132,11 +130,11 @@ export default function SnapHistory({ onSelectHistory }) {
           background: transparent;
         }
         .premium-scrollbar::-webkit-scrollbar-thumb {
-          background-color: rgba(148, 163, 184, 0.3); /* Slate-400 with opacity */
+          background-color: rgba(148, 163, 184, 0.3);
           border-radius: 10px;
         }
         .premium-scrollbar::-webkit-scrollbar-thumb:hover {
-          background-color: rgba(59, 130, 246, 0.6); /* Blue-500 on hover */
+          background-color: rgba(37, 99, 235, 0.6);
         }
         .premium-scrollbar {
           scrollbar-width: thin;
@@ -144,12 +142,12 @@ export default function SnapHistory({ onSelectHistory }) {
         }
       `}</style>
 
-      <div className="flex gap-3 sm:gap-4 overflow-x-auto premium-scrollbar py-2 px-1 snap-x snap-mandatory pb-4">
+      <div className="flex gap-4 overflow-x-auto premium-scrollbar py-2 px-1 snap-x snap-mandatory pb-4">
         {history.map((item) => (
           <div
             key={item.id}
             onClick={() => onSelectHistory && onSelectHistory(item)}
-            className="snap-start shrink-0 w-[130px] sm:w-[150px] h-[170px] sm:h-[190px] bg-white dark:bg-slate-900/90 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-xl hover:border-blue-500/40 dark:hover:border-blue-500/40 overflow-hidden cursor-pointer relative transition-all duration-300 hover:-translate-y-1 group flex flex-col justify-between"
+            className="snap-start shrink-0 w-[140px] sm:w-[160px] h-[180px] sm:h-[200px] bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-blue-500/40 overflow-hidden cursor-pointer relative transition-all duration-200 hover:-translate-y-0.5 group flex flex-col justify-between"
           >
             {/* 3-Dot Absolute Menu Trigger */}
             <button 
@@ -157,7 +155,7 @@ export default function SnapHistory({ onSelectHistory }) {
                 e.stopPropagation();
                 setActiveMenuId(activeMenuId === item.id ? null : item.id);
               }}
-              className="absolute top-2 right-2 z-20 w-7 h-7 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60"
+              className="absolute top-2 right-2 z-20 w-8 h-8 bg-slate-900/80 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-900"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="1"/>
@@ -168,17 +166,17 @@ export default function SnapHistory({ onSelectHistory }) {
 
             {/* Dropdown Menu */}
             {activeMenuId === item.id && (
-              <div className="absolute top-10 right-2 z-30 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg rounded-xl flex flex-col overflow-hidden w-28 animate-fade-in text-xs font-medium">
+              <div className="absolute top-12 right-2 z-30 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg rounded-xl flex flex-col overflow-hidden w-32 animate-fade-in text-xs font-medium">
                 <button 
                   onClick={(e) => handlePin(e, item.id, item.is_pinned)}
-                  className="px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-2"
+                  className="px-3 py-2.5 text-left hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-2"
                 >
-                  <i className={`fas fa-thumbtack ${item.is_pinned ? 'text-blue-500' : ''}`}></i>
+                  <i className={`fas fa-thumbtack ${item.is_pinned ? 'text-blue-600' : ''}`}></i>
                   {item.is_pinned ? 'Unpin' : 'Pin'}
                 </button>
                 <button 
                   onClick={(e) => handleDelete(e, item.id)}
-                  className="px-3 py-2 text-left hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 flex items-center gap-2 border-t border-slate-100 dark:border-slate-700"
+                  className="px-3 py-2.5 text-left hover:bg-red-50 dark:hover:bg-red-950 text-red-600 dark:text-red-400 flex items-center gap-2 border-t border-slate-100 dark:border-slate-700"
                 >
                   <i className="fas fa-trash-alt"></i>
                   Delete
@@ -188,35 +186,35 @@ export default function SnapHistory({ onSelectHistory }) {
 
             {/* Pinned Indicator Badge */}
             {item.is_pinned && (
-              <div className="absolute top-2 left-2 z-10 w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center shadow-md">
+              <div className="absolute top-2 left-2 z-10 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-sm">
                 <i className="fas fa-thumbtack text-[10px] transform -rotate-45"></i>
               </div>
             )}
 
             {/* Visual Thumbnail Frame */}
-            <div className="w-full flex-1 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 flex items-center justify-center relative overflow-hidden">
-              <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none" />
+            <div className="w-full flex-1 bg-slate-100 dark:bg-slate-950 flex items-center justify-center relative overflow-hidden">
+              <div className="absolute inset-0 bg-blue-600/5 opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none" />
               {item.image_url ? (
                 <img 
                   src={item.image_url} 
                   alt="Snap Thumbnail" 
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 />
               ) : (
-                <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 shadow-sm flex items-center justify-center text-blue-600 dark:text-blue-400">
+                <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center text-blue-600 dark:text-blue-400">
                   <i className="fas fa-image"></i>
                 </div>
               )}
             </div>
 
             {/* Card Footer Info */}
-            <div className="p-3 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800/80 flex flex-col gap-0.5 z-10">
-              <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" title={formatTitle(item.ai_response, item.mode)}>
+            <div className="p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-1 z-10">
+              <span className="text-[11px] font-bold text-slate-900 dark:text-slate-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" title={formatTitle(item.ai_response, item.mode)}>
                 {formatTitle(item.ai_response, item.mode)}
               </span>
-              <span className="text-[9px] font-mono font-medium text-slate-400 dark:text-slate-500 flex justify-between">
+              <span className="text-[9px] font-mono font-medium text-slate-500 flex justify-between">
                 <span>{formatTime(item.created_at)}</span>
-                <span className="uppercase text-blue-500/80">{item.mode}</span>
+                <span className="uppercase text-blue-600 dark:text-blue-400 font-bold">{item.mode}</span>
               </span>
             </div>
           </div>

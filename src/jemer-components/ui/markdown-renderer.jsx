@@ -1,15 +1,9 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v2.9.0 - Advanced Dual-Pass KaTeX/LaTeX Tokenization.
- * 1. Dual-Pass Math Extraction: Completely rewrote `parseInlineText`. Pass 1 now catches `\(...\)` 
- *    bracket formulations securely. Pass 2 catches tightly coupled `$...$` symbols without needing 
- *    surrounding spaces, fixing the bug where punctuation or text snapped to the formula broke the render.
- * 2. Currency Safeguard: Added a rigorous regex test (`/^[\d.,]+$/`). If a string is just `$10` or `$1,000.50`, 
- *    the engine leaves it alone, meaning true currency will never accidentally render as a broken math block.
- * 3. Streaming Fallback: Added a third pass that catches an unclosed `$` exactly at the end of the streaming string, 
- *    so formulas render live as the AI types them out before closing the syntax.
+ * SUMMARY: Executed v2.9.1 - Robust Type Safeguard for MarkdownRenderer
+ * 1. Runtime Type Safety: Added a robust type guard at the start of `renderedBlocks` to check if `text` is a string. If the backend passes objects, arrays, or numbers (such as structured JSON fields in action items or key points), it automatically converts them to a readable JSON string or primitive string instead of crashing with `text.replace is not a function`.
  * ================================================================================================
- * 💎 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM MARKDOWN & MATH RENDERER (v2.9.0)
+ * 💎 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM MARKDOWN & MATH RENDERER (v2.9.1)
  * ================================================================================================
  * Location: src/jemer-components/ui/markdown-renderer.jsx
  * Dependencies Required: npm install katex prismjs
@@ -119,7 +113,7 @@ const parseInlineText = (text) => {
   let counter = 0;
   const store = {};
 
-  // 1. Pass 1: Extract standard LaTeX inline bracket formulations \( ... \) safely
+  // 1. Pass 1: Extract standard LaTeX inline bracket formulations \(...\) safely
   // The (?:\\\)|$) handles active streaming where the closing bracket hasn't arrived.
   let processed = text.replace(/\\\((.*?)(?:\\\)|$)/g, (match, math) => {
     const id = `__INLINE_MATH_${counter++}__`;
@@ -129,7 +123,7 @@ const parseInlineText = (text) => {
 
   // 2. Pass 2: Extract $...$ securely without triggering on currency
   // Matches tightly packed math but enforces non-space boundaries to avoid swallowing "I have $10 and $20"
-  processed = processed.replace(/\$([^\s$][^$]*?[^\s$]|[^\s$])\$/g, (match, math) => {
+  processed = processed.replace(/\$([^\s$][^$]*?[^\s$]\vert{}[^\s$])\$/g, (match, math) => {
     // Anti-Eviction Currency Guard: If it's purely numbers, commas, or decimals (e.g. $100.00), ignore it
     if (/^[\d.,]+$/.test(math.trim())) return match;
     const id = `__INLINE_MATH_${counter++}__`;
@@ -173,12 +167,19 @@ export default function MarkdownRenderer({ text }) {
   const renderedBlocks = useMemo(() => {
     if (!text) return null;
     
+    // 🚀 Robust Type Safeguard: Ensure safe string processing if objects/arrays are passed
+    const safeText = typeof text === 'string' 
+      ? text 
+      : typeof text === 'object' 
+        ? JSON.stringify(text, null, 2) 
+        : String(text);
+    
     let counter = 0;
     const blockStore = {};
 
     // 1. Extract Full Code Blocks
     // The (?:```|$) boundary allows live rendering while the AI is actively streaming and hasn't closed the block yet.
-    let processed = text.replace(/```([\w-]*)\n([\s\S]*?)(?:```|$)/g, (match, lang, code) => {
+    let processed = safeText.replace(/```([\w-]*)\n([\s\S]*?)(?:```|$)/g, (match, lang, code) => {
       const id = `__CODE_BLOCK_${counter++}__`;
       blockStore[id] = { type: 'code', lang: lang.trim(), code: code.trim() };
       return `\n\n${id}\n\n`;

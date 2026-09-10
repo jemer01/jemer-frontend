@@ -1,10 +1,16 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v2.2 Mobile Camera UI Visibility Fix.
- * 1. CSS Conflict Resolution: Identified and resolved a severe Tailwind CSS specificity bug where the `relative` class was silently overriding the `fixed` class on mobile devices. By cleanly separating these classes based on the viewport, the mobile camera UI now successfully mounts as a true 100% full-screen overlay without collapsing to zero height.
- * 2. Preserved Portal Architecture: Maintained the `createPortal` teleportation to ensure the UI escapes any parent transform boundaries safely.
+ * SUMMARY: v2.3 Manifesto UI/UX Refactor (Cognitive Ergonomics & Base-8 Spatial Grid)
+ * 1. Eradicated "Vibecoding" Anti-Patterns: Stripped all `bg-gradient-to-r` and `radial-gradient` classes from the mobile entry state and replaced them with solid, high-contrast surface tokens.
+ * 2. Removed GPU-Taxing Glassmorphism: Replaced `backdrop-filter: blur()` on camera controls with solid/semi-solid hardware-accelerated layers (`bg-black/80`).
+ * 3. Base-8 Spatial Strictness: Normalized arbitrary values (e.g., `p-10` to `p-8`, `w-[68px]` to `w-16`, `w-[84px]` to `w-20`) to strictly adhere to an 8-point typographic and spatial grid.
+ * 4. Touch Target Ergonomics: Enforced strict 48x48px (`w-12 h-12`) minimum bounding boxes for all interactive camera hardware controls to eliminate mis-taps.
+ * 5. Preserved Infrastructure: 100% of the hardware camera lifecycle, stream processing, and portal teleportation logic remains untouched.
+ * 
+ * [PREVIOUS UPGRADE]
+ * SUMMARY: v2.2 Mobile Camera UI Visibility Fix.
  * ================================================================================================
- * 📷 JEMER ACADEMY DESIGN SYSTEM — SNAP CAMERA ENGINE (v2.2)
+ * 📷 JEMER ACADEMY DESIGN SYSTEM — SNAP CAMERA ENGINE (v2.3)
  * ================================================================================================
  */
 
@@ -141,9 +147,8 @@ export default function SnapCamera({ onSnap }) {
   };
 
   // ── EXTRACTED UI RENDER BLOCK ──
-  // 🚀 THE FIX: Cleanly separated `fixed inset-0 z-[9999]` from `relative`. No CSS overriding!
   const renderCameraUI = () => (
-    <div className={`${isMobile ? 'fixed inset-0 z-[9999]' : 'relative w-full aspect-[3/4] sm:aspect-video max-h-[600px] rounded-[2rem] shadow-2xl border border-slate-800'} bg-black flex flex-col overflow-hidden animate-fade-in`}>
+    <div className={`${isMobile ? 'fixed inset-0 z-[9999]' : 'relative w-full aspect-[3/4] sm:aspect-video max-h-[640px] rounded-[2rem] shadow-sm border border-slate-200 dark:border-slate-800'} bg-black flex flex-col overflow-hidden animate-fade-in`}>
       
       {/* Hardware Video Stream Output */}
       <video 
@@ -156,7 +161,7 @@ export default function SnapCamera({ onSnap }) {
 
       {/* Fallback Permission Error Message */}
       {hasPermissionError && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-900/90 backdrop-blur-md px-6 text-center">
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-950 px-6 text-center">
           <i className="fas fa-video-slash text-4xl text-red-500 mb-4"></i>
           <h3 className="text-lg font-bold text-white mb-2">Camera Access Denied</h3>
           <p className="text-sm text-slate-400">Please allow camera permissions in your browser settings to scan problems.</p>
@@ -166,19 +171,19 @@ export default function SnapCamera({ onSnap }) {
       {/* 🎯 Immersive Center Viewfinder Reticle */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
           <div className="w-64 h-64 sm:w-80 sm:h-80 relative">
-              <div className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 border-white/80 rounded-tl-2xl shadow-[0_0_10px_rgba(0,0,0,0.5)]" />
-              <div className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 border-white/80 rounded-tr-2xl shadow-[0_0_10px_rgba(0,0,0,0.5)]" />
-              <div className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 border-white/80 rounded-bl-2xl shadow-[0_0_10px_rgba(0,0,0,0.5)]" />
-              <div className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 border-white/80 rounded-br-2xl shadow-[0_0_10px_rgba(0,0,0,0.5)]" />
+              <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-white/80 rounded-tl-xl shadow-sm" />
+              <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-white/80 rounded-tr-xl shadow-sm" />
+              <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-white/80 rounded-bl-xl shadow-sm" />
+              <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-white/80 rounded-br-xl shadow-sm" />
           </div>
       </div>
 
       {/* ── TOP CONTROLS BAR ── */}
-      <div className="absolute top-0 inset-x-0 p-6 flex justify-between items-start z-20 bg-gradient-to-b from-black/60 to-transparent">
+      <div className="absolute top-0 inset-x-0 p-4 sm:p-6 flex justify-between items-start z-20 bg-gradient-to-b from-black/60 to-transparent">
         {/* Flashlight Toggle */}
         <button 
           onClick={toggleFlash} 
-          className={`w-12 h-12 rounded-full bg-black/30 backdrop-blur-md border border-white/10 flex items-center justify-center transition-colors active:scale-95 ${isFlashOn ? 'text-yellow-400 bg-black/60' : 'text-white'}`}
+          className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors active:scale-95 border ${isFlashOn ? 'bg-black/90 text-yellow-400 border-yellow-400/50' : 'bg-black/40 text-white border-white/20 hover:bg-black/60'}`}
           title="Toggle Flashlight"
         >
           {/* Optimized Next.js Lucide Flashlight SVG */}
@@ -193,7 +198,7 @@ export default function SnapCamera({ onSnap }) {
         {isMobile && (
           <button 
             onClick={closeMobileCamera} 
-            className="w-12 h-12 rounded-full bg-black/30 backdrop-blur-md border border-white/10 flex items-center justify-center text-white transition-colors active:scale-95"
+            className="w-12 h-12 rounded-full bg-black/40 border border-white/20 flex items-center justify-center text-white transition-colors active:scale-95 hover:bg-black/60"
             title="Cancel and Go Back"
           >
             {/* Optimized Next.js Lucide Arrow Left SVG */}
@@ -209,7 +214,7 @@ export default function SnapCamera({ onSnap }) {
       <div className="absolute bottom-0 inset-x-0 h-32 sm:h-40 bg-gradient-to-t from-black/80 to-transparent pb-safe flex items-center justify-between px-8 sm:px-16 z-20">
         
         {/* Left Action: Device File Upload */}
-        <label className="w-14 h-14 rounded-full bg-black/30 backdrop-blur-md border border-white/10 flex items-center justify-center text-white cursor-pointer active:scale-95 transition-all hover:bg-black/50">
+        <label className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-black/40 border border-white/20 flex items-center justify-center text-white cursor-pointer active:scale-95 transition-all hover:bg-black/60">
           <input 
             type="file" 
             ref={fileInputRef} 
@@ -217,7 +222,7 @@ export default function SnapCamera({ onSnap }) {
             className="hidden" 
             onChange={handleFileUpload} 
           />
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-upload">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-upload w-5 h-5 sm:w-6 sm:h-6">
             <path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
           </svg>
         </label>
@@ -225,14 +230,14 @@ export default function SnapCamera({ onSnap }) {
         {/* Center Action: Premium Circular Shutter Button */}
         <button 
           onClick={capturePhoto} 
-          className="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-[4px] border-white/80 bg-transparent flex items-center justify-center active:scale-90 transition-transform shadow-[0_0_20px_rgba(0,0,0,0.5)] group"
+          className="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-white/80 bg-transparent flex items-center justify-center active:scale-90 transition-transform group"
           title="Capture Image"
         >
-          <div className="w-[68px] h-[68px] sm:w-[84px] sm:h-[84px] bg-white rounded-full group-hover:bg-slate-200 transition-colors"></div>
+          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-full group-hover:brightness-90 transition-all"></div>
         </button>
 
         {/* Right Action: Spacer for Perfect Flexbox Symmetry */}
-        <div className="w-14 h-14"></div>
+        <div className="w-12 h-12 sm:w-16 sm:h-16"></div>
       </div>
     </div>
   );
@@ -246,11 +251,9 @@ export default function SnapCamera({ onSnap }) {
 
       {/* ── MOBILE VIEW: Premium Initiation Screen ── */}
       {isMobile && !isMobileCameraOpen && (
-        <div className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] p-10 flex flex-col items-center justify-center text-center shadow-xl shadow-slate-200/50 dark:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.6)] animate-fade-in relative overflow-hidden">
-          {/* Ambient Glow */}
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.05)_0%,transparent_60%)] pointer-events-none" />
+        <div className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 flex flex-col items-center justify-center text-center shadow-sm animate-fade-in relative overflow-hidden">
           
-          <div className="w-24 h-24 rounded-[2rem] bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-800 dark:to-slate-800/50 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-6 shadow-inner ring-1 ring-blue-500/10">
+          <div className="w-24 h-24 rounded-2xl bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-6 shadow-sm border border-blue-100 dark:border-slate-700">
             <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-camera-icon">
               <path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z"/>
               <circle cx="12" cy="13" r="3"/>
@@ -258,13 +261,13 @@ export default function SnapCamera({ onSnap }) {
           </div>
           
           <h2 className="text-2xl font-display font-black text-slate-900 dark:text-white mb-2 tracking-tight">Ready to Scan</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 font-medium mb-8">Hardware protocols standing by.</p>
+          <p className="text-sm text-slate-500 font-medium mb-8">Hardware protocols standing by.</p>
           
           <button 
             onClick={() => setIsMobileCameraOpen(true)}
-            className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black rounded-full uppercase tracking-widest text-xs active:scale-95 transition-all shadow-lg shadow-blue-600/20"
+            className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl tracking-wide text-sm active:scale-95 transition-all shadow-sm"
           >
-            Take a Photo
+            Open Camera
           </button>
         </div>
       )}

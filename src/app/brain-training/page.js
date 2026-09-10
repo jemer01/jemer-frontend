@@ -1,12 +1,10 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v3.0 Brain Training Performance History Routing.
- * 1. Performance History Integration: Added `activeStage === 'performance'` to route users to the new completed exams archive.
- * 2. Analytics Handoff: Implemented `handleReviewCompletedExam` to securely fetch a completed session's JSON payload from the Neon DB and inject it directly into the Results dashboard.
- * 3. Component Wiring: Passed `onOpenPerformance` down to the Home component so users can toggle the new view seamlessly.
- * 4. Preserved Infrastructure: 100% of the JWT JIT logic, SSE telemetry, safe exit routing, and existing SPA state machine remain absolutely untouched.
+ * SUMMARY: Executed v3.1 Performance History Local Data Routing.
+ * 1. "Review Results" Fix: When a session ends, answers are now securely stored in `localStorage` under a 'completed' key. When users click "Review Results" in the Performance History, `handleReviewCompletedExam` extracts this local data, restoring 100% accurate charts and options for past exams.
+ * 2. "Retake Exam" Fix: Implemented `handleRetakeExam`. Clicking "Retake" now explicitly locates and wipes both the 'draft' and 'completed' local storage keys for that specific session ID, ensuring the user starts with a completely fresh, 0% record.
  * ================================================================================================
- * 🧠 JEMER ACADEMY ECOSYSTEM — BRAIN TRAINING ROUTER (v3.0)
+ * 🧠 JEMER ACADEMY ECOSYSTEM — BRAIN TRAINING ROUTER (v3.1)
  * ================================================================================================
  */
 
@@ -17,7 +15,6 @@ import BrainTraining from "@/jemer-components/brain-training/brain-training";
 import BrainTrainingReview from "@/jemer-components/brain-training/brain-training-review";
 import BrainTrainingSession from "@/jemer-components/brain-training/brain-training-session";
 import BrainTrainingResults from "@/jemer-components/brain-training/brain-training-results";
-// 🚀 NEW: Import the Performance History Archive component
 import BrainTrainingPerformanceHistory from "@/jemer-components/brain-training/brain-training-performance-history";
 
 // ================================================================================================
@@ -26,7 +23,7 @@ import BrainTrainingPerformanceHistory from "@/jemer-components/brain-training/b
 
 const decodeJWTPayload = (token) => {
   try {
-    const base64Url = token.split('.[...](asc_slot://start-slot-1)');
+    const base64Url = token.split('.')[1];
     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
     const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
       return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
@@ -101,13 +98,11 @@ const jemerAuthenticatedFetch = async (url, options = {}) => {
   let activeToken = localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token");
   const userId = localStorage.getItem("jemer_user_id") || localStorage.getItem("user_id");
 
-  // Only redirect to login if BOTH the JWT and User ID are completely missing.
   if (!activeToken && !userId) {
      window.location.href = "/login.html";
      return new Response(null, { status: 401 });
   }
 
-  // Silently refresh if expiring
   if (isTokenExpiringSoon(activeToken, 300)) {
      const freshToken = await fetchJwtOnDemand();
      if (freshToken) {
@@ -121,7 +116,6 @@ const jemerAuthenticatedFetch = async (url, options = {}) => {
 
   let response = await fetch(url, { ...options, headers });
 
-  // Fallback interceptor if API rejects token
   if (response.status === 401 || response.status === 400) {
      const emergencyToken = await fetchJwtOnDemand();
      if (emergencyToken && emergencyToken !== activeToken) {
@@ -153,33 +147,23 @@ const getBackendUrl = () => {
 // ================================================================================================
 
 export default function BrainTrainingPage() {
-  // Master State Machine: Tracks active viewport
   const [activeStage, setActiveStage] = useState("home");
-  
-  // Data Payloads for transitions
   const [trainingPrompt, setTrainingPrompt] = useState("");
   const [sessionConfig, setSessionConfig] = useState(null);
   const [sessionResults, setSessionResults] = useState(null);
-
-  // SSE Telemetry States
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStatus, setGenerationStatus] = useState("Initializing cognitive pathways...");
 
-  /**
-   * Stage 1 -> Stage 2: User submits a new topic prompt from the Hero component.
-   * Connects to the backend via SSE to generate the session.
-   */
   const handleNewTraining = async (promptText) => {
     setTrainingPrompt(promptText);
     setIsGenerating(true);
     setGenerationStatus("Connecting to Jemer Intelligence Core...");
-    setActiveStage("review"); // Review acts as the loading/confirmation screen
+    setActiveStage("review");
 
     try {
       await fetchJwtOnDemand();
       const BACKEND_URL = getBackendUrl();
       
-      // Initiate SSE Pipeline
       const res = await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/brain-training/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -216,13 +200,10 @@ export default function BrainTrainingPage() {
             if (payload.session_id) {
               generatedSessionId = payload.session_id;
             }
-          } catch (e) {
-            // Ignore incomplete chunks
-          }
+          } catch (e) {}
         }
       }
 
-      // Fetch the final generated payload and hydrate session config
       if (generatedSessionId) {
         const sessionRes = await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/brain-training/session/${generatedSessionId}`);
         if (sessionRes.ok) {
@@ -241,12 +222,7 @@ export default function BrainTrainingPage() {
     }
   };
 
-  /**
-   * Stage 1 -> Stage 2 (Review): User clicks a past session in the History Grid.
-   * Fetches the full session payload from the DB and routes to Review so user can see the syllabus again.
-   */
   const handleResumeTraining = async (historicalData) => {
-    // Route immediately to review screen with a loading state
     setTrainingPrompt(historicalData.title || historicalData.topic);
     setIsGenerating(true);
     setGenerationStatus("Restoring neural pathways...");
@@ -270,19 +246,11 @@ export default function BrainTrainingPage() {
     }
   };
 
-  /**
-   * Stage 2 -> Stage 3: User accepts the AI generated syllabus and launches the CBT.
-   */
   const handleStartSession = (config) => {
-    // Override the base session config with any custom updates (like custom duration) from the Review screen
     setSessionConfig({ ...sessionConfig, ...config });
     setActiveStage("session");
   };
 
-  /**
-   * Stage 3 -> Stage 1: User saves progress locally and exits.
-   * Allows safely leaving the exam without finalizing analytics to the database.
-   */
   const handleLeaveSession = () => {
     setTrainingPrompt("");
     setSessionConfig(null);
@@ -292,17 +260,16 @@ export default function BrainTrainingPage() {
 
   /**
    * Stage 3 -> Stage 4: User finishes the brain training session and submits.
-   * Compiles user answers and POSTs them to the analytics ingestion backend.
    */
   const handleEndSession = async (resultsData) => {
-    
-    // Attempt to submit analytics asynchronously
     if (sessionConfig && sessionConfig.questions && sessionConfig.id) {
       try {
+        // 🚀 NEW: Save answers locally so the user can review them later via Performance History
+        localStorage.setItem(`jemer_brain_completed_${sessionConfig.id}`, JSON.stringify(resultsData.userAnswers || {}));
+
         const BACKEND_URL = getBackendUrl();
         const analyticsPayload = [];
         
-        // Map answers from the UI to the backend schema
         sessionConfig.questions.forEach((q) => {
           const questionKey = q.id; 
           const userAnswer = resultsData.userAnswers[questionKey] || "";
@@ -313,7 +280,7 @@ export default function BrainTrainingPage() {
             sub_topic: q.sub_topic || "General",
             user_answer: userAnswer,
             is_correct: isCorrect,
-            time_taken_seconds: 0 // Tracked in local session
+            time_taken_seconds: 0
           });
         });
 
@@ -336,21 +303,18 @@ export default function BrainTrainingPage() {
     setActiveStage("results");
   };
 
-  /**
-   * 🚀 NEW: Route User to Performance History Dashboard
-   */
   const handleOpenPerformance = () => {
     setActiveStage("performance");
   };
 
   /**
-   * 🚀 NEW: Fetch Completed Exam Payload and Route to Results
-   * Parses historical session config to re-hydrate the AI Insight & Grading layout perfectly.
+   * 🚀 NEW: Review Completed Exam
+   * Checks local storage for the user's most recent saved answers for this session.
    */
   const handleReviewCompletedExam = async (historicalData) => {
     setIsGenerating(true);
     setGenerationStatus("Retrieving cognitive analytics...");
-    setActiveStage("performance"); // Maintain stage while loader overlays
+    setActiveStage("performance"); 
     
     try {
       await fetchJwtOnDemand();
@@ -361,10 +325,20 @@ export default function BrainTrainingPage() {
       
       const sessionData = await res.json();
       
-      // Feed historical session safely into the results UI structure
+      // 🚀 NEW: Check local storage for the user's last saved exam answers
+      let savedAnswers = {};
+      try {
+        const localData = localStorage.getItem(`jemer_brain_completed_${historicalData.id}`);
+        if (localData) {
+          savedAnswers = JSON.parse(localData);
+        }
+      } catch (e) {
+        console.warn("Failed to parse local completed answers", e);
+      }
+      
       setSessionResults({
          realSession: sessionData,
-         userAnswers: {} // User answers are processed in backend logs; charts will display cached DB data
+         userAnswers: savedAnswers // Feed local answers straight into the results
       });
       
       setActiveStage("results");
@@ -377,8 +351,21 @@ export default function BrainTrainingPage() {
   };
 
   /**
-   * Universal Return Handler
+   * 🚀 NEW: Handle Exam Retakes
+   * Wipes any locally saved drafts or completed answers so the user starts totally fresh,
+   * then routes them back into the active session view.
    */
+  const handleRetakeExam = async (historicalData) => {
+    try {
+      localStorage.removeItem(`jemer_brain_draft_${historicalData.id}`);
+      localStorage.removeItem(`jemer_brain_completed_${historicalData.id}`);
+    } catch (e) {
+      console.warn("Failed to wipe local storage for retake");
+    }
+    
+    await handleResumeTraining(historicalData);
+  };
+
   const handleReturnHome = () => {
     setTrainingPrompt("");
     setSessionConfig(null);
@@ -389,18 +376,16 @@ export default function BrainTrainingPage() {
   return (
     <main className="w-full flex flex-col items-center justify-center">
       
-      {/* STAGE 1: HERO PROMPT BOX & HISTORY GRID */}
       {activeStage === "home" && (
         <div className="w-full animate-fade-in">
           <BrainTraining 
             onStartNew={handleNewTraining} 
             onResume={handleResumeTraining} 
-            onOpenPerformance={handleOpenPerformance} // 🚀 NEW: Handoff prop for performance button
+            onOpenPerformance={handleOpenPerformance} 
           />
         </div>
       )}
 
-      {/* STAGE 2: AI SYLLABUS BUILDER & REVIEW */}
       {activeStage === "review" && (
         <div className="w-full animate-fade-in">
           <BrainTrainingReview 
@@ -414,7 +399,6 @@ export default function BrainTrainingPage() {
         </div>
       )}
 
-      {/* STAGE 3: ACTIVE COGNITIVE CBT SESSION */}
       {activeStage === "session" && sessionConfig && (
         <div className="w-full animate-fade-in">
           <BrainTrainingSession 
@@ -425,7 +409,6 @@ export default function BrainTrainingPage() {
         </div>
       )}
 
-      {/* STAGE 4: POST-TRAINING COGNITIVE ANALYTICS */}
       {activeStage === "results" && sessionResults && (
         <div className="w-full animate-fade-in">
           <BrainTrainingResults 
@@ -441,7 +424,7 @@ export default function BrainTrainingPage() {
           <BrainTrainingPerformanceHistory 
             onBack={handleReturnHome}
             onReviewExam={handleReviewCompletedExam}
-            onRetakeExam={handleResumeTraining}
+            onRetakeExam={handleRetakeExam} // 🚀 NEW: Points to the fresh retake handler
             isGenerating={isGenerating}
             generationStatus={generationStatus}
           />

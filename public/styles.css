@@ -1,218 +1,1170 @@
 /*
-  ========================================================================
-  🎨 JEMER ACADEMY PLATFORM DESIGN ENGINE SPECIFICATION (PRODUCTION V2.0)
-  ========================================================================
-  Description: External cascading style layer for Jemer Academy's core landing engine.
-  Optimization: Hardware accelerated animations via translation layers, explicit 
-                compositing boundaries, fluid typography setups, and foldable support.
-  ========================================================================
+  ============================================================================
+  JEMER ACADEMY — UI/UX MAKEOVER V3
+  ============================================================================
+  New visual work:
+  - Rebuilt the landing-page visual system around explicit surface/elevation tokens.
+  - Removed the heavy glass/gradient treatment from the primary visual hierarchy.
+  - Added stronger typography, spacing rhythm, focus-visible states, touch sizing,
+    restrained motion, responsive/foldable behavior, and clearer CTA hierarchy.
+  - Neutralized scroll-fade visibility traps so content remains immediately readable.
+  - Preserved every existing DOM hook, class contract, FAQ state, and JavaScript API.
+  ============================================================================
 */
 
 /* ==========================================================================
-   1. CORE HYDRATION & ROOT RESET LAYERS
+   1. DESIGN TOKENS
    ========================================================================== */
 
-/* Overriding default viewport margins, clamping background color, and establishing structural baseline */
+:root {
+  color-scheme: dark;
+
+  --jemer-bg: oklch(12% 0.02 255);
+  --jemer-bg-deep: oklch(9% 0.018 255);
+  --jemer-surface-1: oklch(15% 0.022 255);
+  --jemer-surface-2: oklch(18% 0.025 255);
+  --jemer-surface-3: oklch(22% 0.03 255);
+
+  --jemer-text: oklch(98% 0.005 255);
+  --jemer-text-soft: oklch(80% 0.018 255);
+  --jemer-text-muted: oklch(67% 0.02 255);
+  --jemer-text-faint: oklch(57% 0.022 255);
+
+  --jemer-line: oklch(100% 0 0 / 0.09);
+  --jemer-line-strong: oklch(100% 0 0 / 0.15);
+  --jemer-accent: oklch(70% 0.17 255);
+  --jemer-accent-strong: oklch(62% 0.2 255);
+  --jemer-accent-soft: oklch(70% 0.17 255 / 0.12);
+
+  --jemer-success: oklch(78% 0.16 150);
+  --jemer-warning: oklch(84% 0.16 90);
+  --jemer-danger: oklch(72% 0.17 28);
+
+  --jemer-radius-sm: 0.75rem;
+  --jemer-radius-md: 1rem;
+  --jemer-radius-lg: 1.5rem;
+  --jemer-radius-xl: 2rem;
+  --jemer-radius-pill: 999px;
+
+  --jemer-shadow-sm: 0 10px 28px oklch(0% 0 0 / 0.18);
+  --jemer-shadow-md: 0 18px 44px oklch(0% 0 0 / 0.24);
+  --jemer-shadow-lg: 0 28px 80px oklch(0% 0 0 / 0.34);
+
+  --jemer-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --jemer-duration-fast: 180ms;
+  --jemer-duration-base: 280ms;
+}
+
+/* ==========================================================================
+   2. ROOT / TYPOGRAPHY / ACCESSIBILITY BASELINE
+   ========================================================================== */
+
+html {
+  scroll-behavior: smooth;
+  background: var(--jemer-bg-deep);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 body {
-  font-family: 'Inter', sans-serif;
-  background-color: #020617; /* Dark slate canvas layout root layer color */
-  color: #F8FAFC; /* Primary text accessibility alpha white shade */
-  overflow-x: hidden; /* Prevent horizontal container spilling on layout tracking loops */
-  position: relative;
+  margin: 0;
+  min-width: 320px;
   width: 100%;
+  overflow-x: hidden;
+  position: relative;
+
+  font-family: 'Inter', sans-serif;
+  background:
+    radial-gradient(circle at 82% 10%, oklch(25% 0.06 255 / 0.1), transparent 32rem),
+    linear-gradient(
+      180deg,
+      var(--jemer-bg-deep) 0%,
+      var(--jemer-bg) 38%,
+      var(--jemer-bg-deep) 100%
+    );
+  color: var(--jemer-text);
 }
 
-/* Explicit heading element typography token optimization assignments */
-h1, h2, h3, h4, .font-display {
-  font-family: 'Outfit', sans-serif; /* Dynamic high-impact geometric branding font family */
+h1,
+h2,
+h3,
+h4,
+.font-display {
+  font-family: 'Outfit', sans-serif;
+  color: var(--jemer-text);
+  text-wrap: balance;
 }
 
-/* Optimized scrollbar UI mapping for cleaner display transitions */
+p,
+li {
+  text-wrap: pretty;
+}
+
+::selection {
+  background: var(--jemer-accent);
+  color: #fff;
+}
+
+:focus-visible {
+  outline: 2px solid var(--jemer-accent);
+  outline-offset: 3px;
+  border-radius: 0.5rem;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Keep content readable immediately; scroll effects must not hide structure. */
+.gsap-fade,
+.reveal-text,
+.reveal-up,
+.reveal-left,
+.reveal-right {
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+}
+
+/* ==========================================================================
+   3. SCROLLBAR / SURFACE SYSTEM
+   ========================================================================== */
+
 ::-webkit-scrollbar {
-  width: 8px; /* Vertical track thickness indicator */
-  height: 8px; /* Horizontal track thickness indicator */
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #020617; /* Matches base layer system background grid */
+  background: var(--jemer-bg-deep);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1E293B; /* Surface border layer token color code */
-  border-radius: 9999px; /* Absolute edge roundness configuration */
+  background: oklch(45% 0.025 255);
+  border: 2px solid var(--jemer-bg-deep);
+  border-radius: var(--jemer-radius-pill);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3B82F6; /* Accent color change flash on tracking cursor hover states */
+  background: oklch(58% 0.055 255);
 }
 
-/* ==========================================================================
-   2. HIGH-FIDELITY GLASSMORPHISM & DEPTH SYSTEMS
-   ========================================================================== */
-
-/* Core structural container token rule for executing pristine background backdrop filtering */
 .glass-panel {
-  background: rgba(30, 41, 59, 0.4); /* Translucent surface mask overlay configuration */
-  backdrop-filter: blur(12px); /* Native system-level vector background distortion filter blur */
-  -webkit-backdrop-filter: blur(12px); /* Safari engine render layer compatibility normalization wrapper */
-  border: 1px solid rgba(255, 255, 255, 0.08); /* Clean sub-pixel outline to define physical container depth */
+  background: var(--jemer-surface-1) !important;
+  border: 1px solid var(--jemer-line) !important;
+  box-shadow: var(--jemer-shadow-sm);
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
-/* 3D Translation Card Layer Interactions - Transformed to leverage GPU Layer Painting */
 .glass-card-hover {
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), 
-              background-color 0.4s ease, 
-              border-color 0.4s ease, 
-              box-shadow 0.4s ease; /* Fluid timing control mapping curve curves for luxury animation weight */
-  will-change: transform, box-shadow; /* Forces the browser to move the element onto a dedicated GPU compositing layer */
-}
-
-/* Interactive execution state logic configuration on mouse interaction events */
-.glass-card-hover:hover {
-  transform: translate3d(0, -8px, 0); /* Absolute vertical translation using hardware-accelerated 3D transforms */
-  background: rgba(30, 41, 59, 0.6); /* Deepens opacity to heighten physical visual clarity benchmarks */
-  border-color: rgba(59, 130, 246, 0.5); /* Illuminates accent outline frame edge boundaries */
-  box-shadow: 0 20px 40px -5px rgba(59, 130, 246, 0.2); /* Deep focused soft neon shadow emission fields */
-}
-
-/* ==========================================================================
-   3. TYPOGRAPHY GRADIENT LAYER & GLOW CONFIGURATIONS
-   ========================================================================== */
-
-/* Enhanced deep high-contrast linear text vector gradient mapping structure */
-.text-gradient {
-  background: linear-gradient(90deg, #A855F7 0%, #06B6D4 100%); /* Vivid Purple to Electric Cyan split mapping */
-  -webkit-background-clip: text; /* Masks the linear color background boundary directly into the textual geometry font path */
-  -webkit-text-fill-color: transparent; /* Makes baseline text colors translucent to pass the gradient cleanly */
-  background-clip: text;
-  filter: drop-shadow(0 0 12px rgba(168, 85, 247, 0.35)); /* Strategic text aura emission glow layer metrics */
-}
-
-/* ==========================================================================
-   4. ADVANCED HARDWARE-ACCELERATED MOBILE HAMBURGER MENU SYSTEM
-   ========================================================================== */
-
-/* Setup coordinates for the primary menu switch elements inside header tracking modules */
-#mobile-menu-button {
-  cursor: pointer;
-  background: transparent;
-  border: none;
-  display: inline-flex;
-}
-
-/* Layout logic mapping for inner line elements handling vector transformations */
-.hamburger-box {
   position: relative;
-  width: 24px;
-  height: 20px;
+  overflow: hidden;
+  transition:
+    transform var(--jemer-duration-base) var(--jemer-ease),
+    background-color var(--jemer-duration-base) var(--jemer-ease),
+    border-color var(--jemer-duration-base) var(--jemer-ease),
+    box-shadow var(--jemer-duration-base) var(--jemer-ease),
+    filter var(--jemer-duration-base) var(--jemer-ease);
+  will-change: transform;
 }
 
-/* Individual state mappings for the internal morphing lines configuration */
-.hamburger-inner {
-  top: 50%;
-  transform: translateY(-50%); /* Centers original baseline alignment node position */
+.glass-card-hover::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    135deg,
+    oklch(100% 0 0 / 0.04),
+    transparent 38%
+  );
 }
 
-/* Enforcing transitions directly on structural spans via pure CSS animation properties */
-#mobile-menu-button span {
-  transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), 
-              opacity 0.2s ease-out, 
-              background-color 0.3s ease; /* Fluid transition tracking for premium UI feel */
-  transform-origin: center center; /* Sets fixed anchor vectors for clean scaling loops */
-}
-
-/* Active programmatic toggle logic rule executing morph adjustments on click loops */
-#mobile-menu-button[aria-expanded="true"] span:nth-child(1) {
-  transform: translate3d(0, 0, 0) rotate(45deg); /* Morphs the top header row bar line into an elegant closing X wing vector */
-}
-
-#mobile-menu-button[aria-expanded="true"] span:nth-child(2) {
-  opacity: 0; /* Vanishes center core horizontal tracking bar structure down to zero visibility scale values */
-  transform: translate3d(-10px, 0, 0); /* Shifts elements out of focus space to optimize rendering pipelines */
-}
-
-#mobile-menu-button[aria-expanded="true"] span:nth-child(3) {
-  transform: translate3d(0, 0, 0) rotate(-45deg); /* Morphs bottom row line component upward to lock the crossing point */
+.glass-card-hover:hover {
+  transform: translate3d(0, -5px, 0);
+  background: var(--jemer-surface-2) !important;
+  border-color: var(--jemer-line-strong) !important;
+  box-shadow: var(--jemer-shadow-md);
+  filter: brightness(1.03);
 }
 
 /* ==========================================================================
-   5. INTERACTIVE COLLAPSIBLE ACCORDION ENGINE MECHANICS (FAQ SYSTEM)
+   4. HEADER / NAVIGATION
    ========================================================================== */
 
-/* Pre-activation parameters for internal container panels holding text responses */
-.faq-answer {
-  max-height: 0; /* Absolutely clamps the physical container display footprint down to zero space levels */
-  overflow: hidden; /* Hides internal text blocks from bleeding outside boundary lines */
-  opacity: 0; /* Resets structural transparency elements down to a zero visibility index baseline */
-  padding-top: 0;
-  padding-bottom: 0;
-  transition: max-height 0.4s cubic-bezier(0.25, 1, 0.5, 1), 
-              opacity 0.3s ease, 
-              padding 0.4s ease; /* Clean multi-stage variable interpolation engine loops */
-  will-change: max-height, opacity; /* Informs browser optimization routines to process tracking frames in real time */
+header.glass-panel {
+  background: oklch(9% 0.018 255 / 0.92) !important;
+  border-bottom: 1px solid var(--jemer-line) !important;
+  box-shadow: 0 8px 30px oklch(0% 0 0 / 0.2);
+  backdrop-filter: none !important;
 }
 
-/* Programmatic transition injection rule triggered when toggle flags shift element variables */
-.faq-item.open .faq-answer {
-  max-height: 600px; /* Provides ample physical vertical expansion boundaries for extensive data payloads */
-  opacity: 1; /* Smoothly flashes visibility filters forward to 100% capacity marks */
-  padding-top: 1rem; /* Injects geometric spacing separations cleanly between the text items */
-  padding-bottom: 1rem;
+header .max-w-7xl {
+  min-height: 72px;
 }
 
-/* Multi-directional rotational tracking matrix configurations for indicator arrows */
-.faq-arrow {
-  transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1); /* Keeps system navigation symbols smooth */
+header nav a {
+  position: relative;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--jemer-text-muted) !important;
+  transition:
+    color var(--jemer-duration-fast) ease,
+    transform var(--jemer-duration-fast) ease;
 }
 
-/* Direct angular transformation processing rule applied when items change access states */
-.faq-item.open .faq-arrow {
-  transform: rotate(180deg); /* Flips directional point directly upside down to reflect operational view expansion */
-  color: #3B82F6; /* Illuminates icon color mapping indexes forward to active primary states */
+header nav a::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 5px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--jemer-accent);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform var(--jemer-duration-fast) var(--jemer-ease);
 }
 
-/* Custom layout utility configurations to bypass system visibility indicators cleanly */
+header nav a:hover,
+header nav a:focus-visible {
+  color: var(--jemer-text) !important;
+  transform: translateY(-1px);
+}
+
+header nav a:hover::after,
+header nav a:focus-visible::after {
+  transform: scaleX(1);
+}
+
+header .flex.items-center > a[href="login.html"] {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+header a[href="signup.html"] {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--jemer-text) !important;
+  color: oklch(12% 0.02 255) !important;
+  box-shadow: none !important;
+  transition:
+    background-color var(--jemer-duration-fast) ease,
+    transform var(--jemer-duration-fast) var(--jemer-ease),
+    box-shadow var(--jemer-duration-fast) ease;
+}
+
+header a[href="signup.html"]:hover,
+header a[href="signup.html"]:focus-visible {
+  background: #fff !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 10px 28px oklch(0% 0 0 / 0.22);
+}
+
+/* Mobile menu keeps the existing JS open/close contract. */
+#mobile-menu {
+  background: var(--jemer-surface-1) !important;
+  border-top: 1px solid var(--jemer-line) !important;
+  box-shadow: var(--jemer-shadow-md);
+  backdrop-filter: none !important;
+}
+
+#mobile-menu .mobile-nav-link,
+#mobile-menu a {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+}
+
+#mobile-menu-button {
+  width: 48px !important;
+  height: 48px !important;
+  border-radius: 0.875rem;
+  border: 1px solid var(--jemer-line) !important;
+  background: var(--jemer-surface-1) !important;
+  transition:
+    background-color var(--jemer-duration-fast) ease,
+    border-color var(--jemer-duration-fast) ease,
+    transform var(--jemer-duration-fast) ease;
+}
+
+#mobile-menu-button:hover {
+  background: var(--jemer-surface-2) !important;
+  border-color: var(--jemer-line-strong) !important;
+  transform: translateY(-1px);
+}
+
+/* ==========================================================================
+   5. HERO
+   ========================================================================== */
+
+section.relative.pt-32 {
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 78% 36%, oklch(31% 0.06 255 / 0.14), transparent 28rem),
+    var(--jemer-bg-deep);
+}
+
+#canvas-container {
+  opacity: 0.38;
+  filter: saturate(0.75);
+}
+
+#canvas-container canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+section.relative.pt-32 > .absolute.inset-0.bg-gradient-to-b {
+  background: linear-gradient(
+    180deg,
+    oklch(9% 0.018 255 / 0.25) 0%,
+    oklch(9% 0.018 255 / 0.55) 62%,
+    var(--jemer-bg-deep) 100%
+  ) !important;
+}
+
+#dynamic-pill-text {
+  color: var(--jemer-text-soft) !important;
+}
+
+section.relative.pt-32 .inline-flex.items-center {
+  min-height: 40px;
+  border-color: var(--jemer-line) !important;
+  background: var(--jemer-surface-1) !important;
+  box-shadow: none;
+  backdrop-filter: none !important;
+}
+
+section.relative.pt-32 .inline-flex.items-center > span:first-child span:last-child {
+  background: var(--jemer-success) !important;
+}
+
+section.relative.pt-32 h1 {
+  max-width: 12ch;
+  font-size: clamp(3rem, 7vw, 6.75rem) !important;
+  line-height: 0.98 !important;
+  letter-spacing: -0.04em;
+}
+
+.text-gradient {
+  background: none !important;
+  background-clip: initial !important;
+  -webkit-background-clip: initial !important;
+  -webkit-text-fill-color: initial !important;
+  color: var(--jemer-accent) !important;
+  filter: none !important;
+}
+
+#dynamic-hero-paragraph {
+  color: var(--jemer-text-soft) !important;
+  max-width: 42rem;
+  font-size: clamp(1rem, 1.55vw, 1.2rem);
+}
+
+section.relative.pt-32 .flex.flex-col.sm\:flex-row a {
+  min-height: 52px;
+}
+
+section.relative.pt-32 .flex.flex-col.sm\:flex-row a:first-child {
+  background: var(--jemer-text) !important;
+  color: oklch(11% 0.02 255) !important;
+  box-shadow: var(--jemer-shadow-sm);
+}
+
+section.relative.pt-32 .flex.flex-col.sm\:flex-row a:first-child > div {
+  background: var(--jemer-accent-strong) !important;
+}
+
+section.relative.pt-32 .flex.flex-col.sm\:flex-row a:last-child {
+  border-color: var(--jemer-line-strong) !important;
+  background: var(--jemer-surface-1) !important;
+  backdrop-filter: none !important;
+}
+
+section.relative.pt-32 .flex.flex-col.sm\:flex-row a:last-child:hover {
+  background: var(--jemer-surface-2) !important;
+  border-color: var(--jemer-line-strong) !important;
+  transform: translateY(-2px);
+}
+
+section.relative.pt-32 > .max-w-7xl > div:last-child .glass-panel {
+  background: var(--jemer-surface-1) !important;
+  border-color: var(--jemer-line-strong) !important;
+  box-shadow: var(--jemer-shadow-lg);
+}
+
+section.relative.pt-32 > .max-w-7xl > div:last-child img {
+  border-radius: 1.5rem !important;
+}
+
+section.relative.pt-32 .animate-float {
+  animation-duration: 8s;
+  animation-timing-function: ease-in-out;
+}
+
+section.relative.pt-32 .glass-panel .bg-black\/40 {
+  background: oklch(9% 0.018 255 / 0.88) !important;
+  border-color: var(--jemer-line) !important;
+  backdrop-filter: none !important;
+}
+
+section.relative.pt-32 .glass-panel .bg-black\/40 .bg-green-500 {
+  background: var(--jemer-success) !important;
+}
+
+/* ==========================================================================
+   6. METRIC STRIP / TRUST BAND
+   ========================================================================== */
+
+section.bg-gradient-to-r.from-blue-900 {
+  background: var(--jemer-surface-1) !important;
+  border-top: 1px solid var(--jemer-line) !important;
+  border-bottom: 1px solid var(--jemer-line) !important;
+}
+
+section.bg-gradient-to-r.from-blue-900 > .absolute {
+  display: none;
+}
+
+section.bg-gradient-to-r.from-blue-900 h2 span {
+  background: none !important;
+  color: var(--jemer-text) !important;
+  -webkit-text-fill-color: initial !important;
+}
+
+section.bg-gradient-to-r.from-blue-900 .w-16.h-16 {
+  background: var(--jemer-accent-soft) !important;
+  border-color: var(--jemer-line) !important;
+}
+
+section.bg-gradient-to-r.from-blue-900 a {
+  min-height: 48px;
+  background: var(--jemer-text) !important;
+  color: oklch(12% 0.02 255) !important;
+}
+
+/* ==========================================================================
+   7. CREDENTIAL MARQUEE
+   ========================================================================== */
+
+section[aria-label*="Curriculum Standards"] {
+  background: var(--jemer-bg-deep) !important;
+  border-color: var(--jemer-line) !important;
+}
+
+#dynamic-marquee-container {
+  gap: 4rem !important;
+}
+
+#dynamic-marquee-container > div {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--jemer-text-soft) !important;
+  font-size: 0.78rem !important;
+  letter-spacing: 0.12em !important;
+}
+
+#dynamic-marquee-container i {
+  color: var(--jemer-accent) !important;
+}
+
+/* ==========================================================================
+   8. SECTION HEADINGS
+   ========================================================================== */
+
+#features,
+#how-it-works,
+#pricing,
+#faq-section,
+#testimonials {
+  background: var(--jemer-bg-deep) !important;
+}
+
+#features > .max-w-7xl > div:first-child,
+#how-it-works > .max-w-5xl,
+#pricing > .max-w-7xl,
+#faq-section > .max-w-3xl,
+#testimonials > .max-w-7xl {
+  position: relative;
+  z-index: 2;
+}
+
+#features h2,
+#how-it-works h2,
+#pricing h2,
+#faq-section h2,
+#testimonials h2 {
+  letter-spacing: -0.025em;
+}
+
+#features h2 .text-slate-500,
+#how-it-works h2 .text-slate-500 {
+  color: var(--jemer-text-faint) !important;
+}
+
+#features .text-blue-500,
+#pricing .text-blue-500 {
+  color: var(--jemer-accent) !important;
+}
+
+/* ==========================================================================
+   9. FEATURE SYSTEM — ASYMMETRIC / BENTO
+   ========================================================================== */
+
+#features .grid {
+  align-items: stretch;
+  gap: 1.25rem !important;
+}
+
+#features .feature-card {
+  min-height: 100%;
+  border-radius: var(--jemer-radius-lg) !important;
+}
+
+#features .feature-card h3 {
+  letter-spacing: -0.02em;
+}
+
+#features .feature-card p {
+  color: var(--jemer-text-muted) !important;
+}
+
+#features .feature-card .w-12.h-12 {
+  width: 44px;
+  height: 44px;
+  border-radius: 0.875rem;
+  border: 1px solid var(--jemer-line);
+  background: var(--jemer-surface-2) !important;
+  box-shadow: none !important;
+}
+
+#features .feature-card .fa-camera,
+#features .feature-card .fa-clock,
+#features .feature-card .fa-trophy,
+#features .feature-card .fa-brain {
+  color: var(--jemer-accent) !important;
+}
+
+#features .feature-card img {
+  display: block;
+  border-radius: 1rem;
+}
+
+#features .feature-card .h-40,
+#features .feature-card .h-32 {
+  border-color: var(--jemer-line) !important;
+  background: var(--jemer-surface-2) !important;
+}
+
+#features .feature-card .h-32 img {
+  opacity: 0.66 !important;
+  filter: saturate(0.75);
+}
+
+#features .feature-card:hover .h-32 img {
+  opacity: 0.9 !important;
+}
+
+#features .feature-card.lg\:col-span-2 {
+  background:
+    linear-gradient(135deg, oklch(18% 0.03 255), oklch(15% 0.022 255)) !important;
+}
+
+#features .feature-card .inline-block {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  background: var(--jemer-accent-soft) !important;
+  border-color: var(--jemer-line) !important;
+  color: var(--jemer-accent) !important;
+}
+
+#features .feature-card a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--jemer-text) !important;
+  border-color: var(--jemer-accent) !important;
+}
+
+/* ==========================================================================
+   10. COMPARISON MATRIX
+   ========================================================================== */
+
+section.bg-slate-900 {
+  background: var(--jemer-surface-1) !important;
+  border-color: var(--jemer-line) !important;
+}
+
+section.bg-slate-900 .glass-panel {
+  background: var(--jemer-surface-2) !important;
+}
+
+section.bg-slate-900 table {
+  min-width: 760px;
+}
+
+section.bg-slate-900 th,
+section.bg-slate-900 td {
+  border-color: var(--jemer-line) !important;
+}
+
+section.bg-slate-900 thead tr {
+  background: var(--jemer-surface-3) !important;
+}
+
+section.bg-slate-900 tbody tr:hover {
+  background: oklch(100% 0 0 / 0.025) !important;
+}
+
+section.bg-slate-900 tbody td:first-child {
+  color: var(--jemer-text-soft) !important;
+}
+
+section.bg-slate-900 .bg-blue-900\/10,
+section.bg-slate-900 .bg-blue-900\/20 {
+  background: var(--jemer-accent-soft) !important;
+}
+
+/* ==========================================================================
+   11. MOBILE / WHITE FEATURE SECTION
+   ========================================================================== */
+
+section.py-32.bg-white {
+  background: #f7f8fa !important;
+  color: #0f172a !important;
+}
+
+section.py-32.bg-white h2 {
+  color: #0f172a !important;
+}
+
+section.py-32.bg-white h2 .text-blue-600 {
+  color: #2563eb !important;
+}
+
+section.py-32.bg-white p {
+  color: #475569 !important;
+}
+
+section.py-32.bg-white > .absolute {
+  background: #eef1f5 !important;
+  opacity: 0.9;
+}
+
+section.py-32.bg-white .flex.flex-col.space-y-4 > div {
+  min-height: 80px;
+  border-radius: var(--jemer-radius-md) !important;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06) !important;
+  transition:
+    transform var(--jemer-duration-fast) var(--jemer-ease),
+    box-shadow var(--jemer-duration-fast) ease;
+}
+
+section.py-32.bg-white .flex.flex-col.space-y-4 > div:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.09) !important;
+}
+
+section.py-32.bg-white .w-12.h-12 {
+  flex: 0 0 auto;
+  border: 1px solid rgba(37, 99, 235, 0.12);
+}
+
+section.py-32.bg-white .w-\[300px\] {
+  width: min(300px, 100%);
+  box-shadow: 0 30px 70px rgba(15, 23, 42, 0.2) !important;
+}
+
+section.py-32.bg-white .w-\[300px\].h-\[600px\] {
+  border-width: 7px !important;
+}
+
+/* ==========================================================================
+   12. HOW IT WORKS
+   ========================================================================== */
+
+#how-it-works .grid {
+  position: relative;
+}
+
+#how-it-works .relative.group > div:first-child {
+  width: 72px;
+  height: 72px;
+  margin-bottom: 1.5rem;
+  border-radius: 1.25rem;
+  background: var(--jemer-surface-2) !important;
+  border-color: var(--jemer-line-strong) !important;
+  box-shadow: none !important;
+  transition:
+    transform var(--jemer-duration-base) var(--jemer-ease),
+    border-color var(--jemer-duration-fast) ease,
+    background-color var(--jemer-duration-fast) ease;
+}
+
+#how-it-works .relative.group:hover > div:first-child {
+  transform: translateY(-4px);
+  background: var(--jemer-surface-3) !important;
+  border-color: var(--jemer-accent) !important;
+}
+
+#how-it-works .relative.group p {
+  max-width: 24rem;
+  margin-left: auto;
+  margin-right: auto;
+  color: var(--jemer-text-muted) !important;
+}
+
+/* ==========================================================================
+   13. PRICING — SINGLE PRIMARY PLAN EMPHASIS
+   ========================================================================== */
+
+#pricing .grid {
+  align-items: stretch;
+}
+
+#pricing .grid > div {
+  border-radius: var(--jemer-radius-lg) !important;
+  border-color: var(--jemer-line) !important;
+  background: var(--jemer-surface-1) !important;
+  box-shadow: var(--jemer-shadow-sm);
+  transform: none !important;
+}
+
+#pricing .grid > div:nth-child(2) {
+  background: var(--jemer-surface-2) !important;
+  border-color: oklch(70% 0.17 255 / 0.35) !important;
+  box-shadow: 0 24px 60px oklch(0% 0 0 / 0.3);
+  z-index: 1;
+}
+
+#pricing .grid > div:nth-child(3) {
+  background: oklch(22% 0.035 85 / 0.16) !important;
+  border-color: oklch(84% 0.16 90 / 0.24) !important;
+}
+
+#pricing .grid > div:hover {
+  transform: translateY(-4px) !important;
+  filter: brightness(1.03);
+}
+
+#pricing .grid > div > .absolute {
+  background: var(--jemer-surface-3) !important;
+  color: var(--jemer-text-soft) !important;
+}
+
+#pricing .grid > div:nth-child(2) > .absolute {
+  background: var(--jemer-accent) !important;
+  color: #fff !important;
+}
+
+#pricing .grid > div:nth-child(3) > .absolute {
+  background: var(--jemer-warning) !important;
+  color: #111827 !important;
+}
+
+#pricing ul {
+  color: var(--jemer-text-soft) !important;
+}
+
+#pricing li i {
+  flex: 0 0 auto;
+}
+
+#pricing .grid > div:nth-child(1) a,
+#pricing .grid > div:nth-child(2) a {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#pricing .grid > div:nth-child(1) a {
+  background: transparent !important;
+  border-color: var(--jemer-line-strong) !important;
+}
+
+#pricing .grid > div:nth-child(1) a:hover {
+  background: var(--jemer-surface-3) !important;
+  color: var(--jemer-text) !important;
+}
+
+#pricing .grid > div:nth-child(2) a {
+  background: var(--jemer-accent-strong) !important;
+  box-shadow: none !important;
+}
+
+#pricing .grid > div:nth-child(2) a:hover {
+  background: var(--jemer-accent) !important;
+}
+
+#pricing .grid > div:nth-child(3) a {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--jemer-warning) !important;
+  color: #111827 !important;
+  transition:
+    transform var(--jemer-duration-fast) var(--jemer-ease),
+    filter var(--jemer-duration-fast) ease;
+}
+
+#pricing .grid > div:nth-child(3) a:hover {
+  filter: brightness(1.06);
+}
+
+/* ==========================================================================
+   14. FAQ
+   ========================================================================== */
+
+#faq-section .space-y-4 {
+  display: grid;
+  gap: 0.75rem;
+}
+
+#faq-section .faq-item {
+  border-radius: var(--jemer-radius-md) !important;
+  background: var(--jemer-surface-1) !important;
+  border: 1px solid var(--jemer-line) !important;
+  box-shadow: none !important;
+}
+
+#faq-section .faq-item:hover {
+  background: var(--jemer-surface-2) !important;
+  border-color: var(--jemer-line-strong) !important;
+}
+
+#faq-section .faq-question {
+  min-height: 64px;
+  gap: 1rem;
+  color: var(--jemer-text);
+}
+
+#faq-section .faq-question span {
+  color: var(--jemer-text-soft) !important;
+}
+
+#faq-section .faq-question:hover span,
+#faq-section .faq-question:focus-visible span {
+  color: var(--jemer-text) !important;
+}
+
+#faq-section .faq-answer {
+  border-top-color: var(--jemer-line) !important;
+  color: var(--jemer-text-muted) !important;
+  background: oklch(100% 0 0 / 0.01);
+}
+
+#faq-section .faq-item.open {
+  border-color: oklch(70% 0.17 255 / 0.28) !important;
+  background: var(--jemer-surface-2) !important;
+}
+
+#faq-section .faq-item.open .faq-question span {
+  color: var(--jemer-text) !important;
+}
+
+#faq-section .faq-arrow {
+  flex: 0 0 auto;
+  color: var(--jemer-text-faint) !important;
+}
+
+#faq-section .faq-item.open .faq-arrow {
+  color: var(--jemer-accent) !important;
+}
+
+/* ==========================================================================
+   15. TESTIMONIALS — GENERATED CARDS
+   ========================================================================== */
+
+#dynamic-testimonial-grid {
+  align-items: stretch;
+}
+
+#dynamic-testimonial-grid > div {
+  min-height: 100%;
+  border-radius: var(--jemer-radius-lg) !important;
+  background: var(--jemer-surface-1) !important;
+  border-color: var(--jemer-line) !important;
+  box-shadow: none !important;
+  transition:
+    transform var(--jemer-duration-base) var(--jemer-ease),
+    background-color var(--jemer-duration-base) ease,
+    border-color var(--jemer-duration-base) ease;
+}
+
+#dynamic-testimonial-grid > div:hover {
+  transform: translateY(-4px);
+  background: var(--jemer-surface-2) !important;
+  border-color: var(--jemer-line-strong) !important;
+}
+
+#dynamic-testimonial-grid > div:nth-child(2) {
+  background: var(--jemer-surface-2) !important;
+  border-color: oklch(70% 0.17 255 / 0.28) !important;
+}
+
+#dynamic-testimonial-grid p:first-child {
+  color: var(--jemer-text-soft) !important;
+}
+
+/* ==========================================================================
+   16. FOOTER
+   ========================================================================== */
+
+footer {
+  background: var(--jemer-bg-deep) !important;
+  border-top-color: var(--jemer-line) !important;
+}
+
+footer a {
+  min-height: 32px;
+  transition:
+    color var(--jemer-duration-fast) ease,
+    transform var(--jemer-duration-fast) ease;
+}
+
+footer a:hover,
+footer a:focus-visible {
+  color: var(--jemer-text) !important;
+}
+
+footer .text-slate-500 {
+  color: var(--jemer-text-faint) !important;
+}
+
+footer .text-slate-600 {
+  color: oklch(55% 0.02 255) !important;
+}
+
+/* ==========================================================================
+   17. MOTION SAFETY / REDUCED MOTION
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  #canvas-container {
+    opacity: 0.18;
+  }
+}
+
+/* ==========================================================================
+   18. TOUCH / TABLET / FOLDABLE RESPONSIVENESS
+   ========================================================================== */
+
+@media (max-width: 1024px) {
+  header .max-w-7xl {
+    min-height: 68px;
+  }
+
+  .perspective-1000 {
+    perspective: none !important;
+  }
+
+  .glass-panel p-2 {
+    transform: none !important;
+  }
+
+  section.relative.pt-32 {
+    min-height: auto !important;
+    padding-top: 8rem !important;
+  }
+
+  section.relative.pt-32 h1 {
+    max-width: 15ch;
+  }
+
+  #features .feature-card {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 767px) {
+  header .max-w-7xl {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  section.relative.pt-32 {
+    padding-top: 7rem !important;
+    padding-bottom: 5rem !important;
+  }
+
+  section.relative.pt-32 h1 {
+    font-size: clamp(2.8rem, 12vw, 4.5rem) !important;
+    letter-spacing: -0.045em;
+  }
+
+  #dynamic-hero-paragraph {
+    font-size: 1rem;
+  }
+
+  section.relative.pt-32 > .max-w-7xl > div:last-child {
+    width: 100%;
+  }
+
+  section.relative.pt-32 > .max-w-7xl > div:last-child .glass-panel {
+    transform: none !important;
+  }
+
+  section.bg-gradient-to-r.from-blue-900 {
+    padding-top: 2rem !important;
+    padding-bottom: 2rem !important;
+  }
+
+  #features,
+  #pricing,
+  #faq-section,
+  #testimonials,
+  #how-it-works {
+    padding-top: 5rem !important;
+    padding-bottom: 5rem !important;
+  }
+
+  #pricing .grid > div:nth-child(2) {
+    transform: none !important;
+  }
+
+  #pricing .grid > div:nth-child(2)::after {
+    content: "Recommended";
+    position: absolute;
+    left: 1.5rem;
+    top: 1rem;
+    font-size: 0.68rem;
+    line-height: 1;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--jemer-accent);
+    opacity: 0.9;
+  }
+
+  section.py-32.bg-white {
+    padding-top: 5rem !important;
+    padding-bottom: 5rem !important;
+  }
+
+  section.py-32.bg-white .max-w-7xl {
+    gap: 3rem !important;
+  }
+
+  section.py-32.bg-white .w-\[300px\] {
+    height: 540px !important;
+  }
+
+  #faq-section .faq-question {
+    min-height: 72px;
+    padding: 1rem 1.1rem !important;
+  }
+
+  #faq-section .faq-question span {
+    font-size: 0.98rem !important;
+    line-height: 1.45;
+  }
+
+  #faq-section .faq-answer {
+    padding-left: 1.1rem !important;
+    padding-right: 1.1rem !important;
+  }
+
+  #dynamic-testimonial-grid {
+    gap: 1rem !important;
+  }
+
+  footer {
+    padding-top: 4rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .px-6 {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  section.relative.pt-32 h1 {
+    font-size: 2.7rem !important;
+    line-height: 1 !important;
+  }
+
+  section.relative.pt-32 .flex.flex-col.sm\:flex-row {
+    gap: 0.75rem !important;
+  }
+
+  section.relative.pt-32 .flex.flex-col.sm\:flex-row a {
+    width: 100%;
+  }
+
+  #dynamic-marquee-container {
+    animation-duration: 38s !important;
+    gap: 2.5rem !important;
+  }
+
+  #dynamic-marquee-container > div {
+    font-size: 0.7rem !important;
+  }
+
+  section.py-32.bg-white .w-\[300px\] {
+    height: 520px !important;
+  }
+}
+
+/* ==========================================================================
+   19. LARGE SCREENS
+   ========================================================================== */
+
+@media (min-width: 1440px) {
+  .max-w-7xl {
+    max-width: 1280px;
+  }
+}
+
+@media (min-width: 1920px) {
+  html {
+    font-size: 17px;
+  }
+
+  .max-w-7xl {
+    max-width: 1360px;
+  }
+}
+
+/* ==========================================================================
+   20. UTILITIES PRESERVED FOR EXISTING MARKUP
+   ========================================================================== */
+
 .no-scrollbar::-webkit-scrollbar {
-  display: none; /* Disables scroll track elements entirely from visible web screens */
+  display: none;
 }
 
 .no-scrollbar {
-  -ms-overflow-style: none; /* Windows IE system execution engine mapping exclusion layer */
-  scrollbar-width: none; /* Modern browser configuration layer utility adjustments */
-}
-
-/* ==========================================================================
-   6. RESPONSIVE VIEWPORT ADAPTABILITY SYSTEMS (ULTRA-WIDE & FOLDABLES)
-   ========================================================================== */
-
-/* Advanced optimization media rule configuration tailored specifically for luxury wide monitors */
-@media (min-width: 1920px) {
-  html {
-    font-size: 18px; /* Upscales universal typographic font base grids for optimal density display on high-definition targets */
-  }
-  .max-w-7xl {
-    max-width: 1600px; /* Extends physical geometric grid layout maximum widths for premium content spread tracking */
-  }
-}
-
-/* Optimization adjustments for intermediate flexible screens, tablets, and mobile foldables */
-@media (max-width: 1024px) {
-  .perspective-1000 {
-    perspective: none; /* Removes matrix depth distortions on smaller views to maintain stable frame execution metrics */
-  }
-  .glass-panel p-2 {
-    transform: none !important; /* Forces components flat across mobile displays to secure readable typography boundaries */
-  }
-}
-
-/* Layout optimization for compact viewports and narrow smartphone devices */
-@media (max-width: 480px) {
-  h1 {
-    font-size: 2.75rem !important; /* Clamps massive hero display titles to prevent text clipping on small viewports */
-    line-height: 1.2 !important;
-  }
-  .px-6 {
-    padding-left: 1rem !important; /* Streamlines container edge space allocations to optimize core screen reading layouts */
-    padding-right: 1rem !important;
-  }
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

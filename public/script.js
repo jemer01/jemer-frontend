@@ -1,5 +1,9 @@
 /**
  * ========================================================================
+ * UI/UX MAKEOVER V3 — visual system upgraded without changing orchestration logic.
+ * Existing APIs, regional data, pricing pipeline, DOM hooks, and interaction contracts preserved.
+ * ========================================================================
+ * ========================================================================
  * 🧠 JEMER ACADEMY LANDING ENGINE PLATFORM ORCHESTRATION LAYER (V2.2)
  * ========================================================================
  * Description: Client-side router, geolocation processing engine, financial

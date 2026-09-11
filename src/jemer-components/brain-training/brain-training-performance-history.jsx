@@ -1,25 +1,22 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: v1.2 Layout & Ultra-Rounded Cognitive Performance Header Overhaul.
+ * SUMMARY: v1.3 Tier Badge Removal, Score Bugfix & Full Mobile Pass.
+ * 1. Tier Badge Removed: Dropped the S/A/B/C/D "Cognitive Tier" badge (it was keyed off `session.progress`, a field never meant to represent a score here). That top-corner slot now shows the session's question count instead.
+ * 2. Final Score Bugfix: Removed the "Final Score %" readout from cards and the action modal — it was reading raw, non-percentage values off `session.progress` (surfacing nonsense like 500% or 300%), and this archive is completed-only anyway, so a score field wasn't meaningful here. The action modal now shows question count + completion date instead.
+ * 3. Mobile Pass: Rebuilt the header (icon/button sizing, padding, wrapping) and grid cards (flexible height, tighter spacing) to render properly on phone-width screens; card bottom row now uses the freed-up space for a completion date + review affordance.
+ * ────────────────────────────────────────────────────────────────────────────────────────
+ * [PRIOR] v1.2 Layout & Ultra-Rounded Cognitive Performance Header Overhaul.
  * 1. Layout Fix: Replaced absolute full-screen wrappers with a clean flex layout, preventing blank screen rendering glitches and card occlusion bugs.
  * 2. Ultra-Rounded Header: Redesigned the top header container into an ultra-rounded (`rounded-[2.5rem]`), floating glassmorphic card with rich shadows.
  * 3. Detailed Cards: Enhanced grid cards with detailed metadata, glowing tier badges, and smooth action modal integration.
  * ================================================================================================
- * 🧠 JEMER ACADEMY DESIGN SYSTEM — PERFORMANCE HISTORY ARCHIVE (v1.2)
+ * 🧠 JEMER ACADEMY DESIGN SYSTEM — PERFORMANCE HISTORY ARCHIVE (v1.3)
  * ================================================================================================
  */
 
 "use client";
 
 import React, { useState, useEffect } from "react";
-
-const getCognitiveTier = (percentage) => {
-  if (percentage >= 90) return { tier: "S-Tier", color: "text-amber-500 bg-amber-500/10 border-amber-500/30 shadow-amber-500/20" };
-  if (percentage >= 80) return { tier: "A-Tier", color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/30 shadow-emerald-500/20" };
-  if (percentage >= 70) return { tier: "B-Tier", color: "text-blue-500 bg-blue-500/10 border-blue-500/30 shadow-blue-500/20" };
-  if (percentage >= 60) return { tier: "C-Tier", color: "text-indigo-500 bg-indigo-500/10 border-indigo-500/30 shadow-indigo-500/20" };
-  return { tier: "D-Tier", color: "text-rose-500 bg-rose-500/10 border-rose-500/30 shadow-rose-500/20" };
-};
 
 export default function BrainTrainingPerformanceHistory({ onBack, onReviewExam, onRetakeExam, isGenerating, generationStatus }) {
   const [history, setHistory] = useState([]);
@@ -151,38 +148,36 @@ export default function BrainTrainingPerformanceHistory({ onBack, onReviewExam, 
     <div className="w-full min-h-full flex flex-col space-y-8 animate-fade-in pb-16" onClick={() => setActiveMenuId(null)}>
       
       {/* ── ULTRA-ROUNDED FLOATING HEADER CONTAINER ── */}
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 pt-4">
-        <div className="rounded-[2.5rem] p-6 sm:p-8 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative overflow-hidden">
+      <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 pt-3 sm:pt-4">
+        <div className="rounded-[1.75rem] sm:rounded-[2.5rem] p-4 sm:p-8 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 shadow-xl flex items-center gap-3 sm:gap-5 relative overflow-hidden">
           {/* Ambient glow inside header */}
           <div className="absolute -top-24 -right-24 w-72 h-72 bg-rose-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-          <div className="flex items-center gap-5 relative z-10">
-            <button onClick={onBack} className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-rose-500 hover:text-white transition-all active:scale-95 shadow-md border border-slate-200 dark:border-slate-700 shrink-0">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-            </button>
-            <div>
-              <h2 className="text-2xl sm:text-3xl font-display font-black text-slate-900 dark:text-white flex items-center gap-3 tracking-tight">
-                <svg className="w-7 h-7 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-                </svg>
-                Cognitive Performance Archive
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mt-1">
-                Review detailed analytics or retake fully completed neural training sessions.
-              </p>
-            </div>
+          <button onClick={onBack} className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-rose-500 hover:text-white transition-all active:scale-95 shadow-md border border-slate-200 dark:border-slate-700 shrink-0 relative z-10">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+          </button>
+          <div className="min-w-0 flex-1 relative z-10">
+            <h2 className="text-lg sm:text-2xl md:text-3xl font-display font-black text-slate-900 dark:text-white flex items-center gap-2 sm:gap-3 tracking-tight">
+              <svg className="w-5 h-5 sm:w-7 sm:h-7 text-rose-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+              </svg>
+              <span className="truncate">Cognitive Performance Archive</span>
+            </h2>
+            <p className="text-[11px] sm:text-sm text-slate-500 dark:text-slate-400 font-medium mt-1 leading-snug">
+              Review detailed analytics or retake fully completed neural training sessions.
+            </p>
           </div>
         </div>
       </div>
 
       {/* ── GRID ARCHIVE ── */}
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6">
+      <div className="w-full max-w-7xl mx-auto px-3 sm:px-6">
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
             {[...Array(4)].map((_, i) => (
               <div 
                 key={i} 
-                className="h-56 rounded-[2.5rem] bg-slate-200 dark:bg-slate-800 animate-pulse border border-slate-300 dark:border-slate-700" 
+                className="h-48 sm:h-56 rounded-[1.75rem] sm:rounded-[2.5rem] bg-slate-200 dark:bg-slate-800 animate-pulse border border-slate-300 dark:border-slate-700" 
               />
             ))}
           </div>
@@ -195,15 +190,13 @@ export default function BrainTrainingPerformanceHistory({ onBack, onReviewExam, 
             <p className="text-sm font-medium">You haven't completed any Brain Training exams yet.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
             {history.map((session) => {
-              const tierInfo = getCognitiveTier(session.progress || 0);
-
               return (
                 <div 
                   key={session.id}
                   onClick={() => { if (editingId !== session.id) setSelectedActionSession(session); }}
-                  className="group bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-[2.5rem] p-6 shadow-md hover:shadow-2xl hover:border-rose-400 dark:hover:border-rose-600 transition-all duration-300 hover:-translate-y-1.5 cursor-pointer relative flex flex-col h-[230px]"
+                  className="group bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-[1.75rem] sm:rounded-[2.5rem] p-5 sm:p-6 shadow-md hover:shadow-2xl hover:border-rose-400 dark:hover:border-rose-600 transition-all duration-300 hover:-translate-y-1.5 cursor-pointer relative flex flex-col min-h-[190px] sm:min-h-[210px]"
                 >
                   
                   {/* 3-Dot Absolute Menu Trigger */}
@@ -230,8 +223,9 @@ export default function BrainTrainingPerformanceHistory({ onBack, onReviewExam, 
                   )}
 
                   <div className="flex items-start justify-between mb-3 pr-8">
-                    <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${tierInfo.color}`}>
-                      {tierInfo.tier}
+                    <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-sm text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border-slate-200/70 dark:border-slate-700">
+                      <i className="fas fa-list-ol text-[9px]"></i>
+                      {session.total_questions || 0} Questions
                     </span>
                   </div>
 
@@ -255,17 +249,13 @@ export default function BrainTrainingPerformanceHistory({ onBack, onReviewExam, 
                       {session.title || session.topic}
                     </h3>
                   )}
-                  
-                  <p className="text-[11px] font-mono text-slate-400 dark:text-slate-500 mt-0.5">
-                    Completed {formatTime(session.last_active)}
-                  </p>
 
                   <div className="mt-auto flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60 pt-3">
-                    <div className="flex flex-col">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Final Score</span>
-                      <span className="text-base font-black text-slate-900 dark:text-white leading-none mt-1">{session.progress || 0}%</span>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Completed</span>
+                      <span className="text-sm font-bold text-slate-700 dark:text-slate-300 leading-none mt-1 truncate">{formatTime(session.last_active)}</span>
                     </div>
-                    <div className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-gradient-to-r group-hover:from-rose-600 group-hover:to-pink-600 group-hover:text-white group-hover:shadow-lg group-hover:shadow-rose-500/30 transition-all duration-300 text-slate-400">
+                    <div className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 group-hover:bg-gradient-to-r group-hover:from-rose-600 group-hover:to-pink-600 group-hover:text-white group-hover:shadow-lg group-hover:shadow-rose-500/30 transition-all duration-300 text-slate-400">
                       <svg className="w-4 h-4 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                       </svg>
@@ -286,7 +276,7 @@ export default function BrainTrainingPerformanceHistory({ onBack, onReviewExam, 
           onClick={() => setSelectedActionSession(null)}
         >
           <div 
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-6 sm:p-8 max-w-sm w-full shadow-2xl flex flex-col items-center text-center relative overflow-hidden" 
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[1.75rem] sm:rounded-[2.5rem] p-6 sm:p-8 max-w-sm w-full shadow-2xl flex flex-col items-center text-center relative overflow-hidden" 
             onClick={e => e.stopPropagation()}
           >
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-rose-500/20 rounded-full blur-3xl pointer-events-none"></div>
@@ -301,8 +291,10 @@ export default function BrainTrainingPerformanceHistory({ onBack, onReviewExam, 
               {selectedActionSession.title || selectedActionSession.topic}
             </h3>
             
-            <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-8 relative z-10">
-              Final Score: <span className="font-black text-rose-500 text-lg">{selectedActionSession.progress || 0}%</span>
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-8 relative z-10 flex items-center justify-center gap-3">
+              <span className="flex items-center gap-1.5"><i className="fas fa-list-ol text-rose-400"></i>{selectedActionSession.total_questions || 0} Questions</span>
+              <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-700"></span>
+              <span>{formatTime(selectedActionSession.last_active)}</span>
             </p>
             
             <div className="flex flex-col sm:flex-row items-center gap-3 w-full relative z-10">

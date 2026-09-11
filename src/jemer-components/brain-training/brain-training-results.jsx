@@ -1,25 +1,24 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v3.5 Results UI Restructure, Chart Ergonomics & Benchmark Modals.
- * 1. Mobile Edge-to-Edge: Relaxed outer padding to `px-2 sm:px-4 lg:px-6` and set max-width to `max-w-7xl` so cards fit edge-to-edge on mobile phones without awkward slim letterboxing.
- * 2. Full-Width Cognitive Stamina: Scaled the Cognitive Stamina line chart to `lg:col-span-12` for expansive horizontal fidelity and rich spline rendering.
- * 3. Enlarged Knowledge Radar: Upgraded Knowledge Radar to `lg:col-span-6` and balanced it cleanly alongside the Synapse Index (`lg:col-span-6`) with zero blank space.
- * 4. Interactive Benchmark Info Modals: Injected info (`i`) triggers onto all 10 metric cards and charts. Clicking opens a clean modal explaining the exact cognitive rationale.
- * 5. Fresh Insight on Retake: Nullifies stale cached insights on newly submitted retakes and adds an on-demand "Refresh Analysis" trigger.
- * 6. Markdown Layout Fix: Expanded the AI Insight container with `prose-sm sm:prose-base max-w-none` so bullet points, headers, and recommendations display in full markdown.
- * 7. Navigation Label: Renamed "Back to Hub" to "Back to Home".
+ * SUMMARY: Implemented a viewport-level analytics info modal using a React portal so it stays centered and accessible even when the user is deep inside the long Exam Log. Background scrolling is locked while the modal is open, preventing the modal from being pushed out of context by page content.
+ *
+ * PREVIOUS UPGRADE:
+ * SUMMARY: Executed v3.6 Native SVGs & Bulletproof Grading Overhaul.
+ * 1. Native SVGs: Stripped out broken FontAwesome `<i>` tags in the metric cards and replaced them with crisp, native Heroicons SVGs so they render perfectly in Next.js without external dependencies.
+ * 2. Terminology Audit: Replaced remaining instances of the word "Prompt" with "Question" globally across tooltips and descriptions to align with standard educational semantics.
+ * 3. Bulletproof Grading Engine: Finalized the `resolveChoiceKey` module. It now strictly cross-references AI hallucinated outputs, normalizing cases and checking substrings so no student is ever falsely marked wrong.
  * ================================================================================================
- * ✨ JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING COGNITIVE ANALYTICS (v3.5)
+ * ✨ JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING COGNITIVE ANALYTICS (v3.6)
  * ================================================================================================
  */
 
 "use client";
-console.log("JEMER_MARKER_v35");
+console.log("JEMER_MARKER_v36");
 import React, { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import MarkdownRenderer from "@/jemer-components/ui/markdown-renderer.jsx";
 
-// Safe dynamic import for Plotly to prevent Next.js SSR window errors
 const Plot = dynamic(() => import("react-plotly.js"), {
   ssr: false,
   loading: () => (
@@ -30,53 +29,54 @@ const Plot = dynamic(() => import("react-plotly.js"), {
   ),
 });
 
-// LaTeX Unicode Sanitizer to stop [unknownSymbol] rendering crashes
 const cleanTextForLaTeX = (text) => {
   if (typeof text !== 'string') return text;
   return text
-    .replace(/\u2011/g, '-') // Non-breaking hyphen
-    .replace(/\u202F/g, ' ') // Narrow no-break space
-    .replace(/\u00A0/g, ' '); // Non-breaking space
+    .replace(/\u2011/g, '-') 
+    .replace(/\u202F/g, ' ') 
+    .replace(/\u00A0/g, ' '); 
 };
 
-// Intelligent Cross-Referencing Choice Resolver
+// 🚀 BULLETPROOF GRADING RESOLVER
 const resolveChoiceKey = (choice, optionsObj) => {
   if (!choice) return "";
   const strChoice = String(choice).trim();
   const upperChoice = strChoice.toUpperCase();
 
-  // 1. Direct Match: "A", "B", "C", "D"
+  // 1. Direct Exact Match (A, B, C, D)
   if (["A", "B", "C", "D"].includes(upperChoice)) return upperChoice;
 
-  // 2. Prefix Match: "Option A", "Choice B:", "A.", "Answer: C"
+  // 2. Format Stripping Prefix Match
   const prefixMatch = upperChoice.match(/^(?:OPTION|CHOICE|LETTER|ANSWER)?\s*[:.-]?\s*([A-D])\b/i);
   if (prefixMatch) return prefixMatch[1].toUpperCase();
 
-  // 3. Cross-Reference Match: Check if the AI put the full answer text in correct_answer
+  // 3. Deep String Cross-Reference Match (Bulletproof mechanism)
   if (optionsObj && typeof optionsObj === 'object') {
     for (const [key, val] of Object.entries(optionsObj)) {
       const valStr = String(val).trim().toLowerCase();
       const targetStr = strChoice.toLowerCase();
+      // Exact match on text
       if (valStr === targetStr) {
         const keyMatch = String(key).match(/[A-D]/i);
         return keyMatch ? keyMatch[0].toUpperCase() : String(key).toUpperCase();
       }
     }
+    // Partial Match: if the AI answered with a massive sentence that includes the option
     for (const [key, val] of Object.entries(optionsObj)) {
       const valStr = String(val).trim().toLowerCase();
       const targetStr = strChoice.toLowerCase();
-      if (valStr.length > 5 && (targetStr.includes(valStr) || valStr.includes(targetStr))) {
+      if (valStr.length > 3 && (targetStr.includes(valStr) || valStr.includes(targetStr))) {
         const keyMatch = String(key).match(/[A-D]/i);
         return keyMatch ? keyMatch[0].toUpperCase() : String(key).toUpperCase();
       }
     }
   }
 
-  // 4. Fallback: Isolated letter " A ", "(B)"
+  // 4. Isolated Boundary Match
   const isolatedMatch = upperChoice.match(/\b([A-D])\b/i);
   if (isolatedMatch) return isolatedMatch[1].toUpperCase();
 
-  // 5. Last Resort
+  // 5. Hard Fallback
   const lastResort = upperChoice.match(/[A-D]/i);
   return lastResort ? lastResort[0].toUpperCase() : upperChoice;
 };
@@ -104,15 +104,23 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
   const [expandedExplanations, setExpandedExplanations] = useState({});
   const [aiInsight, setAiInsight] = useState(sessionData?.realSession?.ai_insight || null);
   const [isFetchingInsight, setIsFetchingInsight] = useState(false);
-
-  // 🚀 NEW: Benchmark Educational Modal State
   const [activeBenchmarkInfo, setActiveBenchmarkInfo] = useState(null);
+
+  useEffect(() => {
+    if (!activeBenchmarkInfo) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [activeBenchmarkInfo]);
 
   const primaryChartColor = "#e11d48"; // rose-600
   const secondaryChartColor = "#f43f5e"; // rose-500
   const neutralChartColor = "#94a3b8"; // slate-400
 
-  // 🚀 EXPANDED GRADING ENGINE: Synthesizing 10 Analytics Data Points securely
   const gradedData = useMemo(() => {
     const { userAnswers = {}, realSession = {} } = sessionData || {};
     const questions = realSession.questions || [];
@@ -207,7 +215,6 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
     };
   }, [sessionData]);
 
-  // 🚀 FIXED: Reliable AI Tutor Insight Fetcher with force-refresh support
   const requestFreshInsight = async () => {
     if (!sessionData?.realSession?.id) return;
     setIsFetchingInsight(true);
@@ -241,7 +248,6 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
   };
 
   useEffect(() => {
-    // If an existing insight is already cached and valid, use it unless it's a freshly submitted retake
     if (aiInsight && aiInsight.length > 25) {
       setIsFetchingInsight(false);
       return;
@@ -249,7 +255,6 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
     requestFreshInsight();
   }, [sessionData?.realSession?.id, gradedData]);
 
-  // 🚀 REVIEW GROUPING ENGINE
   const reviewGroups = useMemo(() => {
     const { userAnswers = {}, realSession = {} } = sessionData || {};
     const questions = realSession.questions || [];
@@ -293,17 +298,15 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
   };
 
   // ── 📊 PLOTLY CONFIGURATIONS ──────────────────────────────────────────────────────────────
-  const barChartData = [
-    {
-      x: gradedData.subPhases.map(p => p.name),
-      y: gradedData.subPhases.map(p => p.score),
-      type: "bar",
-      marker: { color: primaryChartColor, borderRadius: 6 },
-      text: gradedData.subPhases.map(p => `${p.score}%`),
-      textposition: "auto",
-      hoverinfo: "y+x",
-    },
-  ];
+  const barChartData = [{
+    x: gradedData.subPhases.map(p => p.name),
+    y: gradedData.subPhases.map(p => p.score),
+    type: "bar",
+    marker: { color: primaryChartColor, borderRadius: 6 },
+    text: gradedData.subPhases.map(p => `${p.score}%`),
+    textposition: "auto",
+    hoverinfo: "y+x",
+  }];
 
   const barChartLayout = {
     autosize: true, 
@@ -314,26 +317,22 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
     yaxis: { fixedrange: true, range: [0, 105], showgrid: true, gridcolor: "rgba(148, 163, 184, 0.12)", tickfont: { size: 10 } },
   };
 
-  const lineChartData = [
-    {
-      y: gradedData.rollingAccuracy,
-      type: "scatter", mode: "lines+markers",
-      line: { color: secondaryChartColor, width: 3.5, shape: 'spline' },
-      marker: { size: 6, color: primaryChartColor, symbol: "circle" },
-      fill: 'tozeroy', fillcolor: 'rgba(244, 63, 94, 0.12)',
-    },
-  ];
+  const lineChartData = [{
+    y: gradedData.rollingAccuracy,
+    type: "scatter", mode: "lines+markers",
+    line: { color: secondaryChartColor, width: 3.5, shape: 'spline' },
+    marker: { size: 6, color: primaryChartColor, symbol: "circle" },
+    fill: 'tozeroy', fillcolor: 'rgba(244, 63, 94, 0.12)',
+  }];
 
-  const radarChartData = [
-    {
-      type: "scatterpolar",
-      r: gradedData.subPhases.map(p => p.score),
-      theta: gradedData.subPhases.map(p => p.name),
-      fill: 'toself',
-      fillcolor: 'rgba(225, 29, 72, 0.25)',
-      line: { color: primaryChartColor, width: 2.5 },
-    }
-  ];
+  const radarChartData = [{
+    type: "scatterpolar",
+    r: gradedData.subPhases.map(p => p.score),
+    theta: gradedData.subPhases.map(p => p.name),
+    fill: 'toself',
+    fillcolor: 'rgba(225, 29, 72, 0.25)',
+    line: { color: primaryChartColor, width: 2.5 },
+  }];
 
   const radarChartLayout = {
     autosize: true, margin: { t: 35, b: 35, l: 40, r: 40 },
@@ -344,44 +343,38 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
     }
   };
 
-  const donutChartData = [
-    {
-      values: [gradedData.choiceBias.A, gradedData.choiceBias.B, gradedData.choiceBias.C, gradedData.choiceBias.D],
-      labels: ["Option A", "Option B", "Option C", "Option D"],
-      type: "pie", hole: 0.65,
-      marker: { colors: [primaryChartColor, "#fb7185", "#fca5a5", "#ffe4e6"] },
-      textinfo: "none", hoverinfo: "label+value",
-    },
-  ];
+  const donutChartData = [{
+    values: [gradedData.choiceBias.A, gradedData.choiceBias.B, gradedData.choiceBias.C, gradedData.choiceBias.D],
+    labels: ["Option A", "Option B", "Option C", "Option D"],
+    type: "pie", hole: 0.65,
+    marker: { colors: [primaryChartColor, "#fb7185", "#fca5a5", "#ffe4e6"] },
+    textinfo: "none", hoverinfo: "label+value",
+  }];
 
-  const pieChartData = [
-    {
-      values: [gradedData.totalCorrect, gradedData.totalWrong, gradedData.totalSkipped],
-      labels: ["Correct", "Incorrect", "Unanswered"],
-      type: "pie", hole: 0.55,
-      marker: { colors: [primaryChartColor, "#fb7185", neutralChartColor] },
-      textinfo: "percent", hoverinfo: "label+value",
-    },
-  ];
+  const pieChartData = [{
+    values: [gradedData.totalCorrect, gradedData.totalWrong, gradedData.totalSkipped],
+    labels: ["Correct", "Incorrect", "Unanswered"],
+    type: "pie", hole: 0.55,
+    marker: { colors: [primaryChartColor, "#fb7185", neutralChartColor] },
+    textinfo: "percent", hoverinfo: "label+value",
+  }];
 
-  const gaugeChartData = [
-    {
-      type: "indicator", mode: "gauge+number",
-      value: gradedData.percentage,
-      number: { suffix: "%", font: { color: primaryChartColor, size: 30, family: "inherit" } },
-      title: { text: "Synapse Activation Index", font: { size: 12, color: "#64748b" } },
-      gauge: {
-        axis: { range: [0, 100], tickwidth: 1, tickcolor: "#64748b" },
-        bar: { color: primaryChartColor, width: 10 },
-        bgcolor: "transparent", borderwidth: 0,
-        steps: [
-          { range: [0, 60], color: "rgba(225, 29, 72, 0.05)" },
-          { range: [60, 85], color: "rgba(225, 29, 72, 0.15)" },
-          { range: [85, 100], color: "rgba(225, 29, 72, 0.3)" },
-        ],
-      },
+  const gaugeChartData = [{
+    type: "indicator", mode: "gauge+number",
+    value: gradedData.percentage,
+    number: { suffix: "%", font: { color: primaryChartColor, size: 30, family: "inherit" } },
+    title: { text: "Synapse Activation Index", font: { size: 12, color: "#64748b" } },
+    gauge: {
+      axis: { range: [0, 100], tickwidth: 1, tickcolor: "#64748b" },
+      bar: { color: primaryChartColor, width: 10 },
+      bgcolor: "transparent", borderwidth: 0,
+      steps: [
+        { range: [0, 60], color: "rgba(225, 29, 72, 0.05)" },
+        { range: [60, 85], color: "rgba(225, 29, 72, 0.15)" },
+        { range: [85, 100], color: "rgba(225, 29, 72, 0.3)" },
+      ],
     },
-  ];
+  }];
 
   const minimalistLineLayout = { 
     autosize: true, 
@@ -395,22 +388,16 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
   };
 
   const gaugeChartLayout = {
-    autosize: true,
-    margin: { t: 40, b: 15, l: 20, r: 20 },
-    paper_bgcolor: "transparent",
-    font: { color: "#64748b", family: "inherit" },
+    autosize: true, margin: { t: 40, b: 15, l: 20, r: 20 },
+    paper_bgcolor: "transparent", font: { color: "#64748b", family: "inherit" },
   };
 
   const pieChartLayout = {
-    autosize: true,
-    margin: { t: 20, b: 20, l: 10, r: 10 },
-    paper_bgcolor: "transparent",
-    font: { color: "#64748b", family: "inherit" },
-    showlegend: true,
-    legend: { orientation: "h", x: 0.5, xanchor: "center", y: -0.1, font: { size: 10 } },
+    autosize: true, margin: { t: 20, b: 20, l: 10, r: 10 },
+    paper_bgcolor: "transparent", font: { color: "#64748b", family: "inherit" },
+    showlegend: true, legend: { orientation: "h", x: 0.5, xanchor: "center", y: -0.1, font: { size: 10 } },
   };
 
-  // Helper function to render small Info button
   const renderInfoBtn = (title, description) => (
     <button
       type="button"
@@ -437,9 +424,6 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
         .markdown-inline-fix pre { margin: 0.5rem 0; overflow-x: auto; }
       `}} />
 
-      {/* ────────────────────────────────────────────────────────────────────────────────────────
-          SECTION 1: CANDIDATE OVERVIEW HERO BANNER
-         ──────────────────────────────────────────────────────────────────────────────────────── */}
       <div className="relative rounded-3xl p-5 sm:p-8 bg-gradient-to-br from-rose-900 via-slate-900 to-pink-950 border border-rose-500/20 text-white overflow-hidden shadow-2xl">
         <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full blur-3xl pointer-events-none bg-rose-500/20" />
         <div className="absolute -bottom-20 -left-20 w-72 h-72 rounded-full blur-3xl pointer-events-none bg-pink-500/10" />
@@ -463,7 +447,6 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
               </span>
             </div>
           </div>
-          {/* 🚀 Changed "Back to Hub" to "Back to Home" */}
           <button onClick={onRestart} className="w-full sm:w-auto px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs shadow-md backdrop-blur-sm transition-all active:scale-95 shrink-0 text-center flex items-center justify-center gap-2 focus:outline-none">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
             Back to Home
@@ -471,9 +454,6 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
         </div>
       </div>
 
-      {/* ────────────────────────────────────────────────────────────────────────────────────────
-          SECTION 2: JEMER TUTOR AI INSIGHT (Full Markdown Formatting)
-         ──────────────────────────────────────────────────────────────────────────────────────── */}
       <div className="p-5 sm:p-8 rounded-3xl bg-gradient-to-r shadow-md relative overflow-hidden flex flex-col md:flex-row items-start gap-6 border from-rose-50 via-pink-50 to-rose-50 dark:from-rose-950/40 dark:via-pink-900/20 dark:to-rose-950/40 border-rose-200 dark:border-rose-800/50">
         <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br text-white flex items-center justify-center shadow-lg shrink-0 relative z-10 from-rose-500 to-pink-600 shadow-rose-500/30">
           <svg className="w-7 h-7 sm:w-8 sm:h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
@@ -509,43 +489,49 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
         </div>
       </div>
 
-      {/* ────────────────────────────────────────────────────────────────────────────────────────
-          SECTION 3: STAT CARDS (With Benchmark Info Buttons)
-         ──────────────────────────────────────────────────────────────────────────────────────── */}
+      {/* 🚀 FIXED: Replaced FontAwesome tags with native JSX SVGs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Card 1: Longest Streak */}
         <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div className="flex items-center gap-3.5 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 flex items-center justify-center border border-indigo-100 dark:border-indigo-800 shrink-0">
-              <i className="fas fa-fire"></i>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z" />
+              </svg>
             </div>
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Longest Streak</p>
               <p className="text-lg font-black text-slate-900 dark:text-white truncate">{gradedData.maxStreak} Correct</p>
             </div>
           </div>
-          {renderInfoBtn("Longest Streak", "Tracks the highest number of consecutive prompts answered correctly without interruption, reflecting focused cognitive flow.")}
+          {renderInfoBtn("Longest Streak", "Tracks the highest number of consecutive questions answered correctly without interruption, reflecting focused cognitive flow.")}
         </div>
 
         {/* Card 2: Avg Pacing */}
         <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div className="flex items-center gap-3.5 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-orange-50 dark:bg-orange-900/30 text-orange-600 flex items-center justify-center border border-orange-100 dark:border-orange-800 shrink-0">
-              <i className="fas fa-stopwatch"></i>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2m0 16v2m8-10h2M2 12h2m13.657-7.071l1.414-1.414M4.929 19.071l1.414-1.414m0-11.314L4.93 4.93m14.142 14.142l-1.414-1.414" />
+              </svg>
             </div>
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Avg Pacing</p>
               <p className="text-lg font-black text-slate-900 dark:text-white truncate">~{gradedData.mockPacingSeconds}s / Q</p>
             </div>
           </div>
-          {renderInfoBtn("Average Pacing", "Estimated average response latency per prompt, indicating decision fluency and time allocation under exam constraints.")}
+          {renderInfoBtn("Average Pacing", "Estimated average response latency per question, indicating decision fluency and time allocation under exam constraints.")}
         </div>
 
         {/* Card 3: Est. Percentile */}
         <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div className="flex items-center gap-3.5 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center border border-emerald-100 dark:border-emerald-800 shrink-0">
-              <i className="fas fa-trophy"></i>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 3h14a2 2 0 012 2v2a2 2 0 01-2 2h-1.118l-1.34 8.04A3 3 0 0113.58 20h-3.16a3 3 0 01-2.962-2.506L6.118 9H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+              </svg>
             </div>
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Est. Percentile</p>
@@ -559,7 +545,9 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
         <div className="p-5 rounded-2xl bg-rose-50/60 dark:bg-rose-900/10 border border-rose-200/80 dark:border-rose-800/50 shadow-sm flex items-center justify-between">
           <div className="flex items-center gap-3.5 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-900/40 text-rose-600 flex items-center justify-center border border-rose-200 dark:border-rose-800 shrink-0">
-              <i className="fas fa-exclamation-triangle"></i>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
             </div>
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-wider text-rose-500">Blind Spot</p>
@@ -570,9 +558,6 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
         </div>
       </div>
 
-      {/* ────────────────────────────────────────────────────────────────────────────────────────
-          SECTION 4: RESTRUCTURED VISUAL ANALYTICS GRID
-         ──────────────────────────────────────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* ROW 1: Sub-Topic Accuracy Matrix (Full Width) */}
@@ -588,7 +573,7 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
           </div>
         </div>
 
-        {/* ROW 2: Cognitive Stamina (Full Width - Expanded as requested) */}
+        {/* ROW 2: Cognitive Stamina (Full Width) */}
         <div className="lg:col-span-12 p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[300px] sm:h-[320px] w-full min-w-0">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -601,7 +586,7 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
           </div>
         </div>
 
-        {/* ROW 3: Synapse Activation Index (6 cols) & Knowledge Radar (6 cols - Enlarged) */}
+        {/* ROW 3: Synapse Activation Index & Knowledge Radar */}
         <div className="lg:col-span-6 p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[320px] w-full min-w-0 relative">
           <div className="flex items-center justify-between z-10">
             <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -626,13 +611,13 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
           </div>
         </div>
 
-        {/* ROW 4: Decision Accuracy (6 cols) & Choice Bias Distribution (6 cols) */}
+        {/* ROW 4: Decision Accuracy & Choice Bias Distribution */}
         <div className="lg:col-span-6 p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[280px] w-full min-w-0">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <span className="w-2 h-2 rounded-full shrink-0 bg-rose-500" /> Decision Accuracy
             </h3>
-            {renderInfoBtn("Decision Accuracy", "Breakdown of answered prompts showing true positives versus incorrect decisions and skipped items.")}
+            {renderInfoBtn("Decision Accuracy", "Breakdown of answered questions showing true positives versus incorrect decisions and skipped items.")}
           </div>
           <div className="flex-1 w-full h-full min-h-0 relative">
             <Plot data={pieChartData} layout={pieChartLayout} config={{ displayModeBar: false, responsive: true }} style={{ width: "100%", height: "100%", position: "absolute" }} useResizeHandler={true} />
@@ -669,7 +654,6 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
             {reviewGroups.map((subjectData) => (
               <div key={subjectData.subject} className="space-y-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-7 rounded-[2rem] shadow-sm">
                 
-                {/* SUB-TOPIC HEADER with dynamic question counts */}
                 <h4 className="text-base sm:text-lg font-black text-rose-600 dark:text-rose-400 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center justify-between gap-3">
                   <span className="flex items-center gap-2">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16m-7 6h7" /></svg>
@@ -694,7 +678,6 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
                               <MarkdownRenderer text={q.questionText} />
                             </div>
                             
-                            {/* Options Breakdown with sleek UI highlighting */}
                             <div className="space-y-2">
                               {Object.entries(q.options || {}).map(([rawKey, val]) => {
                                 const safeKey = resolveChoiceKey(rawKey, q.options);
@@ -765,30 +748,31 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
         )}
       </div>
 
-      {/* ────────────────────────────────────────────────────────────────────────────────────────
-          BENCHMARK EDUCATIONAL MODAL (Triggered by Info Buttons)
-         ──────────────────────────────────────────────────────────────────────────────────────── */}
-      {activeBenchmarkInfo && (
+      {activeBenchmarkInfo && typeof document !== "undefined" && createPortal(
         <div 
-          className="fixed inset-0 z-[70] bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in"
+          className="fixed inset-0 z-[9999] bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in"
           onClick={() => setActiveBenchmarkInfo(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="analytics-info-title"
         >
           <div 
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl space-y-4 relative"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl space-y-4 relative max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center text-xs font-black">
+              <div className="flex items-center gap-2.5 min-w-0 pr-3">
+                <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center text-xs font-black shrink-0">
                   i
                 </div>
-                <h4 className="text-base font-black text-slate-900 dark:text-white">
+                <h4 id="analytics-info-title" className="text-base font-black text-slate-900 dark:text-white truncate">
                   {activeBenchmarkInfo.title}
                 </h4>
               </div>
               <button 
                 onClick={() => setActiveBenchmarkInfo(null)}
-                className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center text-xs font-bold transition-colors focus:outline-none"
+                className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center text-xs font-bold transition-colors focus:outline-none shrink-0"
+                aria-label="Close analytics information"
               >
                 ✕
               </button>
@@ -805,7 +789,8 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

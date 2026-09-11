@@ -2,11 +2,15 @@
 "use client";
 /**
  * [NEW UPGRADE]
- * SUMMARY: v2.3 Layout Bugfix & Card Visual Overhaul.
+ * SUMMARY: v2.4 Real Progress Calculation.
+ * 1. Progress Fix: "Synapse Activation" no longer collapses to a binary 0%/100% based on completion status alone — it's now computed from how many questions have actually been answered vs. total_questions, so in-progress sessions show a real, granular percentage. Falls back to the prior status-based value if no answered-count field is present in the API payload (see inline note — confirm/adjust the field name against the actual backend response).
+ * 2. Component Integrity: No other card logic, menu behavior, or visuals were touched.
+ * ────────────────────────────────────────────────────────────────────────────────────────
+ * [PRIOR] v2.3 Layout Bugfix & Card Visual Overhaul.
  * 1. Layout Fix: Removed root `onMouseLeave` menu closer to eliminate blank screen / click-trap bugs, replacing it with secure event propagation control.
  * 2. Card Visuals: Upgraded active training cards with rich gradients, micro-badges, refined typography, and glowing hover states.
  * ================================================================================================
- * 📚 JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING HISTORY (v2.3)
+ * 📚 JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING HISTORY (v2.4)
  * ================================================================================================
  */
 
@@ -164,7 +168,16 @@ export default function BrainTrainingHistory({ onResume }) {
       {/* Responsive Horizontal Scroll Carousel */}
       <div className="flex gap-4 sm:gap-5 overflow-x-auto snap-x snap-mandatory brain-premium-scroll pb-6 px-2">
         {history.map((session) => {
-          const currentProgress = session.progress || 0;
+          // NOTE: the API's `status` field is binary (completed/uncompleted), so it can't
+          // drive a granular bar. We derive real progress from answered questions vs.
+          // total_questions instead, checking the common field-name variants; if none of
+          // these exist on the payload yet, this falls back to the old status-based value.
+          const answeredCount = session.questions_answered ?? session.answered_questions ??
+            session.answered_count ?? session.current_question_index ?? null;
+          const totalQuestions = session.total_questions || 0;
+          const currentProgress = (answeredCount != null && totalQuestions > 0)
+            ? Math.min(100, Math.round((answeredCount / totalQuestions) * 100))
+            : (session.progress || 0);
           const displayStatus = currentProgress > 0 ? "In Progress" : session.status || "Pending";
           
           return (

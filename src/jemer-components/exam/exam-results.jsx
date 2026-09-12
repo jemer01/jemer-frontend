@@ -2,21 +2,17 @@
 
 /**
  * ================================================================================================
- * 🆕 NEW UPGRADES SUMMARY (v1.7 - PERFORMANCE HISTORY DYNAMIC INTEGRATION)
+ * 🆕 NEW UPGRADES SUMMARY (v2.0 - LIVE GRADING & AI INSIGHT INTEGRATION)
  * ================================================================================================
- * 1. HISTORY VIEW FLAG: Introduced `isHistoryView` boolean prop. When `true`, it adapts the dashboard 
- *    for archival review rather than an immediate post-test state.
- * 2. DYNAMIC CALL-TO-ACTION: Transformed the Hero Banner's primary "Start New Exam" button. 
- *    If `isHistoryView` is active, it seamlessly morphs into a "← Back to History List" button, 
- *    repurposing the `onRestart` callback to safely transition the user back to the list dashboard.
- * 3. 100% THEME PRESERVATION: Because the architecture dynamically reads the injected `mode` 
- *    (jamb, waec, practice, study, hunter), the Results dashboard automatically revives the exact 
- *    colorway, grading system, and AI remarks of the specific past exam being viewed!
+ * 1. DETERMINISTIC GRADING ENGINE: Ripped out `Math.random()` fake grades. Accurately calculates WAEC percentages and JAMB /400 scaling by cross-referencing real `userAnswers` with `examData.questions`.
+ * 2. GROQ AI INSIGHT HOOK: Sends exact score, pacing, and blind spot data via `POST` to `/api/v1/examsimulator/session/{id}/insight`. Replaces dummy text with an honest, personalized 20b model Markdown review.
+ * 3. REAL REVIEW ENGINE: Plugs actual explanations from the Sdash DB/Cache directly into the "Reveal Corrections & Review" accordions.
  * ================================================================================================
  */
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import dynamic from "next/dynamic";
+import MarkdownRenderer from "@/jemer-components/ui/markdown-renderer.jsx";
 
 const Plot = dynamic(() => import("react-plotly.js"), {
   ssr: false,
@@ -27,6 +23,19 @@ const Plot = dynamic(() => import("react-plotly.js"), {
     </div>
   ),
 });
+
+// ================================================================================================
+// 🔐 UTILITIES
+// ================================================================================================
+const getBackendUrl = () => {
+  const activeOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  return process.env.NEXT_PUBLIC_API_URL ||
+    (activeOrigin.includes("jemerplatforms.company") ? "https://academy.jemerplatforms.company" :
+     activeOrigin.includes("cloudshell.dev") ? "https://3000-cs-9c6bf60b-3314-4394-80ef-ef6f4089d8e1.cs-europe-west1-haha.cloudshell.dev" :
+     "http://localhost:8080");
+};
+
+const getToken = () => localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token") || "";
 
 const getWaecGrade = (percentage) => {
   if (percentage >= 75) return "A1";
@@ -40,22 +49,24 @@ const getWaecGrade = (percentage) => {
   return "F9";
 };
 
-export default function ExamResults({ mode = "jamb", config, sessionData, onRestart, isHistoryView = false }) {
+export default function ExamResults({ mode = "jamb", config, examData, sessionData, onRestart, isHistoryView = false }) {
   const isWaecMode = mode === "waec";
   const isPracticeMode = mode === "practice";
   const isStudyMode = mode === "study";
   const isHunterMode = mode === "hunter";
   const isSingleSubjectMode = isPracticeMode || isStudyMode || isHunterMode;
   
-  // Dynamic theme colors for Plotly charts
   const primaryChartColor = isHunterMode ? "#0d9488" : isStudyMode ? "#9333ea" : isPracticeMode ? "#f97316" : isWaecMode ? "#2563eb" : "#10b981"; 
   const dangerChartColor = "#f43f5e"; 
   const neutralChartColor = "#94a3b8"; 
 
   const [showReview, setShowReview] = useState(false);
+  const [expandedExplanations, setExpandedExplanations] = useState({});
+  const [aiInsight, setAiInsight] = useState(null);
+  const [isFetchingInsight, setIsFetchingInsight] = useState(false);
 
+  // 🚀 FIXED: Deterministic Grading Engine utilizing real User Answers
   const gradedData = useMemo(() => {
-    // Default subject mapping based on mode
     const defaultSubjects = isHunterMode
       ? [{ id: "custom_hunt", name: "Custom AI Generation", count: 10 }]
       : isSingleSubjectMode 
@@ -75,27 +86,51 @@ export default function ExamResults({ mode = "jamb", config, sessionData, onRest
             ];
 
     const subjects = config?.subjects || defaultSubjects;
+    const questionsRepo = examData?.questions || {};
+    const userAnswers = sessionData?.userAnswers || {};
 
-    let totalRaw = 0;
+    let totalCorrect = 0;
     let totalMaxRaw = 0;
     let totalScaled = 0; 
     let totalPercentageSum = 0; 
     let distinctionsCount = 0;
     let creditsCount = 0;
+    
+    let lowestScore = 100;
+    let blindSpot = "None";
 
     const subjectBreakdown = subjects.map((sub) => {
-      const rawScore = Math.floor(sub.count * (Math.random() * 0.55 + 0.4));
-      const percentage = (rawScore / sub.count) * 100;
-      const scaledScore = Math.round(percentage); 
+      const qs = questionsRepo[sub.id] || [];
+      let subCorrect = 0;
+      
+      qs.forEach(q => {
+        const uAns = userAnswers[`${sub.id}-${q.id}`];
+        if (uAns && uAns === q.correctAnswer) {
+          subCorrect++;
+        }
+      });
+
+      const maxRaw = sub.count;
+      const rawScore = subCorrect;
+      
+      const percentage = maxRaw > 0 ? (rawScore / maxRaw) * 100 : 0;
       const roundedPct = Math.round(percentage);
+      
+      // Standard JAMB 400 scale distributes roughly 100 points per subject
+      const scaledScore = Math.round((rawScore / maxRaw) * 100); 
       
       const grade = getWaecGrade(roundedPct);
       
       if (["A1", "B2", "B3"].includes(grade)) distinctionsCount++;
       else if (["C4", "C5", "C6"].includes(grade)) creditsCount++;
 
-      totalRaw += rawScore;
-      totalMaxRaw += sub.count;
+      if (roundedPct < lowestScore) {
+        lowestScore = roundedPct;
+        blindSpot = sub.name;
+      }
+
+      totalCorrect += rawScore;
+      totalMaxRaw += maxRaw;
       totalScaled += scaledScore;
       totalPercentageSum += roundedPct;
 
@@ -103,22 +138,21 @@ export default function ExamResults({ mode = "jamb", config, sessionData, onRest
         id: sub.id,
         name: sub.name,
         rawScore,
-        maxRaw: sub.count,
+        maxRaw,
         scaledScore,
         percentage: roundedPct,
         grade,
       };
     });
 
-    const averagePercentage = Math.round(totalPercentageSum / subjects.length);
+    const averagePercentage = subjects.length > 0 ? Math.round(totalPercentageSum / subjects.length) : 0;
     const overallReadiness = isSingleSubjectMode 
-      ? subjectBreakdown[0].percentage 
+      ? (subjectBreakdown[0]?.percentage || 0)
       : isWaecMode 
         ? averagePercentage 
         : Math.round((totalScaled / 400) * 100);
 
-    const totalCorrect = totalRaw;
-    const totalWrong = Math.floor((totalMaxRaw - totalCorrect) * 0.8);
+    const totalWrong = Object.keys(userAnswers).length - totalCorrect;
     const totalSkipped = totalMaxRaw - totalCorrect - totalWrong;
 
     return {
@@ -129,30 +163,87 @@ export default function ExamResults({ mode = "jamb", config, sessionData, onRest
       creditsCount,
       overallReadiness,
       totalCorrect,
-      totalWrong,
-      totalSkipped,
+      totalWrong: totalWrong > 0 ? totalWrong : 0,
+      totalSkipped: totalSkipped > 0 ? totalSkipped : 0,
+      blindSpot
     };
-  }, [config, isWaecMode, isSingleSubjectMode, isHunterMode]);
+  }, [config, isWaecMode, isSingleSubjectMode, isHunterMode, examData, sessionData]);
 
-  const reviewQuestions = useMemo(() => {
-    return gradedData.subjectBreakdown.map((sub) => ({
-      subject: sub.name,
-      questions: Array.from({ length: 5 }).map((_, i) => {
-        const isCorrect = Math.random() > 0.4;
-        const correctOpt = ["A", "B", "C", "D"][Math.floor(Math.random() * 4)];
-        const userOpt = isCorrect ? correctOpt : ["A", "B", "C", "D"].find(o => o !== correctOpt);
+  // 🚀 FIXED: Fetch Honest AI Insight
+  useEffect(() => {
+    // Prevent double fetch if history mode passes an existing insight (future proofing)
+    if (sessionData?.ai_insight) {
+      setAiInsight(sessionData.ai_insight);
+      return;
+    }
+
+    if (!examData?.session_id) return;
+
+    let isMounted = true;
+    const fetchInsight = async () => {
+      setIsFetchingInsight(true);
+      try {
+        const payload = `Mode: ${mode} | Total Score: ${isWaecMode || isSingleSubjectMode ? gradedData.averagePercentage + '%' : gradedData.totalScaled + '/400'} | Weakest Area: ${gradedData.blindSpot} | Time Left: ${sessionData?.remainingSeconds}s`;
         
-        return {
-          id: `${sub.id}-${i + 1}`,
-          number: i + 1,
-          questionText: `Sample question stem for ${sub.name}. What is the correct interpretation of this concept?`,
-          userAnswer: userOpt,
-          correctAnswer: correctOpt,
-          isCorrect,
-        };
-      }),
-    }));
-  }, [gradedData]);
+        const res = await fetch(`${getBackendUrl()}/api/v1/examsimulator/session/${examData.session_id}/insight`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${getToken()}`
+          },
+          body: JSON.stringify({ telemetry_data: payload })
+        });
+        
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          if (data.ai_insight) {
+            setAiInsight(data.ai_insight);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch AI insight:", err);
+        if (isMounted) setAiInsight("The AI connection dropped. Please review your metrics manually.");
+      } finally {
+        if (isMounted) setIsFetchingInsight(false);
+      }
+    };
+
+    fetchInsight();
+    return () => { isMounted = false; };
+  }, [examData?.session_id, gradedData, mode, sessionData?.remainingSeconds]);
+
+  // 🚀 FIXED: Real Review Engine from API Payload
+  const reviewQuestions = useMemo(() => {
+    const questionsRepo = examData?.questions || {};
+    const userAnswers = sessionData?.userAnswers || {};
+
+    return gradedData.subjectBreakdown.map((sub) => {
+      const qs = questionsRepo[sub.id] || [];
+      return {
+        subject: sub.name,
+        questions: qs.map((q) => {
+          const uAns = userAnswers[`${sub.id}-${q.id}`];
+          const isCorrect = uAns === q.correctAnswer;
+          
+          return {
+            id: q.id,
+            number: q.number,
+            questionText: q.questionText,
+            options: q.options,
+            userAnswer: uAns,
+            correctAnswer: q.correctAnswer,
+            explanation: q.explanation,
+            isCorrect,
+            imageUrl: q.imageUrl,
+          };
+        }),
+      };
+    });
+  }, [gradedData, examData, sessionData]);
+
+  const toggleExplanation = (qId) => {
+    setExpandedExplanations(prev => ({ ...prev, [qId]: !prev[qId] }));
+  };
 
   // Plotly Configurations
   const barChartData = [
@@ -447,23 +538,26 @@ export default function ExamResults({ mode = "jamb", config, sessionData, onRest
         </div>
 
         <div className="relative z-10 flex-1 space-y-2 min-w-0">
-          <h3 className={`text-base sm:text-lg font-black ${isHunterMode ? "text-teal-900 dark:text-teal-300" : isStudyMode ? "text-purple-900 dark:text-purple-300" : isPracticeMode ? "text-orange-900 dark:text-orange-300" : "text-indigo-900 dark:text-indigo-300"}`}>
-            Jemer Tutor AI Insight
-          </h3>
-          <p className={`text-xs sm:text-sm font-medium leading-relaxed break-words ${isHunterMode ? "text-teal-950/80 dark:text-teal-200/80" : isStudyMode ? "text-purple-950/80 dark:text-purple-200/80" : isPracticeMode ? "text-orange-950/80 dark:text-orange-200/80" : "text-indigo-950/80 dark:text-indigo-200/80"}`}>
-            {isHistoryView 
-              ? `"Reviewing past exams is the hallmark of a great student. This record shows you achieved ${isWaecMode || isSingleSubjectMode ? gradedData.subjectBreakdown[0]?.percentage + "%" : gradedData.totalScaled + " points"}. Check the corrections below to see what you can improve on."`
-              : isHunterMode
-                ? `"Impressive hunt, John! You generated and conquered a custom test with ${gradedData.subjectBreakdown[0]?.percentage}% (${gradedData.subjectBreakdown[0]?.grade}). Dive into the AI corrections below to review the nuanced areas you missed."`
-                : isStudyMode 
-                  ? `"Great study session, John! You achieved a mastery of ${gradedData.subjectBreakdown[0]?.percentage}% (${gradedData.subjectBreakdown[0]?.grade}) in ${gradedData.subjectBreakdown[0]?.name}. Make sure to review the detailed AI explanations below for the ${gradedData.totalWrong} questions you missed to solidify your understanding."`
-                  : isPracticeMode 
-                    ? `"Great practice drill, John! You scored ${gradedData.subjectBreakdown[0]?.percentage}% (${gradedData.subjectBreakdown[0]?.grade}) in ${gradedData.subjectBreakdown[0]?.name}. Keep practicing to improve your speed and accuracy before the main exam."`
-                    : isWaecMode 
-                      ? `"Excellent performance across your ${gradedData.subjectBreakdown.length} WASSCE subjects, John! Achieving ${gradedData.distinctionsCount} Distinctions is outstanding. However, we noticed a slight pacing issue in English where 15 questions were rushed in the final 10 minutes."`
-                      : `"Excellent overall aggregate, John! Your mastery in Mathematics and Physics is outstanding. However, we noticed a slight pacing issue in Use of English where 15 questions were rushed in the final 10 minutes."`
-            }
-          </p>
+          <div className="flex items-center justify-between gap-3 border-b border-rose-200/60 dark:border-rose-900/40 pb-2">
+            <h3 className={`text-base sm:text-lg font-black ${isHunterMode ? "text-teal-900 dark:text-teal-300" : isStudyMode ? "text-purple-900 dark:text-purple-300" : isPracticeMode ? "text-orange-900 dark:text-orange-300" : "text-indigo-900 dark:text-indigo-300"}`}>
+              Jemer Tutor AI Insight
+            </h3>
+            <button
+              disabled={isFetchingInsight}
+              className={`text-[11px] font-bold flex items-center gap-1.5 focus:outline-none disabled:opacity-50 transition-colors ${isHunterMode ? "text-teal-600 hover:text-teal-700" : isStudyMode ? "text-purple-600 hover:text-purple-700" : isPracticeMode ? "text-orange-600 hover:text-orange-700" : "text-indigo-600 hover:text-indigo-700"}`}
+            >
+              {isFetchingInsight && (
+                <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                </svg>
+              )}
+              <span>{isFetchingInsight ? "Analyzing..." : "Review Active"}</span>
+            </button>
+          </div>
+
+          <div className={`text-sm font-medium leading-relaxed break-words prose prose-sm sm:prose-base max-w-none ${isHunterMode ? "text-teal-950/80 dark:text-teal-200/80 prose-teal dark:prose-invert" : isStudyMode ? "text-purple-950/80 dark:text-purple-200/80 prose-purple dark:prose-invert" : isPracticeMode ? "text-orange-950/80 dark:text-orange-200/80 prose-orange dark:prose-invert" : "text-indigo-950/80 dark:text-indigo-200/80 prose-indigo dark:prose-invert"}`}>
+            <MarkdownRenderer text={aiInsight || "No insight generated yet. Generating..."} />
+          </div>
         </div>
       </div>
 
@@ -483,53 +577,89 @@ export default function ExamResults({ mode = "jamb", config, sessionData, onRest
                 </h4>
                 
                 <div className="grid grid-cols-1 gap-4">
-                  {subjectData.questions.map((q) => (
-                    <div key={q.id} className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-4 items-start">
-                      
-                      <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 font-mono font-black text-sm flex items-center justify-center shrink-0 text-slate-600 dark:text-slate-300">
-                        {q.number}
-                      </div>
-
-                      <div className="flex-1 space-y-3 min-w-0">
-                        <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-relaxed break-words">
-                          {q.questionText}
-                        </p>
+                  {subjectData.questions.map((q) => {
+                    const isExpanded = !!expandedExplanations[q.id];
+                    return (
+                      <div key={q.id} className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-4 items-start">
                         
-                        <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs font-mono font-bold">
-                          <div className={`px-3 py-1.5 rounded-lg flex items-center gap-2 border ${
-                            q.isCorrect 
-                              ? (isHunterMode
-                                  ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-800"
-                                  : isStudyMode 
-                                    ? "bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800"
-                                    : isPracticeMode 
-                                      ? "bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800"
-                                      : isWaecMode 
-                                        ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800" 
-                                        : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800")
-                              : "bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800"
-                          }`}>
-                            <span>Your Answer: {q.userAnswer || "None"}</span>
-                            {q.isCorrect ? (
-                              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                            ) : (
-                              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                            )}
-                          </div>
+                        <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 font-mono font-black text-sm flex items-center justify-center shrink-0 text-slate-600 dark:text-slate-300">
+                          {q.number}
+                        </div>
 
-                          {!q.isCorrect && (
-                            <div className={`px-3 py-1.5 rounded-lg text-white flex items-center gap-2 shadow-sm ${
-                              isHunterMode ? "bg-teal-500" : isStudyMode ? "bg-purple-500" : isPracticeMode ? "bg-orange-500" : isWaecMode ? "bg-blue-500" : "bg-emerald-500"
-                            }`}>
-                              <span>Correct Answer: {q.correctAnswer}</span>
-                              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                        <div className="flex-1 space-y-3 min-w-0">
+                          
+                          {/* 🚀 Render Image in Review if it exists */}
+                          {q.imageUrl && (
+                            <div className="w-full flex justify-start py-2">
+                              <img 
+                                src={q.imageUrl.startsWith("http") ? q.imageUrl : `https://r2.jemerplatforms.company/${q.imageUrl}`} 
+                                alt="Question Diagram" 
+                                className="max-w-full max-h-48 object-contain rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm"
+                              />
                             </div>
                           )}
+
+                          <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-relaxed break-words">
+                            <MarkdownRenderer text={q.questionText} />
+                          </div>
+                          
+                          <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs font-mono font-bold">
+                            <div className={`px-3 py-1.5 rounded-lg flex items-center gap-2 border ${
+                              q.isCorrect 
+                                ? (isHunterMode
+                                    ? "bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-800"
+                                    : isStudyMode 
+                                      ? "bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800"
+                                      : isPracticeMode 
+                                        ? "bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800"
+                                        : isWaecMode 
+                                          ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800" 
+                                          : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800")
+                                : "bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800"
+                            }`}>
+                              <span>Your Answer: {q.userAnswer || "None"}</span>
+                              {q.isCorrect ? (
+                                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                              ) : (
+                                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                              )}
+                            </div>
+
+                            {!q.isCorrect && (
+                              <div className={`px-3 py-1.5 rounded-lg text-white flex items-center gap-2 shadow-sm ${
+                                isHunterMode ? "bg-teal-500" : isStudyMode ? "bg-purple-500" : isPracticeMode ? "bg-orange-500" : isWaecMode ? "bg-blue-500" : "bg-emerald-500"
+                              }`}>
+                                <span>Correct Answer: {q.correctAnswer}</span>
+                                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                              </div>
+                            )}
+
+                            <button 
+                              onClick={() => toggleExplanation(q.id)}
+                              className="px-3.5 py-2 rounded-lg bg-slate-900 dark:bg-slate-800 text-white font-bold text-xs hover:bg-slate-800 dark:hover:bg-slate-700 transition-colors shadow-sm flex items-center gap-2 ml-auto"
+                            >
+                              {isExpanded ? "Hide AI Explanation" : "Show AI Explanation"}
+                              <svg className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                            </button>
+                          </div>
+
+                          <div className={`grid transition-all duration-300 ease-in-out ${isExpanded ? 'grid-rows-[1fr] opacity-100 mt-3' : 'grid-rows-[0fr] opacity-0 mt-0'}`}>
+                            <div className="overflow-hidden">
+                              <div className="p-4 sm:p-5 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100 dark:border-indigo-800/50 text-sm font-medium leading-relaxed text-slate-800 dark:text-slate-200">
+                                <h5 className="font-black text-indigo-700 dark:text-indigo-400 mb-2 flex items-center gap-2">
+                                  <i className="fas fa-brain"></i> AI Tutor Diagnostic
+                                </h5>
+                                <div className="prose prose-sm prose-indigo dark:prose-invert max-w-none">
+                                  <MarkdownRenderer text={q.explanation || "No explanation provided for this question."} />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
                         </div>
                       </div>
-
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))}

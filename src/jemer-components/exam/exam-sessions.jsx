@@ -1,57 +1,34 @@
-"use client"; // Enforces client-side state execution for active exam navigation, selection options, and live countdown timer
+"use client"; 
 
 /**
  * ================================================================================================
- * 🆕 NEW UPGRADES SUMMARY (v1.6 - QUESTIONS HUNTER DYNAMIC INTEGRATION)
+ * 🆕 NEW UPGRADES SUMMARY (v2.0 - LIVE DATA INGESTION & SUBMISSION)
  * ================================================================================================
- * 1. TEAL/TURQUOISE THEME: Implemented `isHunterMode` checks. The live digital timer, active subject tab, 
- *    selected options, and matrix badges gracefully switch to Teal (`teal-600`, `teal-500`) when `mode="hunter"`.
- * 2. PRESERVED ACTIVE LEARNING: Extended the exact Study Room logic to Questions Hunter. When a wrong 
- *    answer is clicked, the AI Explanation banner smoothly appears dynamically tinted in Teal, 
- *    allowing users to open the `<AiExplanations />` React Portal modal.
- * 3. DYNAMIC TEXT & COPY: Replaced hardcoded exam strings in the candidate badge, submit 
- *    confirmation modal, and dummy question generator to display "Custom Hunt" and "AI Custom Generated".
- * 4. LOGIC PRESERVATION: 100% of the underlying CBT mechanisms, submission payloads (`handleFinalSubmit`), 
- *    and auto-submit timers remain completely intact to ensure backend data consistency.
+ * 1. REAL DATA PIPELINE: Ripped out `generateDummyQuestions`. Directly ingests and memoizes the structured `examData.questions` JSON map from the Go backend.
+ * 2. ANALYTICS SUBMISSION: Upgraded `handleFinalSubmit` to construct the exact telemetry array schema (`AnalyticsSubmission`) and safely `POST` it to the Neon DB.
+ * 3. IMAGE RENDERING: Injected an `<img>` block into the question renderer to display mathematical and scientific diagrams passed from the API.
+ * 4. PRESERVED LOGIC: The auto-submit timer, flagging system, and active learning UI are 100% intact.
  * ================================================================================================
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import AiExplanations from "@/jemer-components/ui/ai-explanations";
+import MarkdownRenderer from "@/jemer-components/ui/markdown-renderer.jsx";
 
-/**
- * DUMMY QUESTION GENERATOR FUNCTION
- */
-function generateDummyQuestions(subjects, isWaecMode, isPracticeMode, isStudyMode, isHunterMode) {
-  const result = {};
-  subjects?.forEach((subject) => {
-    const questionsList = [];
-    const totalCount = subject.count || 40;
+// ================================================================================================
+// 🔐 AUTHENTICATION UTILITIES
+// ================================================================================================
+const getBackendUrl = () => {
+  const activeOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  return process.env.NEXT_PUBLIC_API_URL ||
+    (activeOrigin.includes("jemerplatforms.company") ? "https://academy.jemerplatforms.company" :
+     activeOrigin.includes("cloudshell.dev") ? "https://3000-cs-9c6bf60b-3314-4394-80ef-ef6f4089d8e1.cs-europe-west1-haha.cloudshell.dev" :
+     "http://localhost:8080");
+};
 
-    for (let i = 1; i <= totalCount; i++) {
-      questionsList.push({
-        id: `${subject.id}-${i}`,
-        number: i,
-        passage:
-          subject.id === "english" && i <= 5
-            ? "Read the passage carefully and answer the question that follows: Technology has revolutionized modern education by giving students instant access to global knowledge bases..."
-            : null,
-        questionText: `Sample ${isHunterMode ? "AI Custom Generated" : isStudyMode ? "Study" : isPracticeMode ? "Practice" : isWaecMode ? "WASSCE" : "JAMB"} Question ${i} for ${subject.name}: Which of the following statements correctly describes the fundamental principles governing this topic?`,
-        options: [
-          { letter: "A", text: "It remains constant under standard temperature and pressure conditions." },
-          { letter: "B", text: "It increases proportionally with an increase in external system velocity." },
-          { letter: "C", text: "It decreases inversely with the square of the total displacement." },
-          { letter: "D", text: "It forms a balanced equilibrium when no external force acts upon it." },
-        ],
-        correctAnswer: "A", 
-      });
-    }
-    result[subject.id] = questionsList;
-  });
-  return result;
-}
+const getToken = () => localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token") || "";
 
-export default function ExamSessions({ mode = "jamb", config, onExit }) {
+export default function ExamSessions({ mode = "jamb", config, examData, onExit }) {
   const isWaecMode = mode === "waec";
   const isPracticeMode = mode === "practice";
   const isStudyMode = mode === "study";
@@ -70,12 +47,16 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
     ];
   }, [config, isWaecMode, isSingleSubjectMode, isHunterMode]);
 
+  // 🚀 FIXED: Directly ingest the real questions array mapped by subject ID
+  const questionsRepo = useMemo(() => {
+    return examData?.questions || {};
+  }, [examData]);
+
   const [activeSubjectId, setActiveSubjectId] = useState(activeSubjects[0]?.id || "english");
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState({});
   const [flaggedQuestions, setFlaggedQuestions] = useState([]);
   
-  // Active Learning Modal State (Used in Study and Hunter modes)
   const [showAiExplanationModal, setShowAiExplanationModal] = useState(false);
 
   const [remainingSeconds, setRemainingSeconds] = useState(() => {
@@ -86,17 +67,58 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [autoSubmitCountdown, setAutoSubmitCountdown] = useState(null);
 
-  const questionsRepo = useMemo(() => {
-    return generateDummyQuestions(activeSubjects, isWaecMode, isPracticeMode, isStudyMode, isHunterMode);
-  }, [activeSubjects, isWaecMode, isPracticeMode, isStudyMode, isHunterMode]);
-
   const currentSubjectQuestions = questionsRepo[activeSubjectId] || [];
   const currentQuestion = currentSubjectQuestions[activeQuestionIndex];
+  
+  // Create a unique key for answers to prevent cross-subject collisions
   const currentQuestionKey = currentQuestion ? `${activeSubjectId}-${currentQuestion.id}` : null;
 
-  const handleFinalSubmit = useCallback(() => {
-    if (onExit) onExit({ userAnswers, remainingSeconds, questionsRepo });
-  }, [onExit, userAnswers, remainingSeconds, questionsRepo]);
+  // 🚀 FIXED: Real Database Analytics Submission Logic
+  const handleFinalSubmit = useCallback(async () => {
+    const BACKEND_URL = getBackendUrl();
+    const analyticsPayload = [];
+    let totalCorrect = 0;
+
+    Object.keys(questionsRepo).forEach(subjectId => {
+      questionsRepo[subjectId].forEach(q => {
+        const uAns = userAnswers[`${subjectId}-${q.id}`];
+        const isCorrect = uAns === q.correctAnswer;
+        
+        if (isCorrect) totalCorrect++;
+        
+        if (uAns) {
+          analyticsPayload.push({
+            question_id: q.id,
+            user_answer: uAns,
+            is_correct: isCorrect,
+            time_taken_seconds: 0 // Tracked overall at session level currently
+          });
+        }
+      });
+    });
+
+    const timeTaken = ((config?.durationMinutes || 120) * 60) - remainingSeconds;
+
+    try {
+      await fetch(`${BACKEND_URL}/api/v1/examsimulator/submit`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${getToken()}`
+        },
+        body: JSON.stringify({
+          session_id: examData.session_id,
+          total_score: totalCorrect,
+          time_taken: timeTaken,
+          analytics: analyticsPayload
+        })
+      });
+    } catch (err) {
+      console.error("Failed to submit exam telemetry to backend:", err);
+    }
+
+    if (onExit) onExit({ userAnswers, remainingSeconds, questionsRepo, session_id: examData.session_id });
+  }, [onExit, userAnswers, remainingSeconds, questionsRepo, examData, config]);
 
   useEffect(() => {
     if (remainingSeconds <= 0) return;
@@ -156,7 +178,6 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
   const totalQuestionsAllSubjects = useMemo(() => activeSubjects.reduce((sum, s) => sum + (s.count || 40), 0), [activeSubjects]);
   const totalAnsweredCount = useMemo(() => Object.keys(userAnswers).length, [userAnswers]);
 
-  // Active Learning Error Check (Applies to both Study Room and Questions Hunter)
   const isCurrentAnswerWrong = (isStudyMode || isHunterMode) && userAnswers[currentQuestionKey] && userAnswers[currentQuestionKey] !== currentQuestion?.correctAnswer;
 
   return (
@@ -172,6 +193,8 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
         .custom-exam-scrollbar::-webkit-scrollbar-thumb:hover { 
           background-color: ${isHunterMode ? 'rgba(20, 184, 166, 0.7)' : isStudyMode ? 'rgba(147, 51, 234, 0.7)' : isPracticeMode ? 'rgba(249, 115, 22, 0.7)' : isWaecMode ? 'rgba(37, 99, 235, 0.7)' : 'rgba(16, 185, 129, 0.7)'}; 
         }
+        .markdown-inline-fix p { display: inline; margin: 0; }
+        .markdown-inline-fix pre { margin: 0.5rem 0; overflow-x: auto; }
       `}} />
 
       {/* TOP NAVIGATION BAR */}
@@ -245,16 +268,16 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
         {/* LEFT/CENTER AREA */}
         <div className="lg:col-span-2 space-y-6">
           {currentQuestion ? (
-            <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm relative overflow-hidden">
+            <div className="p-4 sm:p-6 lg:p-8 rounded-[2rem] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-5 sm:space-y-6 shadow-sm relative overflow-hidden">
               
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-                <span className={`text-xs font-mono font-black uppercase ${
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 sm:pb-4">
+                <span className={`text-[11px] sm:text-xs font-mono font-black uppercase ${
                   isHunterMode ? "text-teal-600 dark:text-teal-400" : isStudyMode ? "text-purple-600 dark:text-purple-400" : isPracticeMode ? "text-orange-600 dark:text-orange-400" : isWaecMode ? "text-blue-600 dark:text-blue-400" : "text-emerald-600 dark:text-emerald-400"
                 }`}>
                   Question {activeQuestionIndex + 1} of {currentSubjectQuestions.length}
                 </span>
 
-                <button onClick={handleToggleFlag} className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border ${
+                <button onClick={handleToggleFlag} className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border focus:outline-none ${
                   flaggedQuestions.includes(currentQuestionKey) ? "bg-amber-500/10 text-amber-600 border-amber-500/30" : "bg-slate-100 dark:bg-slate-800 text-slate-500 border-transparent hover:text-slate-700"
                 }`}>
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -267,15 +290,26 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
               {currentQuestion.passage && (
                 <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed max-h-48 overflow-y-auto custom-exam-scrollbar">
                   <p className="font-bold text-slate-900 dark:text-white mb-1">Passage Instruction:</p>
-                  {currentQuestion.passage}
+                  <MarkdownRenderer text={currentQuestion.passage} />
                 </div>
               )}
 
-              <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white leading-relaxed">
-                {currentQuestion.questionText}
+              {/* 🚀 NEW: Render Image securely if present */}
+              {currentQuestion.imageUrl && (
+                <div className="w-full flex justify-center py-2">
+                  <img 
+                    src={currentQuestion.imageUrl.startsWith("http") ? currentQuestion.imageUrl : `https://r2.jemerplatforms.company/${currentQuestion.imageUrl}`} 
+                    alt="Question Diagram" 
+                    className="max-w-full max-h-64 object-contain rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm"
+                  />
+                </div>
+              )}
+
+              <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white leading-relaxed markdown-inline-fix">
+                <MarkdownRenderer text={currentQuestion.questionText} />
               </h3>
 
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 {currentQuestion.options.map((option) => {
                   const isSelected = userAnswers[currentQuestionKey] === option.letter;
 
@@ -296,20 +330,19 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
 
                   return (
                     <div key={option.letter} onClick={() => handleSelectOption(option.letter)}
-                      className={`p-4 rounded-2xl border transition-all duration-200 flex items-start gap-3 cursor-pointer select-none ${isSelected ? selectedOptionClass : unselectedOptionClass}`}
+                      className={`p-3 sm:p-4 rounded-2xl border transition-all duration-200 flex items-start gap-3 cursor-pointer select-none ${isSelected ? selectedOptionClass : unselectedOptionClass}`}
                     >
                       <div className={`w-7 h-7 rounded-xl font-mono font-black text-xs flex items-center justify-center shrink-0 transition-colors ${isSelected ? selectedLetterClass : unselectedLetterClass}`}>
                         {option.letter}
                       </div>
-                      <span className="text-xs sm:text-sm font-medium pt-1">
-                        {option.text}
-                      </span>
+                      <div className="text-xs sm:text-sm font-medium pt-1 markdown-inline-fix w-full overflow-hidden">
+                        <MarkdownRenderer text={option.text} />
+                      </div>
                     </div>
                   );
                 })}
               </div>
 
-              {/* ACTIVE LEARNING ERROR BANNER (Shows in Study Room & Hunter Mode if answer is wrong) */}
               {isCurrentAnswerWrong && (
                 <div className={`mt-4 p-4 sm:p-5 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-4 animate-slide-up shadow-sm ${
                   isHunterMode ? "bg-teal-50 dark:bg-teal-900/20 border-teal-200 dark:border-teal-800/50" : "bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800/50"
@@ -334,13 +367,12 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
                 </div>
               )}
 
-              {/* Pagination Action Controls */}
               <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
-                <button onClick={handlePrevQuestion} disabled={activeQuestionIndex === 0} className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                <button onClick={handlePrevQuestion} disabled={activeQuestionIndex === 0} className="px-4 sm:px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus:outline-none">
                   ← Previous
                 </button>
 
-                <button onClick={handleNextQuestion} disabled={activeQuestionIndex === currentSubjectQuestions.length - 1} className={`px-5 py-2.5 rounded-xl text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm ${
+                <button onClick={handleNextQuestion} disabled={activeQuestionIndex === currentSubjectQuestions.length - 1} className={`px-4 sm:px-5 py-2.5 rounded-xl text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm ${
                   isHunterMode ? "bg-teal-600 hover:bg-teal-500" : isStudyMode ? "bg-purple-600 hover:bg-purple-500" : isPracticeMode ? "bg-orange-600 hover:bg-orange-500" : isWaecMode ? "bg-blue-600 hover:bg-blue-500" : "bg-emerald-600 hover:bg-emerald-500"
                 }`}>
                   Next →
@@ -354,8 +386,8 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
         </div>
 
         {/* RIGHT AREA */}
-        <div className="space-y-6">
-          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
+        <div className="space-y-4 sm:space-y-6">
+          <div className="p-4 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
             
             <div className="flex items-center justify-between">
               <h4 className="text-sm font-bold text-slate-900 dark:text-white">Question Matrix</h4>
@@ -388,7 +420,7 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
                 const isFlagged = flaggedQuestions.includes(key);
                 const isCurrent = idx === activeQuestionIndex;
 
-                let badgeStyle = "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400";
+                let badgeStyle = "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700";
                 
                 if (isAnswered) badgeStyle = isHunterMode ? "bg-teal-600 text-white font-bold" : isStudyMode ? "bg-purple-600 text-white font-bold" : isPracticeMode ? "bg-orange-600 text-white font-bold" : isWaecMode ? "bg-blue-600 text-white font-bold" : "bg-emerald-600 text-white font-bold";
                 if (isFlagged) badgeStyle = "bg-amber-500 text-white font-bold";
@@ -399,7 +431,7 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
 
                 return (
                   <button key={q.id} onClick={() => setActiveQuestionIndex(idx)}
-                    className={`h-9 rounded-xl text-xs font-mono transition-all flex items-center justify-center ${badgeStyle} ${activeRingStyle}`}
+                    className={`h-9 rounded-xl text-xs font-mono transition-all flex items-center justify-center focus:outline-none cursor-pointer ${badgeStyle} ${activeRingStyle}`}
                   >
                     {idx + 1}
                   </button>
@@ -420,7 +452,6 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
         </div>
       </div>
 
-      {/* AI EXPLANATION MODAL (PORTAL TELEPORTED) */}
       <AiExplanations
         isOpen={showAiExplanationModal}
         onClose={() => setShowAiExplanationModal(false)}
@@ -429,10 +460,9 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
           userAnswer: currentQuestion ? userAnswers[currentQuestionKey] : null,
           correctAnswer: currentQuestion?.correctAnswer
         }}
-        explanationText={`**AI Tutor Insight:** You selected an incorrect distractor.\n\nThe correct principle here is governed by the universal laws of thermodynamics, specifically focusing on energy distribution.\n\n### The Formula Breakdown\n\nWhen a system changes state, the total displacement correlates structurally:\n\n$$ E = mc^2 $$\n\n| Variable | Meaning | Relation |\n|---|---|---|\n| **E** | Energy | Direct |\n| **m** | Mass | Proportional |\n\n> *Key Takeaway:* Always check the standard temperature parameters before assuming equilibrium!`}
+        explanationText={currentQuestion?.explanation || "No explanation provided for this question."}
       />
 
-      {/* CONFIRMATION SUBMIT MODAL */}
       {showSubmitModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-6 shadow-2xl text-center">
@@ -463,7 +493,6 @@ export default function ExamSessions({ mode = "jamb", config, onExit }) {
         </div>
       )}
 
-      {/* AUTO-SUBMIT TIMER EXPIRED MODAL */}
       {autoSubmitCountdown !== null && (
         <div className="fixed inset-0 z-[60] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white dark:bg-slate-900 border border-rose-500/30 rounded-3xl p-6 sm:p-8 max-w-sm w-full space-y-6 shadow-2xl text-center">

@@ -3,11 +3,11 @@
 
 /**
  * ================================================================================================
- * 🆕 NEW UPGRADES SUMMARY (v1.0 - EXAM PRACTICE ORCHESTRATOR)
+ * 🆕 NEW UPGRADES SUMMARY (v1.1 - EXAM PRACTICE ORCHESTRATOR API INTEGRATION)
  * ================================================================================================
- * 1. 4-STAGE MACHINE: Utilizes identical flow (Customization -> Loading -> Session -> Results).
- * 2. MODE PROP TRIGGER: Hardcoded `mode="practice"` to trigger the orange UI, 1-subject limit, 
- *    custom question count, and single-subject grading in the core components.
+ * 1. REAL DATA PIPELINE: Added `examData` state to securely store the generated `session_id` and structured `questions` returned from the Go backend.
+ * 2. COMPONENT WIRING: Modified `handleLoadingComplete` to accept the API payload from the Loading Spinner and pass it directly into the `ExamSessions` and `ExamResults` components.
+ * 3. PRESERVED ARCHITECTURE: Kept the robust 4-stage engine intact.
  * ================================================================================================
  */
 
@@ -20,6 +20,9 @@ import ExamResults from "@/jemer-components/exam/exam-results";
 export default function ExamPracticePage() {
   const [examStage, setExamStage] = useState("customization");
   const [examConfig, setExamConfig] = useState(null);
+  
+  // 🚀 NEW: State to hold the live data returned from our Go backend
+  const [examData, setExamData] = useState(null);
   const [sessionData, setSessionData] = useState(null);
 
   const handleStartCustomization = (config) => {
@@ -27,7 +30,9 @@ export default function ExamPracticePage() {
     setExamStage("loading");
   };
 
-  const handleLoadingComplete = () => {
+  // 🚀 FIXED: Accepts the fetched payload and advances the stage
+  const handleLoadingComplete = (apiPayload) => {
+    setExamData(apiPayload);
     setExamStage("session");
   };
 
@@ -38,6 +43,7 @@ export default function ExamPracticePage() {
 
   const handleRestartExam = () => {
     setExamConfig(null);
+    setExamData(null);
     setSessionData(null);
     setExamStage("customization");
   };
@@ -60,10 +66,11 @@ export default function ExamPracticePage() {
         />
       )}
 
-      {examStage === "session" && (
+      {examStage === "session" && examData && (
         <ExamSessions 
           mode="practice" 
           config={examConfig} 
+          examData={examData} // 🚀 NEW: Passes real questions down to the session
           onExit={handleExitExam} 
         />
       )}
@@ -72,6 +79,7 @@ export default function ExamPracticePage() {
         <ExamResults 
           mode="practice" 
           config={examConfig} 
+          examData={examData} // 🚀 NEW: Passes session_id down to log analytics
           sessionData={sessionData} 
           onRestart={handleRestartExam} 
         />

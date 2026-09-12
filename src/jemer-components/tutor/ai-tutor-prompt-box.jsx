@@ -2,6 +2,18 @@
 
 /**
  * ================================================================================================
+ * 🆕 NEW UPGRADES SUMMARY (v3.1.0 - CENTRALIZED AUTH ENGINE MIGRATION)
+ * ================================================================================================
+ * 1. PRESIGNED-URL REQUEST NOW USES window.JemerAuth.authenticatedFetch(): removed the local
+ *    `secureUploadFetch` wrapper, which read the raw JWT straight out of localStorage with no
+ *    expiry check or refresh/retry logic at all. `uploadFileToR2`'s presigned-URL request (our
+ *    own Go backend, not a third-party call) now goes through the shared auth engine loaded
+ *    globally by layout.js, which proactively refreshes an expiring token and retries once on an
+ *    unexpected 401 before giving up — none of that existed here before.
+ * 2. Nothing else in the upload/attachment pipeline changed: the actual file PUT still goes
+ *    straight to the presigned R2 URL via XHR (unauthenticated by design, since the URL itself is
+ *    the credential), and all UI/progress/state logic is untouched.
+ * ================================================================================================
  * 🆕 NEW UPGRADES SUMMARY (v3.0.0 - DIRECT-TO-CLOUD STORAGE FILE ENGINE)
  * ================================================================================================
  * 1. R2 PRESIGNED UPLOADER: Integrated a `secureUploadFetch` utility and `uploadFileToR2` workflow. 
@@ -34,17 +46,6 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useTheme } from "@/jemer-components/context/ThemeContext.jsx";
-
-// 🆕 Helper function to fetch pre-signed URLs securely before direct upload
-const secureUploadFetch = async (url, options = {}) => {
-  let token = localStorage.getItem("jemer_session_jwt");
-  const headers = new Headers(options.headers || {});
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-    headers.set("apikey", token);
-  }
-  return fetch(url, { ...options, headers });
-};
 
 export default function AITutorPromptBox({ onSendMessage, injectedPromptText, isStreaming, onStopStream }) {
   const { theme } = useTheme();
@@ -204,7 +205,7 @@ export default function AITutorPromptBox({ onSendMessage, injectedPromptText, is
          activeOrigin.includes("cloudshell.dev") ? "https://3000-cs-9c6bf60b-3314-4394-80ef-ef6f4089d8e1.cs-europe-west1-haha.cloudshell.dev" : 
          "http://localhost:8080");
       
-      const presignedUrlResponse = await secureUploadFetch(`${BACKEND_URL}/api/v1/tools/storage/presigned-url?filename=${encodeURIComponent(fileInstance.name)}`);
+      const presignedUrlResponse = await window.JemerAuth.authenticatedFetch(`${BACKEND_URL}/api/v1/tools/storage/presigned-url?filename=${encodeURIComponent(fileInstance.name)}`);
       
       if (!presignedUrlResponse.ok) {
         throw new Error("Failed to get secure upload link from server.");

@@ -2,7 +2,23 @@
 
 /**
  * ================================================================================================
- * [NEW UPGRADE — V3.1]
+ * [NEW UPGRADE — V4.0 — CENTRALIZED AUTHENTICATED FETCH]
+ * SUMMARY: Added the single shared fetch layer every page/component should now use, so the
+ * "token expires every few minutes → forced re-login" problem is fixed once, here, instead of
+ * being solved (or not solved) separately on 10+ different pages.
+ * 1. `isTokenExpiringSoon(token)` — public expiry check, decodes the JWT locally so pages no
+ *    longer need their own copy of this logic.
+ * 2. `fetchJwtOnDemand()` — wraps `refreshSession()` behind a shared `window`-level lock
+ *    (`window.__jemerAuthRefreshLock`) so concurrent callers on the same page never race each
+ *    other over the single-use rotating refresh token.
+ * 3. `authenticatedFetch(url, options)` — THE new standard way to call the backend. Proactively
+ *    refreshes a token expiring within 5 minutes, attaches it, sends the request, and retries
+ *    once on an unexpected 401 with a forced-fresh token before giving up.
+ * 4. Safety net: only if a refresh genuinely cannot recover the session (dead session cookie,
+ *    logged out elsewhere) does it purge local state and redirect to `/login.html` — this is
+ *    now the *only* path that forces a re-login, not a routine 5-minute occurrence.
+ * ================================================================================================
+ * [PREVIOUS UPGRADE — V3.1]
  * SUMMARY: Implemented Robust Regex OTP Interception.
  * 1. String-Match Bug Fixed: Replaced brittle `.includes()` string matching with a powerful 
  *    Regex trap `/(verifi|unverifi|confirm)/i.test()` inside `signInStudent`. This ensures that 
@@ -227,6 +243,54 @@
     }
 
     return { success: true }; // Signal successful transaction outcome
+  }
+
+  // ================================================================================================
+  // 🆕 LAYER 3C: SHARED JWT EXPIRY UTILITIES & CROSS-PAGE REFRESH LOCK
+  // ================================================================================================
+  // Decodes the middle segment of a JWT to inspect its claims (no signature verification — client-side only)
+  function decodeJWTPayload(token) {
+    try {
+      const base64Url = token.split(".")[1];
+      const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split("")
+          .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+          .join("")
+      );
+      return JSON.parse(jsonPayload);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Returns true if the token is missing, malformed, or within `thresholdSeconds` of expiring
+  function isTokenExpiringSoon(token, thresholdSeconds = 300) {
+    if (!token) return true;
+    const payload = decodeJWTPayload(token);
+    if (!payload || !payload.exp) return true;
+    const currentUnixTime = Math.floor(Date.now() / 1000);
+    return payload.exp - currentUnixTime < thresholdSeconds;
+  }
+
+  // Cross-module singleton lock (lives on `window`) so every page/component sharing this auth.js
+  // coordinates through the SAME in-flight refresh call instead of racing each other over the
+  // single-use rotating refresh token.
+  function getAuthRefreshLock() {
+    if (typeof window === "undefined") return { isRefreshing: false, refreshPromise: null };
+    if (!window.__jemerAuthRefreshLock) {
+      window.__jemerAuthRefreshLock = { isRefreshing: false, refreshPromise: null };
+    }
+    return window.__jemerAuthRefreshLock;
+  }
+
+  // Safely redirects to the public login page when a session cannot be recovered.
+  function redirectToLogin() {
+    SessionManager.purgeSession();
+    if (typeof window !== "undefined") {
+      window.location.href = "/login.html";
+    }
   }
 
   // ================================================================================
@@ -575,6 +639,83 @@
           message: error.message
         };
       }
+    },
+
+    /**
+     * 🆕 Exposes the shared expiry check so pages no longer need their own local copy.
+     */
+    isTokenExpiringSoon: function (token, thresholdSeconds = 300) {
+      return isTokenExpiringSoon(token, thresholdSeconds);
+    },
+
+    /**
+     * 🆕 Ensures a valid, non-expiring-soon JWT is available, coordinating concurrent callers
+     * through the shared window-level lock so only one refresh is ever in flight platform-wide.
+     * Returns the fresh token string, or null if the underlying session could not be recovered
+     * (in which case the caller should treat this as a hard logout).
+     */
+    fetchJwtOnDemand: async function () {
+      const lock = getAuthRefreshLock();
+      if (lock.isRefreshing) return lock.refreshPromise;
+      lock.isRefreshing = true;
+
+      lock.refreshPromise = (async () => {
+        try {
+          const refreshOutcome = await JemerAuthEngine.refreshSession();
+          if (!refreshOutcome || refreshOutcome.success === false) return null;
+          return refreshOutcome.token || SessionManager.getToken();
+        } catch (error) {
+          console.error("[JEMER AUTH REJECTION] fetchJwtOnDemand failed:", error.message);
+          return null;
+        } finally {
+          lock.isRefreshing = false;
+        }
+      })();
+
+      return lock.refreshPromise;
+    },
+
+    /**
+     * 🆕 THE SINGLE FETCH WRAPPER EVERY PAGE/COMPONENT SHOULD USE FOR AUTHENTICATED BACKEND CALLS.
+     * 1. Reuses the cached JWT if it's still valid for at least 5 more minutes.
+     * 2. Otherwise silently refreshes it via the shared lock (no re-login, no UI interruption).
+     * 3. Attaches it as a Bearer token and sends the request.
+     * 4. If the backend still returns 401 (stale token slipped through), retries exactly once
+     *    with a forced fresh token.
+     * 5. Only if the session itself is truly unrecoverable does it purge state and safely
+     *    redirect to /login.html — this should be rare, not routine.
+     */
+    authenticatedFetch: async function (url, options = {}) {
+      let activeToken = SessionManager.getToken();
+
+      if (!activeToken || isTokenExpiringSoon(activeToken, 300)) {
+        activeToken = await JemerAuthEngine.fetchJwtOnDemand();
+        if (!activeToken) {
+          redirectToLogin();
+          return new Response(null, { status: 401 });
+        }
+      }
+
+      const headers = new Headers(options.headers || {});
+      headers.set("Authorization", `Bearer ${activeToken}`);
+
+      let response = await fetch(url, { ...options, headers });
+
+      if (response.status === 401) {
+        const emergencyToken = await JemerAuthEngine.fetchJwtOnDemand();
+        if (emergencyToken) {
+          headers.set("Authorization", `Bearer ${emergencyToken}`);
+          response = await fetch(url, { ...options, headers });
+        }
+
+        // If it's STILL unauthorized after a forced refresh, the session itself is dead —
+        // this is the "absolutely necessary" case where re-login is unavoidable.
+        if (response.status === 401) {
+          redirectToLogin();
+        }
+      }
+
+      return response;
     },
 
     /**

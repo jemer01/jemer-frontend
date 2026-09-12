@@ -1,9 +1,18 @@
 // src/app/layout.js
 /**
  * ================================================================================================
- * 🚀 JEMER ACADEMY PLATFORMS CORE ENGINE — MASTER ROOT SYSTEM LAYOUT (CRASH-PROOF V4.6 FIXED)
+ * 🚀 JEMER ACADEMY PLATFORMS CORE ENGINE — MASTER ROOT SYSTEM LAYOUT (CRASH-PROOF V4.7 FIXED)
  * ================================================================================================
- * 🆕 NEW UPGRADES SUMMARY (GLOBAL MOBILE VIEWPORT FIX):
+ * 🆕 NEW UPGRADES SUMMARY (GLOBAL AUTH SCRIPT LOADING):
+ * 1. `auth.js` (`window.JemerAuth`) is now loaded once, here, in the root layout — every route
+ *    in the app inherits it automatically. This closes the gap where some pages worked and
+ *    others silently had no `window.JemerAuth` at all because the script was only ever added
+ *    page-by-page.
+ * 2. Uses `strategy="afterInteractive"` (not `beforeInteractive` like the anti-flash script) —
+ *    auth has no first-paint requirement, so it loads right after the page is interactive
+ *    without blocking hydration. Components that need it already poll for readiness before use.
+ * ================================================================================================
+ * 🆕 PREVIOUS UPGRADES SUMMARY (GLOBAL MOBILE VIEWPORT FIX):
  * 1. Dynamic Mobile Flex-Roots: Replaced brittle `h-full` classes with `min-h-[100dvh] flex flex-col` 
  *    on both the `<html>` and `<body>` tags. This ensures the absolute foundation of the entire app 
  *    dynamically shrinks and grows with mobile browser URL bars, structurally cascading the 
@@ -98,6 +107,16 @@ export default function RootLayout({ children }) {
           id="jemer-theme-anti-flash"
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: antiFlashScript }}
+        />
+
+        {/* 🆕 GLOBAL AUTH ENGINE — Loads window.JemerAuth (auth.js) on every route in the app.
+            afterInteractive: doesn't block first paint/hydration, loads as soon as the page is
+            interactive. Every page/component now has authenticatedFetch() available with no
+            per-page script tags needed. */}
+        <Script
+          id="jemer-auth-engine"
+          src="/auth.js"
+          strategy="afterInteractive"
         />
 
         {/* UNIVERSAL SYSTEM WRAPPER CONTAINER BOUNDARY — Distributes global user theme parameters down to atomic sub-components */}

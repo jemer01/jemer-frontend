@@ -4,6 +4,19 @@
  * ================================================================================================
  * 💎 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM STUDENT PERSONALIZATION CORE ENGINE
  * ================================================================================================
+ * 🆕 NEW UPGRADES BUILT (v3.4 - CENTRALIZED AUTH ENGINE MIGRATION):
+ * 1. Both direct-to-Neon calls (fetchExistingData's profile GET, handleSubmitPersonalizationPayload's
+ *    profile PATCH) used to read the JWT straight out of `localStorage.getItem("jemer_session_jwt")`
+ *    with zero expiry check. Both now source that token exclusively through
+ *    `window.JemerAuth.fetchJwtOnDemand()` (auth.js v4.0), so an about-to-expire token is silently
+ *    refreshed before either request fires. These calls hit Neon's PostgREST endpoint directly
+ *    (not our Go backend) and require both `Authorization` + `apikey` headers on the same token,
+ *    so they stay as manual `fetch()` calls rather than `window.JemerAuth.authenticatedFetch()`
+ *    (which only sets `Authorization`).
+ * 2. Added a brief `window.JemerAuth` readiness guard on the mount-time `fetchExistingData` effect,
+ *    since the engine loads via layout.js's `afterInteractive` script and may not exist the
+ *    instant this component mounts.
+ * ================================================================================================
  * 🆕 NEW UPGRADES BUILT (v3.3 - DATABASE CHARACTER LIMIT SAFEGUARD):
  * 1. Database Schema Alignment: Added `maxLength={50}` to the academic level input field to 
  *    physically prevent users from exceeding the PostgreSQL `VARCHAR(50)` limit.
@@ -80,10 +93,30 @@ export default function PersonalizationEngine({ onSaveComplete, isSettingsMode =
 
     const fetchExistingData = async () => {
       try {
-        const activeJwtToken = localStorage.getItem("jemer_session_jwt");
         const userUuid = localStorage.getItem("jemer_user_uuid");
 
-        if (!activeJwtToken || !userUuid) {
+        if (!userUuid) {
+          setIsFetchingData(false);
+          return;
+        }
+
+        // 🆕 v3.4: minimal readiness poll since window.JemerAuth loads via layout.js's
+        // afterInteractive <Script> and may not exist the instant this effect fires on mount.
+        const waitForJemerAuthReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
+          const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.fetchJwtOnDemand === "function";
+          if (isReady()) return true;
+          const startTime = Date.now();
+          while (Date.now() - startTime < timeoutMs) {
+            await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+            if (isReady()) return true;
+          }
+          return false;
+        };
+        await waitForJemerAuthReady();
+
+        const activeJwtToken = window.JemerAuth ? await window.JemerAuth.fetchJwtOnDemand() : null;
+
+        if (!activeJwtToken) {
           setIsFetchingData(false);
           return;
         }
@@ -203,8 +236,8 @@ export default function PersonalizationEngine({ onSaveComplete, isSettingsMode =
     console.log("[JEMER DIRECT REST SYNC] Initializing absolute personalization update sequence straight to secure cloud rails...");
 
     try {
-      const activeJwtToken = localStorage.getItem("jemer_session_jwt");
       const userUuid = localStorage.getItem("jemer_user_uuid");
+      const activeJwtToken = window.JemerAuth ? await window.JemerAuth.fetchJwtOnDemand() : null;
 
       if (!activeJwtToken || !userUuid) {
         console.error("[JEMER SYNC ERROR] Operational state aborted: Session tokens are vacant or have expired.");

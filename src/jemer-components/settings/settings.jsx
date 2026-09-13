@@ -1,10 +1,28 @@
 /**
- * [NEW UPGRADE]
+ * [NEW UPGRADE — v4.5]
+ * SUMMARY: Centralized Auth Engine Migration. Removed this file's entire local JWT/refresh/lock
+ * reimplementation (decodeJWTPayload, isTokenExpiringSoon, waitForAuthSDKReady, the file-local
+ * isRefreshing/refreshPromise lock, performSilentTokenRefresh, jemerAuthenticatedFetch) now that
+ * auth.js v4.0 exposes the same logic once, globally, via window.JemerAuth.
+ * 1. Added one small helper, acquireFreshAuthToken(), that waits for window.JemerAuth to be
+ *    ready and calls window.JemerAuth.fetchJwtOnDemand(). If that comes back null (or the engine
+ *    never loaded), it dispatches the same "jemer_session_severed" event the old code did, so the
+ *    existing "you've been logged out" modal keeps firing exactly as before.
+ * 2. The 45-second heartbeat (auditTokenLifecycle) keeps its original "only refresh if actually
+ *    expiring soon" shape — it now checks window.JemerAuth.isTokenExpiringSoon() instead of the
+ *    local decode-based version, and calls acquireFreshAuthToken() instead of
+ *    performSilentTokenRefresh().
+ * 3. initializeProfileData's GET and executeSaveAccountChanges's PATCH both hit Neon's PostgREST
+ *    endpoint directly (not our Go backend) and need both Authorization + apikey headers on the
+ *    same token, so they stay manual fetch() calls — only the token source changed, from a raw
+ *    localStorage read to acquireFreshAuthToken().
+ * ================================================================================================
+ * [PREVIOUS UPGRADE — v4.4]
  * SUMMARY: v4.4 Lucide SVG Icon Replacement for Settings Categories
  * 1. Replaced Emoji Icons: Replaced all legacy string emoji icons across the settings category cards with high-fidelity, native Lucide React SVG paths (`user`, `cpu`, `palette`, `lock`, `file-text`, `help-circle`, `alert-triangle`) for a professional design finish.
  * 2. Preserved Infrastructure: 100% preservation of all existing authentication flows, Neon DB synchronization, modal systems, and 2-stage state machine architecture.
  * ================================================================================================
- * ⚙️ JEMER ACADEMY MASTER SETTINGS ENGINE — 2-STAGE STATE MACHINE (v4.4)
+ * ⚙️ JEMER ACADEMY MASTER SETTINGS ENGINE — 2-STAGE STATE MACHINE (v4.5)
  * ================================================================================================
  */
 
@@ -28,35 +46,15 @@ const sanitizeString = (str, maxLength = 255) => {
 
 // ── 🚀 DETERMINISTIC JWT LIFECYCLE ENGINE & INTERCEPTOR ─────────────────────────────────────────
 
-const decodeJWTPayload = (token) => {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    return null; 
-  }
-};
-
-const isTokenExpiringSoon = (token, thresholdSeconds = 300) => {
-  if (!token) return true; 
-  const payload = decodeJWTPayload(token);
-  if (!payload || !payload.exp) return true; 
-  const currentUnixTime = Math.floor(Date.now() / 1000);
-  return (payload.exp - currentUnixTime) < thresholdSeconds;
-};
-
-let isRefreshing = false;
-let refreshPromise = null;
-
-const waitForAuthSDKReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
+// 🆕 v4.5: Minimal readiness guard for the globally-loaded auth engine (window.JemerAuth,
+// injected once by layout.js via <Script strategy="afterInteractive">). That script loads after
+// first paint, so an effect firing on mount could technically run before it exists — this polls
+// briefly instead of assuming it's already there. Replaces the old waitForAuthSDKReady.
+const waitForJemerAuthReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
   const isReady = () =>
     typeof window !== "undefined" &&
     window.JemerAuth &&
-    typeof window.JemerAuth.refreshSession === "function";
+    typeof window.JemerAuth.fetchJwtOnDemand === "function";
 
   if (isReady()) return true;
 
@@ -68,97 +66,25 @@ const waitForAuthSDKReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
   return false;
 };
 
-const performSilentTokenRefresh = async () => {
-  if (isRefreshing) return refreshPromise; 
-  console.log("🔄 [AUTH ENGINE] Executing silent cryptographic swap via Client SDK...");
-  isRefreshing = true;
-
-  refreshPromise = (async () => {
-    try {
-      const oldToken = localStorage.getItem("jemer_session_jwt");
-      const sdkIsReady = await waitForAuthSDKReady();
-
-      if (sdkIsReady) {
-        const refreshOutcome = await window.JemerAuth.refreshSession();
-
-        if (refreshOutcome && refreshOutcome.success === false) {
-          console.warn("⚠️ [AUTH ENGINE] JemerAuth.refreshSession() explicitly failed:", refreshOutcome.message);
-          if (typeof window !== "undefined") window.dispatchEvent(new Event("jemer_session_severed"));
-          return null;
-        }
-        
-        let attempts = 0;
-        const maxAttempts = 100;
-        
-        while (attempts < maxAttempts) {
-          const currentToken = localStorage.getItem("jemer_session_jwt");
-          
-          if (currentToken && (currentToken !== oldToken || !isTokenExpiringSoon(currentToken, 300))) {
-            console.log("✅ [AUTH ENGINE] Session securely refreshed. Token matrix successfully extended.");
-            return currentToken;
-          }
-          
-          await new Promise(resolve => setTimeout(resolve, 50));
-          attempts++;
-        }
-        
-        console.warn("⚠️ [AUTH ENGINE] Mutation timeout. SDK did not update localStorage within the 5-second boundary.");
-      } else {
-        console.warn("⚠️ [AUTH ENGINE] Neon Auth SDK never attached to window within the readiness window.");
-      }
-      
-      if (typeof window !== "undefined") window.dispatchEvent(new Event("jemer_session_severed"));
-      return null;
-      
-    } catch (error) {
-      console.error("❌ [AUTH ENGINE] Client pipeline disruption during token swap:", error);
-      if (typeof window !== "undefined") window.dispatchEvent(new Event("jemer_session_severed"));
-      return null;
-    } finally {
-      isRefreshing = false;
-    }
-  })();
-
-  return refreshPromise;
-};
-
-const jemerAuthenticatedFetch = async (url, options = {}) => {
-  let activeToken = localStorage.getItem("jemer_session_jwt");
-  
-  if (isTokenExpiringSoon(activeToken)) {
-     console.log("⏳ [AUTH PROXY] Pre-flight TTL limit breached. Executing deterministic refresh before transit...");
-     const refreshedToken = await performSilentTokenRefresh();
-     if (refreshedToken) activeToken = refreshedToken;
+// 🆕 v4.5: Single token-acquisition helper backed by the shared auth engine. Preserves the
+// original "jemer_session_severed" event dispatch on failure so the existing logout-modal UX
+// (see the listener below) keeps working exactly as it did with the old local refresh pipeline.
+const acquireFreshAuthToken = async () => {
+  const sdkIsReady = await waitForJemerAuthReady();
+  if (!sdkIsReady || !window.JemerAuth) {
+    console.warn("⚠️ [AUTH ENGINE] Neon Auth SDK never attached to window within the readiness window.");
+    if (typeof window !== "undefined") window.dispatchEvent(new Event("jemer_session_severed"));
+    return null;
   }
 
-  const headers = new Headers(options.headers || {});
-  if (activeToken) {
-    headers.set("Authorization", `Bearer ${activeToken}`);
-    headers.set("apikey", activeToken);
-  }
-  
-  let response = await fetch(url, { ...options, headers });
-
-  if (response.status === 400 || response.status === 401) {
-     const clonedRes = response.clone();
-     const errorText = await clonedRes.text().catch(() => "");
-     
-     if (response.status === 401 || errorText.includes("JWT token has expired")) {
-         console.warn("⚠️ [AUTH PROXY] Token expiry intercepted in transit. Initiating emergency synchronous mutation poll...");
-         const emergencyToken = await performSilentTokenRefresh();
-         
-         if (emergencyToken) {
-            console.log("✅ [AUTH PROXY] Emergency swap successful. Replaying exact network request behind the scenes...");
-            headers.set("Authorization", `Bearer ${emergencyToken}`);
-            headers.set("apikey", emergencyToken);
-            response = await fetch(url, { ...options, headers });
-         } else {
-            console.warn("❌ [AUTH PROXY] Emergency token swap failed. Session permanently degraded.");
-         }
-     }
+  const freshToken = await window.JemerAuth.fetchJwtOnDemand();
+  if (!freshToken) {
+    console.warn("⚠️ [AUTH ENGINE] window.JemerAuth.fetchJwtOnDemand() could not produce a valid token.");
+    if (typeof window !== "undefined") window.dispatchEvent(new Event("jemer_session_severed"));
+    return null;
   }
 
-  return response;
+  return freshToken;
 };
 
 export default function SettingsEngine() {
@@ -197,9 +123,9 @@ export default function SettingsEngine() {
   useEffect(() => {
     const auditTokenLifecycle = async () => {
       const currentToken = localStorage.getItem("jemer_session_jwt");
-      if (currentToken && isTokenExpiringSoon(currentToken, 300)) {
+      if (currentToken && window.JemerAuth && window.JemerAuth.isTokenExpiringSoon(currentToken, 300)) {
         console.log("💓 [AUTH HEARTBEAT] Token approaching expiration threshold. Proactively refreshing...");
-        await performSilentTokenRefresh();
+        await acquireFreshAuthToken();
       }
     };
 
@@ -238,10 +164,17 @@ export default function SettingsEngine() {
 
       try {
         const endpoint = `https://ep-wandering-bird-abdexk6a.apirest.eu-west-2.aws.neon.tech/neondb/rest/v1/Jemer-Student-Profiles?id=eq.${sessionUuid}`;
-        
-        const response = await jemerAuthenticatedFetch(endpoint, {
+
+        const freshToken = await acquireFreshAuthToken();
+        if (!freshToken) {
+          return;
+        }
+
+        const response = await fetch(endpoint, {
           method: "GET",
           headers: {
+            "Authorization": `Bearer ${freshToken}`,
+            "apikey": freshToken,
             "Accept": "application/json",
             "Content-Type": "application/json"
           }
@@ -303,14 +236,25 @@ export default function SettingsEngine() {
         language: sanitizeString(language, 10)
       };
 
-      const response = await jemerAuthenticatedFetch(endpoint, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "Prefer": "return=minimal"
-        },
-        body: JSON.stringify(safePayload)
-      });
+      const response = await (async () => {
+        const freshToken = await acquireFreshAuthToken();
+        if (!freshToken) return null;
+
+        return fetch(endpoint, {
+          method: "PATCH",
+          headers: {
+            "Authorization": `Bearer ${freshToken}`,
+            "apikey": freshToken,
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal"
+          },
+          body: JSON.stringify(safePayload)
+        });
+      })();
+
+      if (!response) {
+        return;
+      }
 
       if (response.ok) {
         localStorage.setItem("jemer_user_firstName", safePayload.first_name || "");

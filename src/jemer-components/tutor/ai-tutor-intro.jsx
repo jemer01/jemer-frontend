@@ -2,6 +2,20 @@
 
 /**
  * ================================================================================================
+ * 🆕 NEW UPGRADES SUMMARY (v2.2 - CENTRALIZED AUTH ENGINE MIGRATION)
+ * ================================================================================================
+ * 1. The Neon PostgREST fallback fetch used to read the JWT straight out of
+ *    `localStorage.getItem("jemer_session_jwt")` with no expiry check and no guard for
+ *    `window.JemerAuth` not being loaded yet. It now sources that token exclusively through
+ *    `window.JemerAuth.fetchJwtOnDemand()` (auth.js v4.0), so an about-to-expire token is
+ *    silently refreshed before the request fires, and a minimal readiness poll waits for the
+ *    globally-injected auth engine (layout.js's `afterInteractive` script) to finish loading
+ *    before this mount-time effect calls it.
+ * 2. This call hits Neon's PostgREST endpoint directly (not our Go backend) and requires both
+ *    `Authorization` + `apikey` headers on the same token, so it stays as a manual `fetch()`
+ *    call rather than `window.JemerAuth.authenticatedFetch()` (Authorization-only) — only the
+ *    token source changed.
+ * ================================================================================================
  * 🆕 NEW UPGRADES SUMMARY (v2.1 - IDENTITY SYNC & MOBILE UX POLISH)
  * ================================================================================================
  * 1. IDENTITY HYDRATION FIX: Standardized local storage queries to correctly target 
@@ -58,9 +72,29 @@ export default function AITutorIntro({ onSelectPrompt }) {
         }
 
         const storedUserId = localStorage.getItem("jemer_user_uuid");
-        const storedJwt = localStorage.getItem("jemer_session_jwt");
 
-        if (!storedUserId || !storedJwt) {
+        if (!storedUserId) {
+          console.warn("[INTRO HUB CACHE MISS] Identity keys empty or unallocated. Defaulting to sandbox guest terms.");
+          return;
+        }
+
+        // 🆕 v2.2: minimal readiness poll since window.JemerAuth loads via layout.js's
+        // afterInteractive <Script> and may not exist the instant this effect fires on mount.
+        const waitForJemerAuthReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
+          const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.fetchJwtOnDemand === "function";
+          if (isReady()) return true;
+          const startTime = Date.now();
+          while (Date.now() - startTime < timeoutMs) {
+            await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+            if (isReady()) return true;
+          }
+          return false;
+        };
+        await waitForJemerAuthReady();
+
+        const freshIntroToken = window.JemerAuth ? await window.JemerAuth.fetchJwtOnDemand() : null;
+
+        if (!freshIntroToken) {
           console.warn("[INTRO HUB CACHE MISS] Identity keys empty or unallocated. Defaulting to sandbox guest terms.");
           return;
         }
@@ -73,8 +107,8 @@ export default function AITutorIntro({ onSelectPrompt }) {
         const profileBridgeResponse = await fetch(endpoint, {
           method: "GET",
           headers: {
-            "Authorization": `Bearer ${storedJwt}`,    
-            "apikey": storedJwt, 
+            "Authorization": `Bearer ${freshIntroToken}`,    
+            "apikey": freshIntroToken, 
             "Accept": "application/json"
           }
         });

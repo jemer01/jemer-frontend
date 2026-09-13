@@ -2,9 +2,18 @@
 
 /**
  * ================================================================================================
- * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR CHAT ARENA COMPONENT (v7.0.0)
+ * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR CHAT ARENA COMPONENT (v7.1.0)
  * ================================================================================================
- * [NEW UPGRADE]
+ * [NEW UPGRADE — v7.1.0]
+ * SUMMARY: Centralized Auth Engine Migration (Feedback Submit). handleSubmitFeedbackPayload used
+ * to read the JWT straight out of `localStorage.getItem("jemer_session_jwt")` with zero expiry
+ * check before POSTing to Neon's feedback endpoint. It now sources that token exclusively through
+ * `window.JemerAuth.fetchJwtOnDemand()` (auth.js v4.0), so a token that's about to expire gets
+ * silently refreshed before the request fires instead of being sent stale. This endpoint doesn't
+ * require the `apikey` header, so the request shape and its `Authorization`-only header are
+ * otherwise unchanged.
+ * ================================================================================================
+ * [PREVIOUS UPGRADE — v7.0.0]
  * SUMMARY: Multi-Modal Image Parsing & Inline Carousel Engine.
  * 1. INLINE XML PARSER: Upgraded `tokenizeBlocks` to seamlessly detect `<jemer-image-showcase>` 
  *    blocks returned by the backend's `image_search` tool.
@@ -280,7 +289,12 @@ export default function AIChatInterface({
     setIsSubmittingFeedback(true);
 
     try {
-      const activeJwtToken = localStorage.getItem("jemer_session_jwt");
+      // 🆕 v7.1.0: token now sourced from the shared auth engine (auto-refreshes if expiring)
+      // instead of a raw localStorage read.
+      if (!window.JemerAuth) {
+        throw new Error("Authentication engine not ready. Please try again in a moment.");
+      }
+      const activeJwtToken = await window.JemerAuth.fetchJwtOnDemand();
       const userUuid = localStorage.getItem("jemer_user_uuid");
 
       if (!activeJwtToken || !userUuid) {

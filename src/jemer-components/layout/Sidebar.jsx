@@ -2,6 +2,25 @@
 
 /**
  * ================================================================================================
+ * 🆕 NEW UPGRADES SUMMARY (v5.9.0 - AUTH ENGINE MIGRATION & BACKGROUND UNIFICATION)
+ * ================================================================================================
+ * 1. CENTRALIZED AUTH ENGINE: verifyAndFetchProfile used to read the JWT straight out of
+ *    `localStorage.getItem("jemer_session_jwt")` with no expiry check and no guard for
+ *    `window.JemerAuth` not being loaded yet. It now sources that token exclusively through
+ *    `window.JemerAuth.fetchJwtOnDemand()` (auth.js v4.0), with a minimal readiness poll since
+ *    this effect fires on mount and the engine loads via layout.js's `afterInteractive` script.
+ *    This call hits Neon's PostgREST endpoint directly (not our Go backend) and needs both
+ *    `Authorization` + `apikey` headers on the same token, so it stays a manual `fetch()` call —
+ *    only the token source changed.
+ * 2. BACKGROUND UNIFICATION: Unified the sidebar's background (both the main `<aside>` panel and
+ *    the sticky bottom-footer block) with the rest of the app (bg-slate-50 / dark:bg-slate-950,
+ *    matching layout.js's page background) instead of the previous bg-white / dark:bg-slate-900,
+ *    which read as a visibly lighter/bluer panel against the page in dark mode. The existing
+ *    border-r/border-t border-slate-200/800 dividers were left untouched — now that the sidebar
+ *    and page share the same background, those lines read as real boundaries instead of just the
+ *    edge of a differently-shaded panel. Also updated the small emerald "online" status dot's ring
+ *    color to match the new footer background, so it doesn't show a mismatched halo.
+ * ================================================================================================
  * 🆕 NEW UPGRADES SUMMARY (v5.8.0 - MOBILE VIEWPORT OVERHAUL & CLIPPING FIX)
  * ================================================================================================
  * 1. 100dvh DYNAMIC VIEWPORT FIX: Surgically replaced the rigid `h-screen` class with `h-[100dvh]` 
@@ -48,9 +67,29 @@ export default function Sidebar({ isOpen, onClose }) {
         }
 
         const storedUserId = localStorage.getItem("jemer_user_uuid");
-        const storedJwt = localStorage.getItem("jemer_session_jwt");
 
-        if (!storedUserId || !storedJwt) {
+        if (!storedUserId) {
+          console.warn("[CACHE MISS] No valid authentication tokens found in localStorage. Skipping server profile fetch.");
+          return;
+        }
+
+        // 🆕 v5.9.0: minimal readiness poll since window.JemerAuth loads via layout.js's
+        // afterInteractive <Script> and may not exist the instant this effect fires on mount.
+        const waitForJemerAuthReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
+          const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.fetchJwtOnDemand === "function";
+          if (isReady()) return true;
+          const startTime = Date.now();
+          while (Date.now() - startTime < timeoutMs) {
+            await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+            if (isReady()) return true;
+          }
+          return false;
+        };
+        await waitForJemerAuthReady();
+
+        const freshSidebarToken = window.JemerAuth ? await window.JemerAuth.fetchJwtOnDemand() : null;
+
+        if (!freshSidebarToken) {
           console.warn("[CACHE MISS] No valid authentication tokens found in localStorage. Skipping server profile fetch.");
           return;
         }
@@ -63,8 +102,8 @@ export default function Sidebar({ isOpen, onClose }) {
         const profileBridgeResponse = await fetch(endpoint, {
           method: "GET",
           headers: {
-            "Authorization": `Bearer ${storedJwt}`,    
-            "apikey": storedJwt, 
+            "Authorization": `Bearer ${freshSidebarToken}`,    
+            "apikey": freshSidebarToken, 
             "Accept": "application/json"
           }
         });
@@ -195,7 +234,7 @@ export default function Sidebar({ isOpen, onClose }) {
       {/* 🏢 MASTER VIEWPORT LOCK-DOWN SIDEBAR ENVELOPE CONTAINER 
           🆕 FIX: Replaced `h-screen` with `h-[100dvh]` to stop mobile browser URL bars from hiding the bottom footer */}
       <aside
-        className={`fixed inset-y-0 left-0 h-[100dvh] w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col justify-between shrink-0 z-40 select-none transition-transform duration-300 ease-in-out ${
+        className={`fixed inset-y-0 left-0 h-[100dvh] w-64 bg-slate-50 dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 flex flex-col justify-between shrink-0 z-40 select-none transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -224,7 +263,7 @@ export default function Sidebar({ isOpen, onClose }) {
         </div>
 
         {/* ── ZONE 2: STATIONARY LOCKED BASEMENT REPOSITORY ANCHOR (BOTTOM PART) ── */}
-        <div className="shrink-0 sticky bottom-0 border-t border-slate-100 dark:border-slate-800/60 p-3 bg-white dark:bg-slate-900 space-y-1 shadow-[0_-4px_24px_rgba(0,0,0,0.015)]">
+        <div className="shrink-0 sticky bottom-0 border-t border-slate-100 dark:border-slate-800/60 p-3 bg-slate-50 dark:bg-slate-950 space-y-1 shadow-[0_-4px_24px_rgba(0,0,0,0.015)]">
           
           {buildInteractiveTabNode({
             label: "Bookshelf",
@@ -249,7 +288,7 @@ export default function Sidebar({ isOpen, onClose }) {
                 <div className="w-8 h-8 bg-gradient-to-br from-blue-900 to-slate-900 dark:from-blue-600 dark:to-purple-900 text-white rounded-xl flex items-center justify-center font-black text-xs shadow-inner">
                   {studentProfile.firstName.substring(0, 1).toUpperCase()}
                 </div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white dark:border-slate-900 shadow-xs" title="Identity Token Verified Secure Connection" />
+                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-slate-50 dark:border-slate-950 shadow-xs" title="Identity Token Verified Secure Connection" />
               </div>
 
               <div className="text-left truncate min-w-0 flex-1">

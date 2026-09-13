@@ -2,6 +2,17 @@
 
 /**
  * ================================================================================================
+ * [NEW UPGRADE — V4.1 — FIXED THE "RELOGIN ON RELOAD" ROOT CAUSE]
+ * SUMMARY: `dispatchAuthRequest` was attaching the CURRENT cached JWT as the Authorization header
+ * on every call — including the "/token" refresh call itself. That meant a refresh attempt made
+ * with an already-expired token could get the refresh request rejected before the session cookie
+ * was ever checked, which is exactly what was forcing real re-logins on page reload after the
+ * token had genuinely expired (proactive in-session refreshes worked fine because they always ran
+ * while the old token was still valid). Fixed by having the "/token" call rely solely on the
+ * httpOnly session cookie (`credentials: "include"`), same as it always should have. Full audit
+ * of the rest of the refresh chain (SessionManager, the shared lock, signInStudent /
+ * verifyRegistrationToken) turned up nothing else broken — this was the one root cause.
+ * ================================================================================================
  * [NEW UPGRADE — V4.0 — CENTRALIZED AUTHENTICATED FETCH]
  * SUMMARY: Added the single shared fetch layer every page/component should now use, so the
  * "token expires every few minutes → forced re-login" problem is fixed once, here, instead of
@@ -164,9 +175,13 @@
       headers: {} // Instantiate empty header map for dynamic modifications
     };
 
-    // Auto-inject authorization context credentials if there is an active session
+    // Auto-inject authorization context credentials if there is an active session.
+    // 🆕 V4.1 FIX: Skip this for the "/token" refresh endpoint specifically — that call's entire
+    // job is to REPLACE an expired token, so it must rely solely on the httpOnly session cookie
+    // (credentials: "include" above). Attaching the old, possibly-already-expired token here was
+    // causing the refresh request itself to be rejected, which is what forced real re-logins.
     const activeToken = SessionManager.getToken(); 
-    if (activeToken) {
+    if (activeToken && endpointPath !== "/token") {
       fetchOptions.headers["Authorization"] = `Bearer ${activeToken}`; // Affix authorization context header
     }
 

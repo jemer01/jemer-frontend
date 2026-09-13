@@ -2,6 +2,23 @@
 
 /**
  * ================================================================================================
+ * 🆕 NEW UPGRADES SUMMARY (v6.2.0 - CENTRALIZED AUTH ENGINE MIGRATION)
+ * ================================================================================================
+ * 1. Removed this file's entire local JWT/refresh/lock reimplementation (decodeJWTPayload,
+ *    isTokenExpiringSoon, getAuthRefreshLock, waitForAuthSDKReady, fetchJwtOnDemand,
+ *    jemerAuthenticatedFetch) now that auth.js v4.0 exposes the same logic once, globally, via
+ *    window.JemerAuth. Replaced with one minimal waitForJemerAuthReady() readiness poll.
+ * 2. GO BACKEND CALL NOW USES window.JemerAuth.authenticatedFetch(): fetchSessionsFromDB (our
+ *    own Go backend, /api/v1/tutor/sessions) now calls the shared engine directly instead of the
+ *    local jemerAuthenticatedFetch wrapper, which also drops the apikey header this call never
+ *    actually needed from the Go backend.
+ * 3. DIRECT NEON CALLS KEPT MANUAL, TOKEN SOURCE CENTRALIZED: verifyAndFetchProfile's profile
+ *    lookup and executeSessionMutation's archive/delete/rename PATCH/DELETE both hit Neon's
+ *    PostgREST endpoint directly (not our Go backend) and need both Authorization + apikey
+ *    headers on the same token, so they can't use authenticatedFetch (Authorization-only). Both
+ *    now source their token exclusively through window.JemerAuth.fetchJwtOnDemand() instead of a
+ *    raw localStorage read.
+ * ================================================================================================
  * 🆕 NEW UPGRADES SUMMARY (v6.1.0 - CROSS-MODULE REFRESH LOCK, MOUNT-LEVEL GUARD & SHIMMER FIX)
  * ================================================================================================
  * 1. CROSS-MODULE REFRESH LOCK (root-cause fix for the login-bounce bug): v6.0.0 replicated
@@ -41,40 +58,12 @@ const isValidUUID = (uuid) => {
 
 // ── 🚀 ON-DEMAND JWT LIFECYCLE ENGINE & INTERCEPTOR ─────────────────────────────────────────────
 
-const decodeJWTPayload = (token) => {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    return null; 
-  }
-};
-
-const isTokenExpiringSoon = (token, thresholdSeconds = 300) => {
-  if (!token) return true; 
-  const payload = decodeJWTPayload(token);
-  if (!payload || !payload.exp) return true; 
-  
-  const currentUnixTime = Math.floor(Date.now() / 1000);
-  return (payload.exp - currentUnixTime) < thresholdSeconds;
-};
-
-// 🚀 v6.1.0: Shared cross-module lock — lives on `window` so this file and `page.js`
-// coordinate through the SAME in-flight refresh instead of each racing its own copy.
-const getAuthRefreshLock = () => {
-  if (typeof window === "undefined") return { isRefreshing: false, refreshPromise: null };
-  if (!window.__jemerAuthRefreshLock) {
-    window.__jemerAuthRefreshLock = { isRefreshing: false, refreshPromise: null };
-  }
-  return window.__jemerAuthRefreshLock;
-};
-
-const waitForAuthSDKReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
-  const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.refreshSession === "function";
+// 🆕 v6.2.0: Minimal readiness guard for the globally-loaded auth engine (window.JemerAuth,
+// injected once by layout.js via <Script strategy="afterInteractive">). That script loads after
+// first paint, so an effect firing on mount could technically run before it exists — this polls
+// briefly instead of assuming it's already there. Replaces the old waitForAuthSDKReady.
+const waitForJemerAuthReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
+  const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.authenticatedFetch === "function";
   if (isReady()) return true;
   const startTime = Date.now();
   while (Date.now() - startTime < timeoutMs) {
@@ -82,72 +71,6 @@ const waitForAuthSDKReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
     if (isReady()) return true;
   }
   return false;
-};
-
-// 🚀 ON-DEMAND JWT FETCHER (v6.1.0: now backed by the shared window-level lock above)
-const fetchJwtOnDemand = async () => {
-  const lock = getAuthRefreshLock();
-  if (lock.isRefreshing) return lock.refreshPromise;
-  lock.isRefreshing = true;
-
-  lock.refreshPromise = (async () => {
-    try {
-      const sdkIsReady = await waitForAuthSDKReady();
-      if (sdkIsReady) {
-        const refreshOutcome = await window.JemerAuth.refreshSession();
-        if (refreshOutcome && refreshOutcome.success === false) return null;
-        
-        let attempts = 0;
-        while (attempts < 100) {
-          const currentToken = localStorage.getItem("jemer_session_jwt");
-          if (currentToken && !isTokenExpiringSoon(currentToken, 300)) {
-            return currentToken;
-          }
-          await new Promise(resolve => setTimeout(resolve, 50));
-          attempts++;
-        }
-      }
-      return null;
-    } catch (error) {
-      return null;
-    } finally {
-      lock.isRefreshing = false;
-    }
-  })();
-
-  return lock.refreshPromise;
-};
-
-// 🚀 SECURE PROXY WRAPPER
-const jemerAuthenticatedFetch = async (url, options = {}) => {
-  let activeToken = localStorage.getItem("jemer_session_jwt");
-  
-  if (!activeToken || isTokenExpiringSoon(activeToken, 300)) {
-     activeToken = await fetchJwtOnDemand();
-     if (!activeToken) {
-         window.location.href = "/login.html";
-         return new Response(null, { status: 401 });
-     }
-  }
-
-  const headers = new Headers(options.headers || {});
-  headers.set("Authorization", `Bearer ${activeToken}`);
-  headers.set("apikey", activeToken); // Strict Database Header for Neon PostgREST compatibility[cite: 3]
-  
-  let response = await fetch(url, { ...options, headers });
-
-  if (response.status === 401 || response.status === 400) {
-     const emergencyToken = await fetchJwtOnDemand();
-     if (emergencyToken) {
-        headers.set("Authorization", `Bearer ${emergencyToken}`);
-        headers.set("apikey", emergencyToken);
-        response = await fetch(url, { ...options, headers });
-     } else {
-        window.location.href = "/login.html";
-     }
-  }
-
-  return response;
 };
 
 // ── 🖥️ MASTER SIDEBAR COMPONENT ─────────────────────────────────────────────────────────────
@@ -200,10 +123,22 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
         const storedUserId = localStorage.getItem("jemer_user_uuid");
         if (!storedUserId || !isValidUUID(storedUserId)) return;
 
+        // 🆕 v6.2.0: this hits Neon's PostgREST endpoint directly (not our Go backend) and needs
+        // both Authorization + apikey headers on the same token, so it can't use
+        // window.JemerAuth.authenticatedFetch() (Authorization-only). Token still comes
+        // exclusively from the shared auth engine instead of a raw localStorage read.
+        await waitForJemerAuthReady();
+        const freshProfileToken = window.JemerAuth ? await window.JemerAuth.fetchJwtOnDemand() : null;
+        if (!freshProfileToken) return;
+
         const endpoint = `https://ep-wandering-bird-abdexk6a.apirest.eu-west-2.aws.neon.tech/neondb/rest/v1/Jemer-Student-Profiles?id=eq.${storedUserId}`;
-        const profileBridgeResponse = await jemerAuthenticatedFetch(endpoint, {
+        const profileBridgeResponse = await fetch(endpoint, {
           method: "GET",
-          headers: { "Accept": "application/json" }
+          headers: {
+            "Authorization": `Bearer ${freshProfileToken}`,
+            "apikey": freshProfileToken,
+            "Accept": "application/json"
+          }
         });
 
         if (profileBridgeResponse.ok) {
@@ -242,7 +177,8 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
          activeOrigin.includes("cloudshell.dev") ? "https://3000-cs-9c6bf60b-3314-4394-80ef-ef6f4089d8e1.cs-europe-west1-haha.cloudshell.dev" : 
          "http://localhost:8080");
 
-      const response = await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/tutor/sessions?limit=10&offset=${currentOffset}`);
+      await waitForJemerAuthReady();
+      const response = await window.JemerAuth.authenticatedFetch(`${BACKEND_URL}/api/v1/tutor/sessions?limit=10&offset=${currentOffset}`);
 
       if (response && response.ok) {
         const data = await response.json();
@@ -333,11 +269,19 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
     try {
       const POSTGREST_API_URL = "https://ep-wandering-bird-abdexk6a.apirest.eu-west-2.aws.neon.tech/neondb/rest/v1/tutor_sessions";
       const method = actionType === "delete" ? "DELETE" : "PATCH";
-      
-      await jemerAuthenticatedFetch(`${POSTGREST_API_URL}?id=eq.${sessionId}`, {
+
+      // 🆕 v6.2.0: direct Neon call (not our Go backend), needs both Authorization + apikey on
+      // the same token, so it stays manual — only the token source changed, from a raw
+      // localStorage read to window.JemerAuth.fetchJwtOnDemand().
+      const mutationToken = window.JemerAuth ? await window.JemerAuth.fetchJwtOnDemand() : null;
+      if (!mutationToken) return;
+
+      await fetch(`${POSTGREST_API_URL}?id=eq.${sessionId}`, {
         method: method,
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${mutationToken}`,
+          "apikey": mutationToken,
           "Prefer": "return=minimal" 
         },
         body: actionType === "delete" ? null : JSON.stringify(mutationPayload)

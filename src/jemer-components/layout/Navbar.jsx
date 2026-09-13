@@ -1,6 +1,13 @@
 /**
  * ================================================================================================
- * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM HIGH-CONTRAST NAVBAR CORE (v5.8 FUNCTIONAL)
+ * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM HIGH-CONTRAST NAVBAR CORE (v5.9 FUNCTIONAL)
+ * ================================================================================================
+ * new: Unified the navbar's background with the rest of the app (bg-slate-50 / dark:bg-slate-950,
+ * matching layout.js's page background) instead of its previous bg-white / dark:bg-slate-900,
+ * which read as a visibly lighter/bluer panel against the page in dark mode. The existing
+ * border-b border-slate-200 dark:border-slate-800 divider was left untouched — now that the
+ * navbar and page share the same background, that line reads as the boundary between them
+ * instead of just the edge of a differently-shaded panel.
  * ================================================================================================
  * new: Removed visual container styling (borders, backgrounds, shadows, and rigid fixed dimensions) from all buttons, leaving clean standalone hover-responsive icons.
  * Description: High-visibility, responsive top control navigation asset for the application shell.
@@ -36,8 +43,8 @@ export default function Navbar({ onMenuToggle, onTutorSidebarToggle, onCalculato
     // ────────────────────────────────────────────────────────────────────────────────────────────
     // 🏢 MASTER HEADER OUTER WRAPPER CANVAS CONTAINER
     // ────────────────────────────────────────────────────────────────────────────────────────────
-    // Rich, solid background color tokens (bg-white / bg-slate-900) providing an opaque canvas foundation.
-    <header className="sticky top-0 right-0 w-full h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 sm:px-6 lg:px-8 z-30 transition-colors duration-200 select-none">
+    // Rich, solid background color tokens (bg-slate-50 / dark:bg-slate-950) providing an opaque canvas foundation, matching the page background.
+    <header className="sticky top-0 right-0 w-full h-14 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 sm:px-6 lg:px-8 z-30 transition-colors duration-200 select-none">
       
       {/* ── LEFT SECTION: UNIFIED GLOBAL HAMBURGER COMMAND NODE & CORE BRAND TEXT ── */}
       <div className="flex items-center gap-4">

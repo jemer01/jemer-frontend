@@ -1,7 +1,10 @@
 /**
  * ================================================================================================
- * 🧠 JEMER ACADEMY ECOSYSTEM — BOOKSHELF PAGE ROUTER (v1.0)
+ * 🚀 JEMER ACADEMY ECOSYSTEM — BOOKSHELF PAGE ROUTER (v2.0)
  * ================================================================================================
+ * new: Transformed color palette to the unified Blue/White/Slate system, stripping out all 
+ * legacy emerald/teal gradients to comply with the Manifesto's solid-color contrast rules.
+ * new: Refined copy to explicitly position the library as a "Coming Soon" preview feature.
  * SUMMARY: Assembles the Bookshelf view.
  * 1. Injects `<BookshelfOnboarding />` as a silent overlay layer.
  * 2. Mounts `<BooksWidget />` cleanly underneath the ecosystem header.
@@ -12,40 +15,40 @@ import BooksWidget from "@/jemer-components/bookshelf/books-widget.jsx";
 import BookshelfOnboarding from "@/jemer-components/bookshelf/bookshelf-onboarding.jsx";
 
 export const metadata = {
-  title: "Digital Library | Jemer Academy",
-  description: "Access curated study guides, textbooks, and academic material instantly.",
+  title: "Digital Library (Preview) | Jemer Academy",
+  description: "Get a sneak peek at our upcoming digital library of curated study guides and textbooks.",
 };
 
 export default function BookshelfPage() {
   return (
     <div className="w-full max-w-7xl mx-auto flex flex-col gap-6 lg:gap-10 animate-fade-in relative h-full">
       
-      {/* 🚀 ONBOARDING MODAL OVERLAY INJECTION */}
+      {/* ONBOARDING MODAL OVERLAY INJECTION */}
       <BookshelfOnboarding />
 
       {/* ── HIGH-FIDELITY HEADER REGION ── */}
-      <header className="flex flex-col gap-3 lg:gap-4 relative z-10 mb-2">
+      <header className="flex flex-col gap-3 lg:gap-4 relative z-10 mb-2 px-4 sm:px-0">
         
-        {/* Pulsing Ecosystem Badge */}
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200/60 dark:border-emerald-800/50 w-fit shadow-sm">
-          <span className="w-2 h-2 rounded-full bg-emerald-600 dark:bg-emerald-400 animate-pulse"></span>
-          <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-300">
-            Jemer Digital Library
+        {/* Pulsing Ecosystem Badge - Upgraded to Blue */}
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 border border-blue-200/60 dark:border-blue-800/50 w-fit shadow-sm">
+          <span className="w-2 h-2 rounded-full bg-blue-600 dark:bg-blue-400 animate-pulse"></span>
+          <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-blue-700 dark:text-blue-300">
+            Coming Soon: Jemer Library
           </span>
         </div>
         
-        {/* Gradient Typography Engine */}
+        {/* Manifesto Compliance: Removed gradient text for solid high-contrast text-blue-600 */}
         <h1 className="text-4xl lg:text-5xl font-display font-black tracking-tight text-slate-900 dark:text-white leading-tight">
-          Curated <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 to-teal-500 dark:from-emerald-400 dark:to-teal-400">Knowledge Space</span>
+          Curated <span className="text-blue-600 dark:text-blue-400">Knowledge Space</span>
         </h1>
         
         <p className="text-sm sm:text-base font-medium text-slate-500 dark:text-slate-400 max-w-2xl leading-relaxed">
-          Your personal academic library. Browse syllabuses, read structured textbooks, and track your studying progress all in one beautifully unified workspace.
+          Get an early look at our upcoming academic library. Soon, you will be able to browse syllabuses, read structured textbooks, and track your studying progress all in one unified workspace.
         </p>
       </header>
 
       {/* ── INTERACTIVE LIBRARY WIDGET REGION ── */}
-      <section className="w-full h-full flex-1">
+      <section className="w-full h-full flex-1 px-4 sm:px-0">
         <BooksWidget />
       </section>
 

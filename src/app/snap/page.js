@@ -1,17 +1,34 @@
 /**
  * [NEW UPGRADE]
+ * SUMMARY: v3.2.0 Centralized Auth Engine Migration
+ * 1. Removed the entire local JWT/refresh/lock reimplementation (decodeJWTPayload,
+ *    isTokenExpiringSoon, getAuthRefreshLock, waitForAuthSDKReady, fetchJwtOnDemand,
+ *    jemerAuthenticatedFetch) now that auth.js v4.0 exposes the same logic once, globally, via
+ *    window.JemerAuth. Replaced with one minimal waitForJemerAuthReady() readiness poll.
+ * 2. GO BACKEND CALLS NOW USE window.JemerAuth.authenticatedFetch(): the presigned-URL request
+ *    and the SSE stream-init request (both our own Go backend) now call the shared engine
+ *    directly instead of the local jemerAuthenticatedFetch wrapper, which also drops the apikey
+ *    header these calls never actually needed. The R2 upload PUT (a presigned third-party URL,
+ *    unauthenticated by design) is untouched.
+ * 3. PRE-FLIGHT TOKEN CHECK REMOVED: executeSnapAnalysis no longer manually checks/refreshes the
+ *    token before dispatching — authenticatedFetch already proactively refreshes a token
+ *    expiring within 5 minutes as part of the call itself.
+ * 4. Dropped the dead legacy-key fallbacks (access_token, token) that were sprinkled through the
+ *    old local auth machinery — those keys are never written anywhere.
+ * ================================================================================================
+ * [PREVIOUS UPGRADE]
  * SUMMARY: v3.1.1 Artifact Cleanup & Build Fixes
  * 1. Syntax Fix: Removed corrupted text artifacts (`[...](asc_slot://...)`) that broke the Next.js Turbopack build process.
  * 2. JWT Decode Patch: Restored proper dot-notation splitting (`.split('.')[1]`) to decode JWT payloads correctly.
  * 3. Base64 Processing Fix: Corrected `base64ToBlob` to accurately extract the MIME type (`split(':')[1]`) and properly assign the base64 string (`parts[1] || parts[0]`) to prevent atob() conversion crashes.
- * 
+ * ================================================================================================
  * [PREVIOUS UPGRADE]
  * SUMMARY: v3.1 Snap History Interaction & State Hand-off.
  * 1. History Selection Logic: Injected `handleHistorySelect` to instantly route users from the Camera stage to the Results stage when a past snap is clicked.
  * 2. State Hydration: Automatically populates the `capturedImage`, `streamedResponse`, and `sessionID` with the historical database records.
  * 3. Preserved Infrastructure: 100% preservation of all existing JWT, SSE, and SPA router pipelines.
  * ================================================================================================
- * 🧠 JEMER ACADEMY ECOSYSTEM — SNAP TO ANSWER ROUTER (v3.1.1)
+ * 🧠 JEMER ACADEMY ECOSYSTEM — SNAP TO ANSWER ROUTER (v3.2.0)
  * ================================================================================================
  */
 "use client";
@@ -27,39 +44,12 @@ import SnapHistory from "@/jemer-components/snap/snap-history.jsx";
 // 🔐 AUTHENTICATION & JWT UTILITIES
 // ================================================================================================
 
-const decodeJWTPayload = (token) => {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    return null;
-  }
-};
-
-const isTokenExpiringSoon = (token, thresholdSeconds = 300) => {
-  if (!token) return true;
-  const payload = decodeJWTPayload(token);
-  if (!payload || !payload.exp) return true;
-
-  const currentUnixTime = Math.floor(Date.now() / 1000);
-  return (payload.exp - currentUnixTime) < thresholdSeconds;
-};
-
-// Shared cross-module lock for JWT refresh synchronization
-const getAuthRefreshLock = () => {
-  if (typeof window === "undefined") return { isRefreshing: false, refreshPromise: null };
-  if (!window.__jemerAuthRefreshLock) {
-    window.__jemerAuthRefreshLock = { isRefreshing: false, refreshPromise: null };
-  }
-  return window.__jemerAuthRefreshLock;
-};
-
-const waitForAuthSDKReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
-  const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.refreshSession === "function";
+// 🆕 v3.2.0: Minimal readiness guard for the globally-loaded auth engine (window.JemerAuth,
+// injected once by layout.js via <Script strategy="afterInteractive">). That script loads after
+// first paint, so a call firing shortly after mount could technically run before it exists —
+// this polls briefly instead of assuming it's already there.
+const waitForJemerAuthReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
+  const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.authenticatedFetch === "function";
   if (isReady()) return true;
   const startTime = Date.now();
   while (Date.now() - startTime < timeoutMs) {
@@ -67,72 +57,6 @@ const waitForAuthSDKReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
     if (isReady()) return true;
   }
   return false;
-};
-
-// ON-DEMAND JWT FETCHER
-const fetchJwtOnDemand = async () => {
-  const lock = getAuthRefreshLock();
-  if (lock.isRefreshing) return lock.refreshPromise;
-  lock.isRefreshing = true;
-
-  lock.refreshPromise = (async () => {
-    try {
-      const sdkIsReady = await waitForAuthSDKReady();
-      if (sdkIsReady) {
-        const refreshOutcome = await window.JemerAuth.refreshSession();
-        if (refreshOutcome && refreshOutcome.success === false) return null;
-
-        let attempts = 0;
-        while (attempts < 100) {
-          const currentToken = localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token");
-          if (currentToken && !isTokenExpiringSoon(currentToken, 300)) {
-            return currentToken;
-          }
-          await new Promise(resolve => setTimeout(resolve, 50));
-          attempts++;
-        }
-      }
-      return localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token") || null;
-    } catch (error) {
-      return null;
-    } finally {
-      lock.isRefreshing = false;
-    }
-  })();
-
-  return lock.refreshPromise;
-};
-
-// AUTHENTICATED FETCH WRAPPER WITH RETRY & HEADERS
-const jemerAuthenticatedFetch = async (url, options = {}) => {
-  let activeToken = localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token");
-
-  if (!activeToken || isTokenExpiringSoon(activeToken, 300)) {
-     activeToken = await fetchJwtOnDemand();
-     if (!activeToken) {
-         window.location.href = "/login.html";
-         return new Response(null, { status: 401 });
-     }
-  }
-
-  const headers = new Headers(options.headers || {});
-  headers.set("Authorization", `Bearer ${activeToken}`);
-  headers.set("apikey", activeToken);
-
-  let response = await fetch(url, { ...options, headers });
-
-  if (response.status === 401 || response.status === 400) {
-     const emergencyToken = await fetchJwtOnDemand();
-     if (emergencyToken) {
-        headers.set("Authorization", `Bearer ${emergencyToken}`);
-        headers.set("apikey", emergencyToken);
-        response = await fetch(url, { ...options, headers });
-     } else {
-        window.location.href = "/login.html";
-     }
-  }
-
-  return response;
 };
 
 // DYNAMIC MULTI-ORIGIN BACKEND RESOLVER
@@ -183,19 +107,15 @@ export default function SnapPage() {
     setSessionID(newSessionID);
 
     try {
-      // 🚀 ON-DEMAND PRE-FLIGHT CHECK: Refresh JWT right before dispatching network calls
-      const onDemandToken = await fetchJwtOnDemand();
-      const currentToken = onDemandToken || localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token");
-
-      if (!currentToken || isTokenExpiringSoon(currentToken, 60)) {
-        window.location.href = "/login.html";
-        return;
-      }
+      // 🆕 v3.2.0: window.JemerAuth.authenticatedFetch() now handles the expiry check, silent
+      // refresh, and dead-session redirect internally, so the manual pre-flight token check that
+      // used to live here has been removed. We just make sure the auth engine has finished loading.
+      await waitForJemerAuthReady();
 
       const BACKEND_URL = getBackendUrl();
 
-      // 1. Obtain Presigned URL from Go Backend using jemerAuthenticatedFetch
-      const presignRes = await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/snap/storage/presigned-url`, {
+      // 1. Obtain Presigned URL from Go Backend using window.JemerAuth.authenticatedFetch
+      const presignRes = await window.JemerAuth.authenticatedFetch(`${BACKEND_URL}/api/v1/snap/storage/presigned-url`, {
         method: "GET"
       });
 
@@ -221,8 +141,8 @@ export default function SnapPage() {
         throw new Error(`Failed to upload image to cloud storage (HTTP ${uploadRes.status})`);
       }
 
-      // 3. Open SSE Stream to Go Backend for AI Generation using jemerAuthenticatedFetch
-      const streamRes = await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/snap/stream`, {
+      // 3. Open SSE Stream to Go Backend for AI Generation using window.JemerAuth.authenticatedFetch
+      const streamRes = await window.JemerAuth.authenticatedFetch(`${BACKEND_URL}/api/v1/snap/stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

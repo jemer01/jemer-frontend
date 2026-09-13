@@ -1,12 +1,26 @@
 /**
  * [NEW UPGRADE]
+ * SUMMARY: v2.3 Centralized Auth Engine Migration
+ * 1. All three backend calls (GET history, DELETE, PATCH /pin) hit our own Go backend
+ *    (/api/v1/snap/history...) and now use window.JemerAuth.authenticatedFetch() instead of a
+ *    raw fetch() with a hand-built Authorization header, so an expiring token is silently
+ *    refreshed and an unexpected 401 gets retried once before giving up.
+ * 2. Removed getToken() entirely — it read jemer_session_jwt with dead legacy-key fallbacks
+ *    (access_token, token, never written anywhere) to hand-build an Authorization header. Now
+ *    that all three calls go through authenticatedFetch, which sources and attaches the token
+ *    internally, that helper had nothing left to do.
+ * 3. Added a minimal window.JemerAuth readiness guard on the mount-time history fetch, since the
+ *    engine loads via layout.js's afterInteractive <Script> and may not exist the instant this
+ *    effect fires on mount.
+ * ================================================================================================
+ * [PREVIOUS UPGRADE]
  * SUMMARY: v2.2 Manifesto UI/UX Refactor (Touch Targets & Surface Depth)
  * 1. Eliminated Glassmorphism: Purged background blur filters from dropdown and button overlays, converting them to clean, solid opaque surface tokens (`bg-white dark:bg-slate-800`).
  * 2. Touch Target Enforcement: Expanded interactive touch clearances for the 3-dot history card menus to guarantee error-free mobile execution.
  * 3. Spatial Consistency: Aligned card dimensions, spacing, and scrollbars to the system's base-8 grid rules.
  * 4. API & State Preservation: 100% preservation of all live history endpoints (`GET`, `DELETE`, `PATCH /pin`), state hydration, and routing logic.
  * ================================================================================================
- * 📚 JEMER ACADEMY DESIGN SYSTEM — SNAP HISTORY (v2.2)
+ * 📚 JEMER ACADEMY DESIGN SYSTEM — SNAP HISTORY (v2.3)
  * ================================================================================================
  */
 
@@ -28,15 +42,26 @@ export default function SnapHistory({ onSelectHistory }) {
        "http://localhost:8080");
   };
 
-  const getToken = () => localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token") || "";
+  // 🆕 v2.3: Minimal readiness guard for the globally-loaded auth engine (window.JemerAuth,
+  // injected once by layout.js via <Script strategy="afterInteractive">). That script loads
+  // after first paint, so an effect firing on mount could technically run before it exists.
+  const waitForJemerAuthReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
+    const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.authenticatedFetch === "function";
+    if (isReady()) return true;
+    const startTime = Date.now();
+    while (Date.now() - startTime < timeoutMs) {
+      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+      if (isReady()) return true;
+    }
+    return false;
+  };
 
   // Fetch data on mount
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const res = await fetch(`${getBackendUrl()}/api/v1/snap/history`, {
-          headers: { Authorization: `Bearer ${getToken()}` }
-        });
+        await waitForJemerAuthReady();
+        const res = await window.JemerAuth.authenticatedFetch(`${getBackendUrl()}/api/v1/snap/history`);
         if (res.ok) {
           const data = await res.json();
           setHistory(data || []);
@@ -55,9 +80,8 @@ export default function SnapHistory({ onSelectHistory }) {
     e.stopPropagation(); // Prevent routing to results page
     setActiveMenuId(null);
     try {
-      await fetch(`${getBackendUrl()}/api/v1/snap/history/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${getToken()}` }
+      await window.JemerAuth.authenticatedFetch(`${getBackendUrl()}/api/v1/snap/history/${id}`, {
+        method: 'DELETE'
       });
       // Remove from UI instantly
       setHistory(prev => prev.filter(item => item.id !== id));
@@ -71,11 +95,10 @@ export default function SnapHistory({ onSelectHistory }) {
     e.stopPropagation();
     setActiveMenuId(null);
     try {
-      await fetch(`${getBackendUrl()}/api/v1/snap/history/${id}/pin`, {
+      await window.JemerAuth.authenticatedFetch(`${getBackendUrl()}/api/v1/snap/history/${id}/pin`, {
         method: 'PATCH',
         headers: { 
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken()}` 
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ is_pinned: !currentPinStatus })
       });

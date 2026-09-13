@@ -2,6 +2,18 @@
 
 /**
  * ================================================================================================
+ * 🆕 NEW UPGRADES SUMMARY (v6.3.0 - BACKGROUND UNIFICATION)
+ * ================================================================================================
+ * 1. Unified the sidebar's background (the main `<aside>` panel, the sticky bottom-footer block,
+ *    and the mobile search-mode overlay) with the rest of the app (bg-slate-50 / dark:bg-slate-950,
+ *    matching layout.js's page background) instead of the previous bg-white / dark:bg-slate-900,
+ *    which read as a visibly lighter/bluer panel against the page in dark mode — same treatment
+ *    applied to Sidebar.jsx. The existing border-r/border-t divider classes were left untouched —
+ *    now that the panel and page share the same background, those lines read as real boundaries.
+ *    Also updated the emerald "online" status dot's ring color to match the new footer background
+ *    so it doesn't show a mismatched halo. Rename-input field and dropdown context-menu
+ *    backgrounds are separate UI elements, not the panel background, so left untouched.
+ * ================================================================================================
  * 🆕 NEW UPGRADES SUMMARY (v6.2.0 - CENTRALIZED AUTH ENGINE MIGRATION)
  * ================================================================================================
  * 1. Removed this file's entire local JWT/refresh/lock reimplementation (decodeJWTPayload,
@@ -330,7 +342,7 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 h-[100dvh] w-68 bg-white dark:bg-slate-900 border-r border-slate-200/80 dark:border-slate-800/80 flex flex-col justify-between shrink-0 z-50 select-none transition-transform duration-300 cubic-bezier(0.16, 1, 0.3, 1) ${
+        className={`fixed inset-y-0 left-0 h-[100dvh] w-68 bg-slate-50 dark:bg-slate-950 border-r border-slate-200/80 dark:border-slate-800/80 flex flex-col justify-between shrink-0 z-50 select-none transition-transform duration-300 cubic-bezier(0.16, 1, 0.3, 1) ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -450,7 +462,7 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
           </div>
 
           {activeModal && (
-            <div className="absolute inset-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-40 flex flex-col p-4 animate-fade-in shadow-2xl">
+            <div className="absolute inset-0 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur-md z-40 flex flex-col p-4 animate-fade-in shadow-2xl">
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
                 <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
                   <svg className={`w-4 h-4 ${activeModal === 'images' ? 'text-purple-500' : 'text-emerald-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d={activeModal === 'images' ? "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" : "M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"} /></svg>
@@ -467,13 +479,13 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
           )}
         </div>
 
-        <div className="shrink-0 sticky bottom-0 border-t border-slate-100 dark:border-slate-800/60 p-3 bg-white dark:bg-slate-900 overflow-hidden min-h-[52px] z-50">
+        <div className="shrink-0 sticky bottom-0 border-t border-slate-100 dark:border-slate-800/60 p-3 bg-slate-50 dark:bg-slate-950 overflow-hidden min-h-[52px] z-50">
           <div className="flex items-center gap-3 px-1.5 py-0.5 w-full">
             <div className="relative shrink-0 select-none">
               <div className="w-8 h-8 bg-gradient-to-br from-blue-900 to-slate-900 dark:from-blue-600 dark:to-purple-900 text-white rounded-xl flex items-center justify-center font-black text-xs shadow-inner">
                 {studentProfile.firstName.substring(0, 1).toUpperCase()}
               </div>
-              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white dark:border-slate-900 shadow-xs" title="Identity Session Verified Stable Connection" />
+              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-slate-50 dark:border-slate-950 shadow-xs" title="Identity Session Verified Stable Connection" />
             </div>
             <div className="text-left truncate min-w-0 flex-1">
               <p className="text-xs font-extrabold text-slate-900 dark:text-slate-200 truncate max-w-[170px] leading-tight">

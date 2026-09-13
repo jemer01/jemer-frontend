@@ -1,6 +1,12 @@
 /**
  * ================================================================================================
- * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM HIGH-CONTRAST NAVBAR CORE (v5.9 FUNCTIONAL)
+ * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM HIGH-CONTRAST NAVBAR CORE (v6.0 FUNCTIONAL)
+ * ================================================================================================
+ * new: Removed the border-b divider from the header entirely, now that the header's background
+ * already matches the page background — the goal is one seamless surface with no hard line
+ * between the navbar and the page. The header itself stays fully visible via its content
+ * (hamburger icon, title, and any tutor-page tools) and its sticky positioning; only the divider
+ * line separating it from the page content below is gone.
  * ================================================================================================
  * new: Unified the navbar's background with the rest of the app (bg-slate-50 / dark:bg-slate-950,
  * matching layout.js's page background) instead of its previous bg-white / dark:bg-slate-900,
@@ -44,7 +50,7 @@ export default function Navbar({ onMenuToggle, onTutorSidebarToggle, onCalculato
     // 🏢 MASTER HEADER OUTER WRAPPER CANVAS CONTAINER
     // ────────────────────────────────────────────────────────────────────────────────────────────
     // Rich, solid background color tokens (bg-slate-50 / dark:bg-slate-950) providing an opaque canvas foundation, matching the page background.
-    <header className="sticky top-0 right-0 w-full h-14 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 sm:px-6 lg:px-8 z-30 transition-colors duration-200 select-none">
+    <header className="sticky top-0 right-0 w-full h-14 bg-slate-50 dark:bg-slate-950 flex items-center justify-between px-4 sm:px-6 lg:px-8 z-30 transition-colors duration-200 select-none">
       
       {/* ── LEFT SECTION: UNIFIED GLOBAL HAMBURGER COMMAND NODE & CORE BRAND TEXT ── */}
       <div className="flex items-center gap-4">

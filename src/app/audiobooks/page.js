@@ -1,5 +1,25 @@
 /**
- * [NEW] v2.6
+ * [NEW UPGRADE] v2.7
+ * SUMMARY: Centralized Auth Engine Migration.
+ * 1. Removed the entire local JWT/refresh/lock reimplementation (decodeJWTPayload,
+ *    isTokenExpiringSoon, getAuthRefreshLock, waitForAuthSDKReady, fetchJwtOnDemand,
+ *    jemerAuthenticatedFetch) now that auth.js v4.0 exposes the same logic once, globally, via
+ *    window.JemerAuth. Replaced with one minimal waitForJemerAuthReady() readiness poll. As a
+ *    side effect, this also removes decodeJWTPayload's corrupted split call
+ *    (`token.split('.[...](asc_slot://start-slot-1)')` instead of `token.split('.')[1]`), which
+ *    was silently forcing isTokenExpiringSoon to always report the token as expiring.
+ * 2. All four Go-backend calls in handleGenerateNotes (presigned-URL GET, process/stream POST,
+ *    and the final history GET for the transcript lookup) now use
+ *    window.JemerAuth.authenticatedFetch() directly instead of the local jemerAuthenticatedFetch
+ *    wrapper, which also drops the apikey header these calls never actually needed. The R2 PUT
+ *    upload (a presigned third-party URL) is untouched.
+ * 3. PRE-FLIGHT TOKEN CHECK REMOVED: handleGenerateNotes no longer manually calls
+ *    fetchJwtOnDemand() and checks currentToken before dispatching — authenticatedFetch already
+ *    proactively refreshes a token expiring within 5 minutes as part of the call itself.
+ * 4. Dropped the dead legacy-key fallbacks (access_token, token) sprinkled through the old local
+ *    auth machinery — those keys are never written anywhere.
+ *
+ * [PREVIOUS UPGRADE] v2.6
  * SUMMARY: Fixed the backend "Failed to load audio... Invalid or unsupported audio file" Nemotron rejection — the base64 payload it received decoded to the literal string "[object Object]".
  * 1. Root cause: `handleAudioCapture` only unwrapped `.blob`/`.file` from the AudioRecord payload; if neither key matched, the raw wrapper object was stored as `capturedAudio` and later silently stringified by `fetch()` on upload instead of being sent as binary.
  * 2. Widened the unwrap logic to also try `.audioBlob`/`.recording`/`.data`, and added a hard `instanceof Blob` check that stops with a visible error instead of silently accepting a non-Blob value.
@@ -15,7 +35,7 @@
  * 2. Immutable Authentication Flow: Preserved the JIT (Just-In-Time) JWT refresh and fail-safe redirection logic.
  * 3. Component SPA Lifecycle: Retained full stage transitions (record, history, review, loading, results, chat) and precise prop drilling.
  * ================================================================================================
- * 🎧 JEMER ACADEMY ECOSYSTEM — AUDIOBOOKS ROUTER (v2.6)
+ * 🎧 JEMER ACADEMY ECOSYSTEM — AUDIOBOOKS ROUTER (v2.7)
  * ================================================================================================
  */
 
@@ -34,37 +54,12 @@ import AudioHistory from "@/jemer-components/audiobooks/audio-history.jsx";
 // 🔐 AUTHENTICATION & JWT UTILITIES
 // ================================================================================================
 
-const decodeJWTPayload = (token) => {
-  try {
-    const base64Url = token.split('.[...](asc_slot://start-slot-1)');
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    return null;
-  }
-};
-
-const isTokenExpiringSoon = (token, thresholdSeconds = 300) => {
-  if (!token) return true;
-  const payload = decodeJWTPayload(token);
-  if (!payload || !payload.exp) return true;
-  const currentUnixTime = Math.floor(Date.now() / 1000);
-  return (payload.exp - currentUnixTime) < thresholdSeconds;
-};
-
-const getAuthRefreshLock = () => {
-  if (typeof window === "undefined") return { isRefreshing: false, refreshPromise: null };
-  if (!window.__jemerAuthRefreshLock) {
-    window.__jemerAuthRefreshLock = { isRefreshing: false, refreshPromise: null };
-  }
-  return window.__jemerAuthRefreshLock;
-};
-
-const waitForAuthSDKReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
-  const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.refreshSession === "function";
+// 🆕 v2.7: Minimal readiness guard for the globally-loaded auth engine (window.JemerAuth,
+// injected once by layout.js via <Script strategy="afterInteractive">). That script loads after
+// first paint, so a call firing shortly after mount could technically run before it exists —
+// this polls briefly instead of assuming it's already there.
+const waitForJemerAuthReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
+  const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.authenticatedFetch === "function";
   if (isReady()) return true;
   const startTime = Date.now();
   while (Date.now() - startTime < timeoutMs) {
@@ -72,82 +67,6 @@ const waitForAuthSDKReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
     if (isReady()) return true;
   }
   return false;
-};
-
-const fetchJwtOnDemand = async () => {
-  const lock = getAuthRefreshLock();
-  if (lock.isRefreshing) return lock.refreshPromise;
-  lock.isRefreshing = true;
-
-  lock.refreshPromise = (async () => {
-    try {
-      const sdkIsReady = await waitForAuthSDKReady();
-      if (sdkIsReady) {
-        const refreshOutcome = await window.JemerAuth.refreshSession();
-        if (refreshOutcome && refreshOutcome.success === false) return null;
-
-        let attempts = 0;
-        while (attempts < 100) {
-          const currentToken = localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token");
-          if (currentToken && !isTokenExpiringSoon(currentToken, 300)) {
-            return currentToken;
-          }
-          await new Promise(resolve => setTimeout(resolve, 50));
-          attempts++;
-        }
-      }
-      return localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token") || null;
-    } catch (error) {
-      return null;
-    } finally {
-      lock.isRefreshing = false;
-    }
-  })();
-
-  return lock.refreshPromise;
-};
-
-const jemerAuthenticatedFetch = async (url, options = {}) => {
-  let activeToken = localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token");
-
-  // Only redirect to login if the token is entirely missing. 
-  // Expired tokens remain legal to prevent terrible background UX kick-outs.
-  if (!activeToken) {
-     window.location.href = "/login.html";
-     return new Response(null, { status: 401 });
-  }
-
-  // Attempt a silent refresh if expiring, but DO NOT kick to login if it fails.
-  if (isTokenExpiringSoon(activeToken, 300)) {
-     const freshToken = await fetchJwtOnDemand();
-     if (freshToken) {
-       activeToken = freshToken;
-     }
-  }
-
-  const headers = new Headers(options.headers || {});
-  headers.set("Authorization", `Bearer ${activeToken}`);
-  headers.set("apikey", activeToken);
-
-  let response = await fetch(url, { ...options, headers });
-
-  // Fallback interceptor if the API still rejects the token
-  if (response.status === 401 || response.status === 400) {
-     const emergencyToken = await fetchJwtOnDemand();
-     if (emergencyToken && emergencyToken !== activeToken) {
-        headers.set("Authorization", `Bearer ${emergencyToken}`);
-        headers.set("apikey", emergencyToken);
-        response = await fetch(url, { ...options, headers });
-     } else {
-        // Final check. Only kick if tokens were completely wiped from storage.
-        const checkToken = localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token");
-        if (!checkToken) {
-           window.location.href = "/login.html";
-        }
-     }
-  }
-
-  return response;
 };
 
 const getBackendUrl = () => {
@@ -229,14 +148,10 @@ export default function AudioBooksPage() {
     setSessionID(newSessionID);
 
     try {
-      // 🚀 JIT JWT FETCH: Explicitly fetch a fresh token right before the heavy lifting action
-      await fetchJwtOnDemand();
-      const currentToken = localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token");
-
-      if (!currentToken) {
-        window.location.href = "/login.html";
-        return;
-      }
+      // 🆕 v2.7: window.JemerAuth.authenticatedFetch() now handles the expiry check, silent
+      // refresh, and dead-session redirect internally, so the manual pre-flight token check that
+      // used to live here has been removed. We just make sure the auth engine has finished loading.
+      await waitForJemerAuthReady();
 
       const BACKEND_URL = getBackendUrl();
       
@@ -255,7 +170,7 @@ export default function AudioBooksPage() {
                      rawFormat.toLowerCase().includes("wav") ? "wav" : "mp3";
 
       // 1. Obtain Presigned URL from Go Backend
-      const presignRes = await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/audiobooks/storage/presigned-url?format=${format}`, {
+      const presignRes = await window.JemerAuth.authenticatedFetch(`${BACKEND_URL}/api/v1/audiobooks/storage/presigned-url?format=${format}`, {
         method: "GET"
       });
 
@@ -272,7 +187,7 @@ export default function AudioBooksPage() {
       if (!uploadRes.ok) throw new Error("Failed to upload audio to cloud storage");
 
       // 3. Initiate SSE Streaming Process (Nemotron Transcript -> Step 3.7 JSON Analysis)
-      const streamRes = await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/audiobooks/process`, {
+      const streamRes = await window.JemerAuth.authenticatedFetch(`${BACKEND_URL}/api/v1/audiobooks/process`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -319,7 +234,7 @@ export default function AudioBooksPage() {
       // 4. Fetch the final clean record from DB to retrieve the Kimi Transcript
       let finalTranscript = "Transcription missing or still processing.";
       try {
-        const historyRes = await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/audiobooks/history?limit=10`);
+        const historyRes = await window.JemerAuth.authenticatedFetch(`${BACKEND_URL}/api/v1/audiobooks/history?limit=10`);
         if (historyRes.ok) {
           const historyData = await historyRes.json();
           // Find the exact session we just processed

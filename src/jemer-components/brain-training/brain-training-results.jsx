@@ -1,6 +1,16 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Implemented a viewport-level analytics info modal using a React portal so it stays centered and accessible even when the user is deep inside the long Exam Log. Background scrolling is locked while the modal is open, preventing the modal from being pushed out of context by page content.
+ * SUMMARY: v3.7 Centralized Auth Engine Migration
+ * 1. requestFreshInsight's POST /session/:id/insight call (our own Go backend) now uses
+ *    window.JemerAuth.authenticatedFetch() instead of a raw fetch() with a hand-built
+ *    Authorization header, so an expiring token is silently refreshed and an unexpected 401 gets
+ *    retried once before giving up.
+ * 2. Removed getToken() entirely — it read jemer_session_jwt with dead legacy-key fallbacks
+ *    (access_token, token, never written anywhere) to hand-build an Authorization header. Now
+ *    that the one call site goes through authenticatedFetch, which sources and attaches the
+ *    token internally, that helper had nothing left to do.
+ * ────────────────────────────────────────────────────────────────────────────────────────
+ * [PRIOR] Implemented a viewport-level analytics info modal using a React portal so it stays centered and accessible even when the user is deep inside the long Exam Log. Background scrolling is locked while the modal is open, preventing the modal from being pushed out of context by page content.
  *
  * PREVIOUS UPGRADE:
  * SUMMARY: Executed v3.6 Native SVGs & Bulletproof Grading Overhaul.
@@ -8,7 +18,7 @@
  * 2. Terminology Audit: Replaced remaining instances of the word "Prompt" with "Question" globally across tooltips and descriptions to align with standard educational semantics.
  * 3. Bulletproof Grading Engine: Finalized the `resolveChoiceKey` module. It now strictly cross-references AI hallucinated outputs, normalizing cases and checking substrings so no student is ever falsely marked wrong.
  * ================================================================================================
- * ✨ JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING COGNITIVE ANALYTICS (v3.6)
+ * ✨ JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING COGNITIVE ANALYTICS (v3.7)
  * ================================================================================================
  */
 
@@ -96,8 +106,6 @@ const getBackendUrl = () => {
      activeOrigin.includes("cloudshell.dev") ? "https://3000-cs-9c6bf60b-3314-4394-80ef-ef6f4089d8e1.cs-europe-west1-haha.cloudshell.dev" :
      "http://localhost:8080");
 };
-
-const getToken = () => localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token") || "";
 
 export default function BrainTrainingResults({ sessionData, onRestart }) {
   const [showReview, setShowReview] = useState(false);
@@ -220,11 +228,10 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
     setIsFetchingInsight(true);
     try {
       const payload = `Score: ${gradedData.percentage}% | Tier: ${gradedData.tier} | Weakest Area: ${gradedData.blindSpot} | Longest Streak: ${gradedData.maxStreak} | Total Correct: ${gradedData.totalCorrect} / ${gradedData.maxRaw} | Pacing: ~${gradedData.mockPacingSeconds}s/Q`;
-      const res = await fetch(`${getBackendUrl()}/api/v1/brain-training/session/${sessionData.realSession.id}/insight`, {
+      const res = await window.JemerAuth.authenticatedFetch(`${getBackendUrl()}/api/v1/brain-training/session/${sessionData.realSession.id}/insight`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getToken()}`
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({ telemetry_data: payload })
       });

@@ -1,11 +1,25 @@
 /**
 [NEW]
+SUMMARY: v6.3 Centralized Auth Engine Migration
+1. All four backend calls (GET history, DELETE, PATCH /pin, PATCH /rename) hit our own Go backend
+   (/api/v1/audiobooks/history...) and now use window.JemerAuth.authenticatedFetch() instead of a
+   raw fetch() with a hand-built Authorization header, so an expiring token is silently refreshed
+   and an unexpected 401 gets retried once before giving up.
+2. Removed getToken() entirely — it read jemer_session_jwt with dead legacy-key fallbacks
+   (access_token, token, never written anywhere) to hand-build an Authorization header. Now that
+   all four calls go through authenticatedFetch, which sources and attaches the token internally,
+   that helper had nothing left to do.
+3. Added a minimal window.JemerAuth readiness guard on the mount-time history fetch, since the
+   engine loads via layout.js's afterInteractive <Script> and may not exist the instant this
+   effect fires on mount.
+================================================================================================
+[PREVIOUS UPGRADE]
 SUMMARY: Mobile UI/UX & Layout Fixes
 1. Fullscreen Layout: Replaced conflicting 'absolute h-full relative' with 'fixed inset-0 h-[100dvh] z-[100]' and a solid background to completely cover any parent footers and fix the "cut out / small space" issue on mobile.
 2. Dropdown Fix: Removed 'overflow-hidden' from the card container so the 3-dot menu dropdown is fully visible and no longer clipped. (Moved 'overflow-hidden' strictly to an inner wrapper for the decorative blur).
 3. Touch Target & Clickability: Increased the 3-dot button touch target area on mobile, added 'e.preventDefault()', and increased the z-index of the dropdown to ensure taps register accurately on mobile devices.
 ================================================================================================
-📚 JEMER ACADEMY DESIGN SYSTEM — AUDIOBOOKS HISTORY (v6.2)
+📚 JEMER ACADEMY DESIGN SYSTEM — AUDIOBOOKS HISTORY (v6.3)
 ================================================================================================
 */
 "use client";
@@ -28,14 +42,25 @@ export default function AudioHistory({ onBack, onSelectHistory }) {
       "http://localhost:8080");
   };
 
-  const getToken = () => localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token") || "";
+  // 🆕 v6.3: Minimal readiness guard for the globally-loaded auth engine (window.JemerAuth,
+  // injected once by layout.js via <Script strategy="afterInteractive">). That script loads
+  // after first paint, so an effect firing on mount could technically run before it exists.
+  const waitForJemerAuthReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
+    const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.authenticatedFetch === "function";
+    if (isReady()) return true;
+    const startTime = Date.now();
+    while (Date.now() - startTime < timeoutMs) {
+      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+      if (isReady()) return true;
+    }
+    return false;
+  };
 
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const res = await fetch(`${getBackendUrl()}/api/v1/audiobooks/history`, {
-          headers: { Authorization: `Bearer ${getToken()}` }
-        });
+        await waitForJemerAuthReady();
+        const res = await window.JemerAuth.authenticatedFetch(`${getBackendUrl()}/api/v1/audiobooks/history`);
 
         if (res.ok) {
           const data = await res.json();
@@ -54,9 +79,8 @@ export default function AudioHistory({ onBack, onSelectHistory }) {
     e.stopPropagation();
     setActiveMenuId(null);
     try {
-      await fetch(`${getBackendUrl()}/api/v1/audiobooks/history/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${getToken()}` }
+      await window.JemerAuth.authenticatedFetch(`${getBackendUrl()}/api/v1/audiobooks/history/${id}`, {
+        method: 'DELETE'
       });
       setHistory(prev => prev.filter(item => item.id !== id));
     } catch (error) {
@@ -68,11 +92,10 @@ export default function AudioHistory({ onBack, onSelectHistory }) {
     e.stopPropagation();
     setActiveMenuId(null);
     try {
-      await fetch(`${getBackendUrl()}/api/v1/audiobooks/history/${id}/pin`, {
+      await window.JemerAuth.authenticatedFetch(`${getBackendUrl()}/api/v1/audiobooks/history/${id}/pin`, {
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken()}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ is_pinned: !currentPinStatus })
       });
@@ -98,11 +121,10 @@ export default function AudioHistory({ onBack, onSelectHistory }) {
     if (!editTitle.trim()) return;
 
     try {
-      await fetch(`${getBackendUrl()}/api/v1/audiobooks/history/${id}/rename`, {
+      await window.JemerAuth.authenticatedFetch(`${getBackendUrl()}/api/v1/audiobooks/history/${id}/rename`, {
         method: 'PATCH',
         headers: { 
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken()}` 
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ title: editTitle.trim() })
       });

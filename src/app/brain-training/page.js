@@ -1,10 +1,30 @@
 /**
  * [NEW UPGRADE]
+ * SUMMARY: v3.3 Centralized Auth Engine Migration.
+ * 1. Removed the entire local JWT/refresh/lock reimplementation (decodeJWTPayload,
+ *    isTokenExpiringSoon, getAuthRefreshLock, waitForAuthSDKReady, fetchJwtOnDemand,
+ *    jemerAuthenticatedFetch) now that auth.js v4.0 exposes the same logic once, globally, via
+ *    window.JemerAuth. Replaced with one minimal waitForJemerAuthReady() readiness poll.
+ * 2. All five backend calls (handleNewTraining's generate stream + follow-up session GET,
+ *    handleResumeTraining's session GET, handleEndSession's submit POST,
+ *    handleReviewCompletedExam's session GET) hit our own Go backend
+ *    (/api/v1/brain-training/...) and now use window.JemerAuth.authenticatedFetch() directly,
+ *    which also drops the apikey header these calls never actually needed.
+ * 3. PRE-FLIGHT TOKEN CHECKS REMOVED: the three manual fetchJwtOnDemand() calls in
+ *    handleNewTraining, handleResumeTraining, and handleReviewCompletedExam were removed —
+ *    authenticatedFetch already proactively refreshes a token expiring within 5 minutes as part
+ *    of the call itself.
+ * 4. Dropped the dead legacy-key fallbacks (access_token, token, jemer_user_id, user_id) — none
+ *    of these are written anywhere; the redirect-to-login gate now checks the JWT alone, same as
+ *    every other page in the app. The jemer_brain_completed_* local answer-cache keys are
+ *    unrelated to auth and were left untouched.
+ * ================================================================================================
+ * [PREVIOUS UPGRADE]
  * SUMMARY: Executed v3.2 Retake Fresh Insight Enforcement.
  * 1. Fresh Remark Guarantee: In `handleEndSession`, explicitly set `ai_insight: null` on the session payload so retakes and fresh exams never carry over stale AI reviews from prior attempts.
  * 2. Retake Slate Wiped: In `handleRetakeExam`, purges both local storage keys and resumes with `ai_insight: null`.
  * ================================================================================================
- * 🧠 JEMER ACADEMY ECOSYSTEM — BRAIN TRAINING ROUTER (v3.2)
+ * 🧠 JEMER ACADEMY ECOSYSTEM — BRAIN TRAINING ROUTER (v3.3)
  * ================================================================================================
  */
 
@@ -21,37 +41,12 @@ import BrainTrainingPerformanceHistory from "@/jemer-components/brain-training/b
 // 🔐 AUTHENTICATION & JWT UTILITIES
 // ================================================================================================
 
-const decodeJWTPayload = (token) => {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    return null;
-  }
-};
-
-const isTokenExpiringSoon = (token, thresholdSeconds = 300) => {
-  if (!token) return true;
-  const payload = decodeJWTPayload(token);
-  if (!payload || !payload.exp) return true;
-  const currentUnixTime = Math.floor(Date.now() / 1000);
-  return (payload.exp - currentUnixTime) < thresholdSeconds;
-};
-
-const getAuthRefreshLock = () => {
-  if (typeof window === "undefined") return { isRefreshing: false, refreshPromise: null };
-  if (!window.__jemerAuthRefreshLock) {
-    window.__jemerAuthRefreshLock = { isRefreshing: false, refreshPromise: null };
-  }
-  return window.__jemerAuthRefreshLock;
-};
-
-const waitForAuthSDKReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
-  const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.refreshSession === "function";
+// 🆕 v3.3: Minimal readiness guard for the globally-loaded auth engine (window.JemerAuth,
+// injected once by layout.js via <Script strategy="afterInteractive">). That script loads after
+// first paint, so a call firing shortly after mount could technically run before it exists —
+// this polls briefly instead of assuming it's already there.
+const waitForJemerAuthReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
+  const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.authenticatedFetch === "function";
   if (isReady()) return true;
   const startTime = Date.now();
   while (Date.now() - startTime < timeoutMs) {
@@ -59,79 +54,6 @@ const waitForAuthSDKReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
     if (isReady()) return true;
   }
   return false;
-};
-
-const fetchJwtOnDemand = async () => {
-  const lock = getAuthRefreshLock();
-  if (lock.isRefreshing) return lock.refreshPromise;
-  lock.isRefreshing = true;
-
-  lock.refreshPromise = (async () => {
-    try {
-      const sdkIsReady = await waitForAuthSDKReady();
-      if (sdkIsReady) {
-        const refreshOutcome = await window.JemerAuth.refreshSession();
-        if (refreshOutcome && refreshOutcome.success === false) return null;
-
-        let attempts = 0;
-        while (attempts < 100) {
-          const currentToken = localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token");
-          if (currentToken && !isTokenExpiringSoon(currentToken, 300)) {
-            return currentToken;
-          }
-          await new Promise(resolve => setTimeout(resolve, 50));
-          attempts++;
-        }
-      }
-      return localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token") || null;
-    } catch (error) {
-      return null;
-    } finally {
-      lock.isRefreshing = false;
-    }
-  })();
-
-  return lock.refreshPromise;
-};
-
-const jemerAuthenticatedFetch = async (url, options = {}) => {
-  let activeToken = localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token");
-  const userId = localStorage.getItem("jemer_user_id") || localStorage.getItem("user_id");
-
-  if (!activeToken && !userId) {
-     window.location.href = "/login.html";
-     return new Response(null, { status: 401 });
-  }
-
-  if (isTokenExpiringSoon(activeToken, 300)) {
-     const freshToken = await fetchJwtOnDemand();
-     if (freshToken) {
-       activeToken = freshToken;
-     }
-  }
-
-  const headers = new Headers(options.headers || {});
-  headers.set("Authorization", `Bearer ${activeToken}`);
-  headers.set("apikey", activeToken);
-
-  let response = await fetch(url, { ...options, headers });
-
-  if (response.status === 401 || response.status === 400) {
-     const emergencyToken = await fetchJwtOnDemand();
-     if (emergencyToken && emergencyToken !== activeToken) {
-        headers.set("Authorization", `Bearer ${emergencyToken}`);
-        headers.set("apikey", emergencyToken);
-        response = await fetch(url, { ...options, headers });
-     } else {
-        const checkToken = localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token");
-        const checkUserId = localStorage.getItem("jemer_user_id") || localStorage.getItem("user_id");
-        if (!checkToken && !checkUserId) {
-           window.location.href = "/login.html";
-        }
-     }
-  }
-
-  return response;
 };
 
 const getBackendUrl = () => {
@@ -161,10 +83,10 @@ export default function BrainTrainingPage() {
     setActiveStage("review");
 
     try {
-      await fetchJwtOnDemand();
+      await waitForJemerAuthReady();
       const BACKEND_URL = getBackendUrl();
       
-      const res = await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/brain-training/generate`, {
+      const res = await window.JemerAuth.authenticatedFetch(`${BACKEND_URL}/api/v1/brain-training/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic: promptText })
@@ -205,7 +127,7 @@ export default function BrainTrainingPage() {
       }
 
       if (generatedSessionId) {
-        const sessionRes = await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/brain-training/session/${generatedSessionId}`);
+        const sessionRes = await window.JemerAuth.authenticatedFetch(`${BACKEND_URL}/api/v1/brain-training/session/${generatedSessionId}`);
         if (sessionRes.ok) {
           const sessionData = await sessionRes.json();
           setSessionConfig(sessionData);
@@ -229,10 +151,10 @@ export default function BrainTrainingPage() {
     setActiveStage("review");
 
     try {
-      await fetchJwtOnDemand();
+      await waitForJemerAuthReady();
       const BACKEND_URL = getBackendUrl();
       
-      const res = await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/brain-training/session/${historicalData.id}`);
+      const res = await window.JemerAuth.authenticatedFetch(`${BACKEND_URL}/api/v1/brain-training/session/${historicalData.id}`);
       if (!res.ok) throw new Error("Failed to retrieve historical session data.");
       
       const sessionData = await res.json();
@@ -284,7 +206,7 @@ export default function BrainTrainingPage() {
         });
 
         if (analyticsPayload.length > 0) {
-          await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/brain-training/submit`, {
+          await window.JemerAuth.authenticatedFetch(`${BACKEND_URL}/api/v1/brain-training/submit`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -321,10 +243,10 @@ export default function BrainTrainingPage() {
     setActiveStage("performance"); 
     
     try {
-      await fetchJwtOnDemand();
+      await waitForJemerAuthReady();
       const BACKEND_URL = getBackendUrl();
       
-      const res = await jemerAuthenticatedFetch(`${BACKEND_URL}/api/v1/brain-training/session/${historicalData.id}`);
+      const res = await window.JemerAuth.authenticatedFetch(`${BACKEND_URL}/api/v1/brain-training/session/${historicalData.id}`);
       if (!res.ok) throw new Error("Failed to retrieve historical session data.");
       
       const sessionData = await res.json();

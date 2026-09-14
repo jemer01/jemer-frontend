@@ -2,7 +2,21 @@
 "use client";
 /**
  * [NEW UPGRADE]
- * SUMMARY: v2.4 Real Progress Calculation.
+ * SUMMARY: v2.5 Centralized Auth Engine Migration
+ * 1. All four backend calls (GET history, DELETE, PATCH /pin, PATCH /rename) hit our own Go
+ *    backend (/api/v1/brain-training/history...) and now use
+ *    window.JemerAuth.authenticatedFetch() instead of a raw fetch() with a hand-built
+ *    Authorization header, so an expiring token is silently refreshed and an unexpected 401 gets
+ *    retried once before giving up.
+ * 2. Removed getToken() entirely — it read jemer_session_jwt with dead legacy-key fallbacks
+ *    (access_token, token, never written anywhere) to hand-build an Authorization header. Now
+ *    that all four calls go through authenticatedFetch, which sources and attaches the token
+ *    internally, that helper had nothing left to do.
+ * 3. Added a minimal window.JemerAuth readiness guard on the mount-time history fetch, since the
+ *    engine loads via layout.js's afterInteractive <Script> and may not exist the instant this
+ *    effect fires on mount.
+ * ────────────────────────────────────────────────────────────────────────────────────────
+ * [PRIOR] v2.4 Real Progress Calculation.
  * 1. Progress Fix: "Synapse Activation" no longer collapses to a binary 0%/100% based on completion status alone — it's now computed from how many questions have actually been answered vs. total_questions, so in-progress sessions show a real, granular percentage. Falls back to the prior status-based value if no answered-count field is present in the API payload (see inline note — confirm/adjust the field name against the actual backend response).
  * 2. Component Integrity: No other card logic, menu behavior, or visuals were touched.
  * ────────────────────────────────────────────────────────────────────────────────────────
@@ -10,7 +24,7 @@
  * 1. Layout Fix: Removed root `onMouseLeave` menu closer to eliminate blank screen / click-trap bugs, replacing it with secure event propagation control.
  * 2. Card Visuals: Upgraded active training cards with rich gradients, micro-badges, refined typography, and glowing hover states.
  * ================================================================================================
- * 📚 JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING HISTORY (v2.4)
+ * 📚 JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING HISTORY (v2.5)
  * ================================================================================================
  */
 
@@ -33,14 +47,25 @@ export default function BrainTrainingHistory({ onResume }) {
        "http://localhost:8080");
   };
 
-  const getToken = () => localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token") || "";
+  // 🆕 v2.5: Minimal readiness guard for the globally-loaded auth engine (window.JemerAuth,
+  // injected once by layout.js via <Script strategy="afterInteractive">). That script loads
+  // after first paint, so an effect firing on mount could technically run before it exists.
+  const waitForJemerAuthReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
+    const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.authenticatedFetch === "function";
+    if (isReady()) return true;
+    const startTime = Date.now();
+    while (Date.now() - startTime < timeoutMs) {
+      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+      if (isReady()) return true;
+    }
+    return false;
+  };
 
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const res = await fetch(`${getBackendUrl()}/api/v1/brain-training/history`, {
-          headers: { Authorization: `Bearer ${getToken()}` }
-        });
+        await waitForJemerAuthReady();
+        const res = await window.JemerAuth.authenticatedFetch(`${getBackendUrl()}/api/v1/brain-training/history`);
         if (res.ok) {
           const data = await res.json();
           const activeSessions = (data || []).filter(item => item.status !== 'completed');
@@ -59,9 +84,8 @@ export default function BrainTrainingHistory({ onResume }) {
     e.stopPropagation();
     setActiveMenuId(null);
     try {
-      await fetch(`${getBackendUrl()}/api/v1/brain-training/history/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${getToken()}` }
+      await window.JemerAuth.authenticatedFetch(`${getBackendUrl()}/api/v1/brain-training/history/${id}`, {
+        method: 'DELETE'
       });
       setHistory(prev => prev.filter(item => item.id !== id));
     } catch (error) {
@@ -73,11 +97,10 @@ export default function BrainTrainingHistory({ onResume }) {
     e.stopPropagation();
     setActiveMenuId(null);
     try {
-      await fetch(`${getBackendUrl()}/api/v1/brain-training/history/${id}/pin`, {
+      await window.JemerAuth.authenticatedFetch(`${getBackendUrl()}/api/v1/brain-training/history/${id}/pin`, {
         method: 'PATCH',
         headers: { 
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken()}` 
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ is_pinned: !currentPinStatus })
       });
@@ -103,11 +126,10 @@ export default function BrainTrainingHistory({ onResume }) {
     if (!editTitle.trim()) return;
 
     try {
-      await fetch(`${getBackendUrl()}/api/v1/brain-training/history/${id}/rename`, {
+      await window.JemerAuth.authenticatedFetch(`${getBackendUrl()}/api/v1/brain-training/history/${id}/rename`, {
         method: 'PATCH',
         headers: { 
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken()}` 
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ title: editTitle.trim() })
       });

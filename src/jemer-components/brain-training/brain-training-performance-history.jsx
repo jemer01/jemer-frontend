@@ -1,6 +1,20 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: v1.3 Tier Badge Removal, Score Bugfix & Full Mobile Pass.
+ * SUMMARY: v1.4 Centralized Auth Engine Migration
+ * 1. All four backend calls (GET performance, DELETE, PATCH /pin, PATCH /rename — the latter
+ *    three hitting the same /history/... endpoints as brain-training-history.jsx, since it's the
+ *    same underlying records) now use window.JemerAuth.authenticatedFetch() instead of a raw
+ *    fetch() with a hand-built Authorization header, so an expiring token is silently refreshed
+ *    and an unexpected 401 gets retried once before giving up.
+ * 2. Removed getToken() entirely — it read jemer_session_jwt with dead legacy-key fallbacks
+ *    (access_token, token, never written anywhere) to hand-build an Authorization header. Now
+ *    that all four calls go through authenticatedFetch, which sources and attaches the token
+ *    internally, that helper had nothing left to do.
+ * 3. Added a minimal window.JemerAuth readiness guard on the mount-time performance fetch, since
+ *    the engine loads via layout.js's afterInteractive <Script> and may not exist the instant
+ *    this effect fires on mount.
+ * ────────────────────────────────────────────────────────────────────────────────────────
+ * [PRIOR] v1.3 Tier Badge Removal, Score Bugfix & Full Mobile Pass.
  * 1. Tier Badge Removed: Dropped the S/A/B/C/D "Cognitive Tier" badge (it was keyed off `session.progress`, a field never meant to represent a score here). That top-corner slot now shows the session's question count instead.
  * 2. Final Score Bugfix: Removed the "Final Score %" readout from cards and the action modal — it was reading raw, non-percentage values off `session.progress` (surfacing nonsense like 500% or 300%), and this archive is completed-only anyway, so a score field wasn't meaningful here. The action modal now shows question count + completion date instead.
  * 3. Mobile Pass: Rebuilt the header (icon/button sizing, padding, wrapping) and grid cards (flexible height, tighter spacing) to render properly on phone-width screens; card bottom row now uses the freed-up space for a completion date + review affordance.
@@ -10,7 +24,7 @@
  * 2. Ultra-Rounded Header: Redesigned the top header container into an ultra-rounded (`rounded-[2.5rem]`), floating glassmorphic card with rich shadows.
  * 3. Detailed Cards: Enhanced grid cards with detailed metadata, glowing tier badges, and smooth action modal integration.
  * ================================================================================================
- * 🧠 JEMER ACADEMY DESIGN SYSTEM — PERFORMANCE HISTORY ARCHIVE (v1.3)
+ * 🧠 JEMER ACADEMY DESIGN SYSTEM — PERFORMANCE HISTORY ARCHIVE (v1.4)
  * ================================================================================================
  */
 
@@ -36,14 +50,25 @@ export default function BrainTrainingPerformanceHistory({ onBack, onReviewExam, 
        "http://localhost:8080");
   };
 
-  const getToken = () => localStorage.getItem("jemer_session_jwt") || localStorage.getItem("access_token") || localStorage.getItem("token") || "";
+  // 🆕 v1.4: Minimal readiness guard for the globally-loaded auth engine (window.JemerAuth,
+  // injected once by layout.js via <Script strategy="afterInteractive">). That script loads
+  // after first paint, so an effect firing on mount could technically run before it exists.
+  const waitForJemerAuthReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
+    const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.authenticatedFetch === "function";
+    if (isReady()) return true;
+    const startTime = Date.now();
+    while (Date.now() - startTime < timeoutMs) {
+      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+      if (isReady()) return true;
+    }
+    return false;
+  };
 
   useEffect(() => {
     const fetchPerformanceHistory = async () => {
       try {
-        const res = await fetch(`${getBackendUrl()}/api/v1/brain-training/performance`, {
-          headers: { Authorization: `Bearer ${getToken()}` }
-        });
+        await waitForJemerAuthReady();
+        const res = await window.JemerAuth.authenticatedFetch(`${getBackendUrl()}/api/v1/brain-training/performance`);
         if (res.ok) {
           const data = await res.json();
           setHistory(data || []);
@@ -61,9 +86,8 @@ export default function BrainTrainingPerformanceHistory({ onBack, onReviewExam, 
     e.stopPropagation();
     setActiveMenuId(null);
     try {
-      await fetch(`${getBackendUrl()}/api/v1/brain-training/history/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${getToken()}` }
+      await window.JemerAuth.authenticatedFetch(`${getBackendUrl()}/api/v1/brain-training/history/${id}`, {
+        method: 'DELETE'
       });
       setHistory(prev => prev.filter(item => item.id !== id));
     } catch (error) {
@@ -75,11 +99,10 @@ export default function BrainTrainingPerformanceHistory({ onBack, onReviewExam, 
     e.stopPropagation();
     setActiveMenuId(null);
     try {
-      await fetch(`${getBackendUrl()}/api/v1/brain-training/history/${id}/pin`, {
+      await window.JemerAuth.authenticatedFetch(`${getBackendUrl()}/api/v1/brain-training/history/${id}/pin`, {
         method: 'PATCH',
         headers: { 
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken()}` 
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ is_pinned: !currentPinStatus })
       });
@@ -105,11 +128,10 @@ export default function BrainTrainingPerformanceHistory({ onBack, onReviewExam, 
     if (!editTitle.trim()) return;
 
     try {
-      await fetch(`${getBackendUrl()}/api/v1/brain-training/history/${id}/rename`, {
+      await window.JemerAuth.authenticatedFetch(`${getBackendUrl()}/api/v1/brain-training/history/${id}/rename`, {
         method: 'PATCH',
         headers: { 
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken()}` 
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ title: editTitle.trim() })
       });

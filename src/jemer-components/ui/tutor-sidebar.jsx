@@ -1,59 +1,22 @@
-"use client"; // Enforces client-side processing configurations to safely manage layout hooks and browser document nodes[cite: 3]
+"use client"; // Enforces client-side processing configurations to safely manage layout hooks and browser document nodes
 
 /**
  * ================================================================================================
- * 🆕 NEW UPGRADES SUMMARY (v6.3.0 - BACKGROUND UNIFICATION)
+ * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM SCALABLE SIDE PANEL FRAMEWORK (v7.0.0)
  * ================================================================================================
- * 1. Unified the sidebar's background (the main `<aside>` panel, the sticky bottom-footer block,
- *    and the mobile search-mode overlay) with the rest of the app (bg-slate-50 / dark:bg-slate-950,
- *    matching layout.js's page background) instead of the previous bg-white / dark:bg-slate-900,
- *    which read as a visibly lighter/bluer panel against the page in dark mode — same treatment
- *    applied to Sidebar.jsx. The existing border-r/border-t divider classes were left untouched —
- *    now that the panel and page share the same background, those lines read as real boundaries.
- *    Also updated the emerald "online" status dot's ring color to match the new footer background
- *    so it doesn't show a mismatched halo. Rename-input field and dropdown context-menu
- *    backgrounds are separate UI elements, not the panel background, so left untouched.
+ * 🆕 NEW UPGRADES SUMMARY (v7.0.0 - ARCHIVE & IMAGE GALLERY INTEGRATION)
  * ================================================================================================
- * 🆕 NEW UPGRADES SUMMARY (v6.2.0 - CENTRALIZED AUTH ENGINE MIGRATION)
+ * 1. ARCHIVE ENGINE: Replaced the dummy modal with a live PostgREST fetch targeting `is_archived=eq.true`. 
+ *    Added a one-click Unarchive action that restores the session and dispatches `jemer_chat_updated` 
+ *    to instantly hydrate the main sidebar.
+ * 2. MASONRY IMAGE GALLERY: Replaced the dummy gallery. The system now queries the user's global chat 
+ *    history for the `<jemer-image-showcase>` XML tag, extracts the image data natively via regex, 
+ *    and maps it into a sleek, staggered 2-column masonry grid.
  * ================================================================================================
- * 1. Removed this file's entire local JWT/refresh/lock reimplementation (decodeJWTPayload,
- *    isTokenExpiringSoon, getAuthRefreshLock, waitForAuthSDKReady, fetchJwtOnDemand,
- *    jemerAuthenticatedFetch) now that auth.js v4.0 exposes the same logic once, globally, via
- *    window.JemerAuth. Replaced with one minimal waitForJemerAuthReady() readiness poll.
- * 2. GO BACKEND CALL NOW USES window.JemerAuth.authenticatedFetch(): fetchSessionsFromDB (our
- *    own Go backend, /api/v1/tutor/sessions) now calls the shared engine directly instead of the
- *    local jemerAuthenticatedFetch wrapper, which also drops the apikey header this call never
- *    actually needed from the Go backend.
- * 3. DIRECT NEON CALLS KEPT MANUAL, TOKEN SOURCE CENTRALIZED: verifyAndFetchProfile's profile
- *    lookup and executeSessionMutation's archive/delete/rename PATCH/DELETE both hit Neon's
- *    PostgREST endpoint directly (not our Go backend) and need both Authorization + apikey
- *    headers on the same token, so they can't use authenticatedFetch (Authorization-only). Both
- *    now source their token exclusively through window.JemerAuth.fetchJwtOnDemand() instead of a
- *    raw localStorage read.
- * ================================================================================================
- * 🆕 NEW UPGRADES SUMMARY (v6.1.0 - CROSS-MODULE REFRESH LOCK, MOUNT-LEVEL GUARD & SHIMMER FIX)
- * ================================================================================================
- * 1. CROSS-MODULE REFRESH LOCK (root-cause fix for the login-bounce bug): v6.0.0 replicated
- *    `fetchJwtOnDemand`'s de-dupe lock, but that lock (`isRefreshing`/`refreshPromise`) was
- *    file-local, so it only prevented this file's own calls from racing each other — it did
- *    NOT prevent this file racing `page.js`, which mounts as a sibling and can independently
- *    trigger its own refresh at the same instant. Since the SDK's refresh token is single-use,
- *    the losing concurrent call got `success: false` and force-redirected to login. The lock now
- *    lives on `window.__jemerAuthRefreshLock`, shared with `page.js`, so only one refresh is ever
- *    in flight for the whole app and every other caller just awaits it.
- * 2. MOUNT-LEVEL SESSION GUARD: Added a dedicated check on mount — if `jemer_session_jwt` or
- *    `jemer_user_uuid` is missing from local storage, the sidebar redirects to `/login.html`
- *    immediately instead of waiting for a fetch to fail first. (This is a UX/hygiene redirect,
- *    not a security boundary by itself — actual enforcement is still the backend's 401 on every
- *    authenticated call, which `jemerAuthenticatedFetch` already handles.)
- * 3. DARK MODE SHIMMER VISIBILITY (real fix): v6.0.0's `.dark .animate-shimmer` override in the
- *    raw <style> block wasn't reliably matching against however the active theme is actually
- *    applied to the DOM. Moved the shimmer's colors onto the same `dark:` Tailwind utility
- *    classes already working correctly everywhere else in this file, so it rides the same
- *    proven mechanism instead of a second untested selector. `.animate-shimmer` now only owns
- *    the animation timing.
- * ================================================================================================
- * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM SCALABLE SIDE PANEL FRAMEWORK
+ * [PREVIOUS UPGRADES RETAINED]
+ * - Unified sidebar background syncing (bg-slate-50 / dark:bg-slate-950)
+ * - Centralized window.JemerAuth engine fetching
+ * - Cross-module refresh locking & Mount-level Guards
  * ================================================================================================
  */
 
@@ -70,10 +33,6 @@ const isValidUUID = (uuid) => {
 
 // ── 🚀 ON-DEMAND JWT LIFECYCLE ENGINE & INTERCEPTOR ─────────────────────────────────────────────
 
-// 🆕 v6.2.0: Minimal readiness guard for the globally-loaded auth engine (window.JemerAuth,
-// injected once by layout.js via <Script strategy="afterInteractive">). That script loads after
-// first paint, so an effect firing on mount could technically run before it exists — this polls
-// briefly instead of assuming it's already there. Replaces the old waitForAuthSDKReady.
 const waitForJemerAuthReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
   const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.authenticatedFetch === "function";
   if (isReady()) return true;
@@ -106,12 +65,16 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
   const [renamingId, setRenamingId] = useState(null); 
   const [renameText, setRenameText] = useState(""); 
 
+  // 🚀 NEW: States for the Archive and Image Gallery Modals
+  const [archivedSessions, setArchivedSessions] = useState([]);
+  const [isLoadingArchive, setIsLoadingArchive] = useState(false);
+  const [galleryImages, setGalleryImages] = useState([]);
+  const [isLoadingGallery, setIsLoadingGallery] = useState(false);
+
   const observerTarget = useRef(null); 
   const isFetchingRef = useRef(false); 
   const menuRef = useRef(null); 
 
-  // ── v6.1.0 SESSION GUARD: instantly evict if no session artifacts exist locally,
-  // rather than letting the profile/session fetches discover that on their own ──
   useEffect(() => {
     const hasToken = localStorage.getItem("jemer_session_jwt");
     const hasUserId = localStorage.getItem("jemer_user_uuid");
@@ -120,7 +83,6 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
     }
   }, []);
 
-  // ── HYDRATION LIFECYCLE ──
   useEffect(() => {
     async function verifyAndFetchProfile() {
       try {
@@ -135,10 +97,6 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
         const storedUserId = localStorage.getItem("jemer_user_uuid");
         if (!storedUserId || !isValidUUID(storedUserId)) return;
 
-        // 🆕 v6.2.0: this hits Neon's PostgREST endpoint directly (not our Go backend) and needs
-        // both Authorization + apikey headers on the same token, so it can't use
-        // window.JemerAuth.authenticatedFetch() (Authorization-only). Token still comes
-        // exclusively from the shared auth engine instead of a raw localStorage read.
         await waitForJemerAuthReady();
         const freshProfileToken = window.JemerAuth ? await window.JemerAuth.fetchJwtOnDemand() : null;
         if (!freshProfileToken) return;
@@ -173,8 +131,6 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
     verifyAndFetchProfile(); 
   }, []); 
 
-  // ── DATABASE FETCHING & INFINITE SCROLL LOGIC ──
-  
   const fetchSessionsFromDB = async (currentOffset, isReset = false) => {
     if (isFetchingRef.current || (!hasMore && !isReset)) return;
     
@@ -232,6 +188,84 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
     return () => { if (observerTarget.current) observer.unobserve(observerTarget.current); };
   }, [offset, hasMore, isLoading, isFetchingMore]);
 
+  // 🚀 NEW: Trigger fetches when Modals are opened
+  useEffect(() => {
+    if (activeModal === 'archive') {
+      fetchArchivedSessions();
+    } else if (activeModal === 'images') {
+      fetchGalleryImages();
+    }
+  }, [activeModal]);
+
+  const fetchArchivedSessions = async () => {
+    setIsLoadingArchive(true);
+    try {
+      await waitForJemerAuthReady();
+      const token = window.JemerAuth ? await window.JemerAuth.fetchJwtOnDemand() : null;
+      const userUuid = localStorage.getItem("jemer_user_uuid");
+      if (!token || !userUuid) return;
+
+      const res = await fetch(`https://ep-wandering-bird-abdexk6a.apirest.eu-west-2.aws.neon.tech/neondb/rest/v1/tutor_sessions?student_id=eq.${userUuid}&is_archived=eq.true&order=updated_at.desc`, {
+        headers: { "Authorization": `Bearer ${token}`, "apikey": token, "Accept": "application/json" }
+      });
+      if (res.ok) {
+        setArchivedSessions(await res.json());
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoadingArchive(false);
+    }
+  };
+
+  const fetchGalleryImages = async () => {
+    setIsLoadingGallery(true);
+    try {
+      await waitForJemerAuthReady();
+      const token = window.JemerAuth ? await window.JemerAuth.fetchJwtOnDemand() : null;
+      const userUuid = localStorage.getItem("jemer_user_uuid");
+      if (!token || !userUuid) return;
+
+      const res = await fetch(`https://ep-wandering-bird-abdexk6a.apirest.eu-west-2.aws.neon.tech/neondb/rest/v1/tutor_chat_history?student_id=eq.${userUuid}&content=like.*%3Cjemer-image-showcase%3E*&order=created_at.desc&limit=50`, {
+        headers: { "Authorization": `Bearer ${token}`, "apikey": token, "Accept": "application/json" }
+      });
+      if (res.ok) {
+        const messages = await res.json();
+        const extractedImages = [];
+        const imgTagRegex = /<img\s+src="([^"]+)"\s+thumb="([^"]+)"\s+title="([^"]+)"\s+author="([^"]+)"\s+license="([^"]+)"\s*\/>/g;
+        
+        messages.forEach(msg => {
+          let match;
+          while ((match = imgTagRegex.exec(msg.content)) !== null) {
+            extractedImages.push({
+              src: match[1],
+              thumb: match[2],
+              title: match[3],
+              author: match[4],
+              license: match[5],
+              sessionId: msg.session_id
+            });
+          }
+        });
+        setGalleryImages(extractedImages);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoadingGallery(false);
+    }
+  };
+
+  const unarchiveSession = async (sessionId) => {
+    try {
+      await executeSessionMutation(sessionId, { is_archived: false }, "unarchive");
+      setArchivedSessions(prev => prev.filter(s => s.id !== sessionId));
+      window.dispatchEvent(new Event("jemer_chat_updated")); // Refreshes the main sidebar
+    } catch (e) { 
+      console.error(e); 
+    }
+  };
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
@@ -248,8 +282,6 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
     return () => window.removeEventListener("jemer_chat_updated", handleChatUpdated);
   }, []);
 
-  // ── TRANSACTION PIPELINE HANDLERS & CRUD OPERATIONS ──
-
   const handleTriggerNewChatSession = () => {
     setSelectedSessionId(null);
     window.dispatchEvent(new Event("jemer_new_chat"));
@@ -265,16 +297,18 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
   };
 
   const executeSessionMutation = async (sessionId, mutationPayload, actionType) => {
-    setSessions(prev => {
-      let updated = prev.map(s => s.id === sessionId ? { ...s, ...mutationPayload } : s);
-      if (actionType === "archive" || actionType === "delete") {
-        updated = updated.filter(s => s.id !== sessionId);
-      }
-      return updated.sort((a, b) => {
-        if (a.is_pinned === b.is_pinned) return new Date(b.updated_at) - new Date(a.updated_at);
-        return a.is_pinned ? -1 : 1;
+    if (actionType !== "unarchive") {
+      setSessions(prev => {
+        let updated = prev.map(s => s.id === sessionId ? { ...s, ...mutationPayload } : s);
+        if (actionType === "archive" || actionType === "delete") {
+          updated = updated.filter(s => s.id !== sessionId);
+        }
+        return updated.sort((a, b) => {
+          if (a.is_pinned === b.is_pinned) return new Date(b.updated_at) - new Date(a.updated_at);
+          return a.is_pinned ? -1 : 1;
+        });
       });
-    });
+    }
 
     setMenuOpenId(null); 
 
@@ -282,9 +316,6 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
       const POSTGREST_API_URL = "https://ep-wandering-bird-abdexk6a.apirest.eu-west-2.aws.neon.tech/neondb/rest/v1/tutor_sessions";
       const method = actionType === "delete" ? "DELETE" : "PATCH";
 
-      // 🆕 v6.2.0: direct Neon call (not our Go backend), needs both Authorization + apikey on
-      // the same token, so it stays manual — only the token source changed, from a raw
-      // localStorage read to window.JemerAuth.fetchJwtOnDemand().
       const mutationToken = window.JemerAuth ? await window.JemerAuth.fetchJwtOnDemand() : null;
       if (!mutationToken) return;
 
@@ -321,16 +352,6 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
   const filteredSessions = sessions.filter((session) => 
     session.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const primaryApplicationTabs = [
-    { label: "Dashboard", targetPath: "/dashboard", vectorGlyph: <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-layout-dashboard-icon lucide-layout-dashboard"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg> },
-    { label: "My AI Tutor", targetPath: "/tutor", vectorGlyph: <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-astroid-icon lucide-astroid"><path d="M12.983 21.186a1 1 0 0 1-1.966 0 10 10 0 0 0-8.203-8.203 1 1 0 0 1 0-1.966 10 10 0 0 0 8.203-8.203 1 1 0 0 1 1.966 0 10 10 0 0 0 8.203 8.203 1 1 0 0 1 0 1.966 10 10 0 0 0-8.203 8.203"/></svg> },
-    { label: "Learning Tools", targetPath: "/tools", activePaths: ["/tools", "/snap", "/vid2notes", "/audiobooks"], vectorGlyph: <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-wrench-icon lucide-wrench"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/></svg> },
-    { label: "Brain Training", targetPath: "/brain-training", vectorGlyph: <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-brain-circuit-icon lucide-brain-circuit"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M9 13a4.5 4.5 0 0 0 3-4"/><path d="M6.003 5.125A3 3 0 0 0 6.401 6.5"/><path d="M3.477 10.896a4 4 0 0 1 .585-.396"/><path d="M6 18a4 4 0 0 1-1.967-.516"/><path d="M12 13h4"/><path d="M12 18h6a2 2 0 0 1 2 2v1"/><path d="M12 8h8"/><path d="M16 8V5a2 2 0 0 1 2-2"/><circle cx="16" cy="13" r=".5"/><circle cx="18" cy="3" r=".5"/><circle cx="20" cy="21" r=".5"/><circle cx="20" cy="8" r=".5"/></svg> },
-    { label: "Exam Simulator", targetPath: "/exam-simulator", activePaths: ["/jamb", "/waec", "/exam-practice", "/study" , "/questions" , "/exam-performance" , "/exam-simulator"], vectorGlyph: <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-book-open-check-icon lucide-book-open-check"><path d="M12 21V7"/><path d="m16 12 2 2 4-4"/><path d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3"/></svg> },
-    { label: "Rankings", targetPath: "/rankings", vectorGlyph: <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-podium-icon lucide-podium"><path d="M12 6V2h-1"/><path d="M9 15a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1"/><path d="M9 21V11a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v10"/></svg> },
-    { label: "Billings", targetPath: "/billings", vectorGlyph: <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-credit-card-icon lucide-credit-card"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg> }
-  ];
 
   return (
     <>
@@ -470,11 +491,52 @@ export default function TutorSidebar({ isOpen, onClose, onSelectSession, onNewCh
                 </h2>
                 <button onClick={() => setActiveModal(null)} className="w-6 h-6 flex items-center justify-center bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 rounded-full transition-colors cursor-pointer"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
               </div>
-              <div className="flex-1 flex flex-col items-center justify-center text-center text-slate-500 dark:text-slate-400">
-                <svg className="w-12 h-12 mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d={activeModal === 'images' ? "M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" : "M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"} /></svg>
-                <p className="text-xs font-medium">{activeModal === 'images' ? "image-gallery.jsx component mounts here." : "archive.jsx component mounts here."}</p>
-                <p className="text-[10px] mt-1 opacity-70">Feature in development staging.</p>
-              </div>
+              
+              {/* 🚀 NEW UPGRADE: Active Implementation Engine rendering Archival and Gallery Views */}
+              {activeModal === 'archive' && (
+                <div className="flex-1 overflow-y-auto sidebar-scroll px-1 mt-3">
+                  {isLoadingArchive ? (
+                    <div className="flex justify-center py-8"><i className="fas fa-circle-notch fa-spin text-emerald-500"></i></div>
+                  ) : archivedSessions.length > 0 ? (
+                    <div className="space-y-2">
+                      {archivedSessions.map(session => (
+                        <div key={session.id} className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-between group shadow-sm transition-all hover:shadow-md">
+                          <div className="flex flex-col min-w-0 pr-2">
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{session.title}</span>
+                            <span className="text-[9px] text-slate-400 mt-0.5 font-mono">{new Date(session.updated_at).toLocaleDateString()}</span>
+                          </div>
+                          <button onClick={() => unarchiveSession(session.id)} className="w-7 h-7 rounded-full bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center transition-colors shrink-0 focus:outline-none active:scale-95" title="Unarchive Session">
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                     <div className="py-12 text-center text-slate-400"><p className="text-xs font-medium">No archived sessions found.</p></div>
+                  )}
+                </div>
+              )}
+
+              {activeModal === 'images' && (
+                <div className="flex-1 overflow-y-auto sidebar-scroll px-1 mt-3">
+                  {isLoadingGallery ? (
+                     <div className="flex justify-center py-8"><i className="fas fa-circle-notch fa-spin text-purple-500"></i></div>
+                  ) : galleryImages.length > 0 ? (
+                     <div className="columns-2 gap-2 space-y-2">
+                       {galleryImages.map((img, idx) => (
+                         <div key={idx} className="break-inside-avoid relative group rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm cursor-pointer" onClick={() => window.open(img.src, '_blank')}>
+                           <img src={img.thumb} alt={img.title} className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
+                           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                             <p className="text-[9px] font-bold text-white truncate">{img.title}</p>
+                           </div>
+                         </div>
+                       ))}
+                     </div>
+                  ) : (
+                     <div className="py-12 text-center text-slate-400"><p className="text-xs font-medium">No images generated yet.</p></div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

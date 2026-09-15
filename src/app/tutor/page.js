@@ -2,53 +2,21 @@
 
 /**
  * ================================================================================================
- * 🚀 JEMER ACADEMY AI TUTOR PAGE — CLIENT-SIDE ORCHESTRATOR (v3.1.0)
+ * 🚀 JEMER ACADEMY AI TUTOR PAGE — CLIENT-SIDE ORCHESTRATOR (v3.5.0)
  * ================================================================================================
- * [NEW UPGRADE — v3.1.0]
- * SUMMARY: Centralized Auth Engine Migration. Removed this file's entire local JWT/refresh/lock
- * reimplementation (decodeJWTPayload, isTokenExpiringSoon, getAuthRefreshLock,
- * waitForAuthSDKReady, fetchJwtOnDemand, jemerAuthenticatedFetch) now that auth.js v4.0 exposes
- * the same logic once, globally, via window.JemerAuth.
- * 1. GO BACKEND CALLS NOW USE window.JemerAuth.authenticatedFetch(): the session-history fetch
- *    (loadChatHistory) and the streaming chat send (handleProcessOutboundPrompt) now call the
- *    shared engine directly instead of the local jemerAuthenticatedFetch wrapper. The manual
- *    401-emergency-retry block in handleProcessOutboundPrompt was removed — authenticatedFetch
- *    already retries once internally before giving up.
- * 2. PRE-FLIGHT TOKEN CHECK REMOVED: handleProcessOutboundPrompt no longer manually checks or
- *    refreshes the token before sending — authenticatedFetch already proactively refreshes a
- *    token expiring within 5 minutes as part of the call itself.
- * 3. DIRECT NEON CALL KEPT MANUAL, TOKEN SOURCE CENTRALIZED: the onboarding-gate profile check
- *    hits Neon's PostgREST endpoint directly (not our Go backend) and needs both Authorization
- *    + apikey headers on the same token, so it can't use authenticatedFetch (Authorization-only).
- *    It no longer reads a raw token from localStorage though — it sources one exclusively
- *    through window.JemerAuth.fetchJwtOnDemand().
- * 4. READINESS GUARD: added a minimal waitForJemerAuthReady() poll (replaces the old
- *    waitForAuthSDKReady) since window.JemerAuth loads via <Script strategy="afterInteractive">
- *    and may not exist yet the instant this page's mount-time effects fire.
- * ================================================================================================
- * [PREVIOUS UPGRADE — v3.0.1]
- * SUMMARY: Cross-Module Refresh Lock. `fetchJwtOnDemand` previously de-duped concurrent refresh
- * calls using a file-local `isRefreshing`/`refreshPromise` pair, which only coordinated calls made
- * from *this* file. Since `TutorSidebar` mounts as a sibling and runs its own on-demand JWT fetch
- * at the same time this page's onboarding gate check does, both could independently call
- * `window.JemerAuth.refreshSession()` at once. If the SDK rotates a single-use refresh token, the
- * losing caller gets `success: false` and force-redirects to login. The lock now lives on
- * `window.__jemerAuthRefreshLock`, shared by every module that uses this pattern, so only one
- * refresh is ever in flight platform-wide and every other caller awaits that same promise.
- * ================================================================================================
- * [PREVIOUS UPGRADE — v3.0.0]
- * SUMMARY: High-Performance Stream Handshake & Latency Masking.
- * 1. Intelligent Handshake Handling: The stream reader (`handleProcessOutboundPrompt`) now
- *    explicitly looks for a preliminary `{"status":"initializing"}` message from the backend.
- *    This allows the UI to immediately reflect a "generating" state, completely masking the
- *    upstream cold-start latency from the NVIDIA NIM API.
- * 2. Resilient JSON Parsing: Wrapped the `JSON.parse()` call in a more robust safety check.
- *    If the backend sends an empty heartbeat or a non-JSON status chunk, the stream reader
- *    now skips it gracefully instead of crashing the entire pipeline. This makes the connection
- *    far more resilient to network proxy buffering.
- * 3. On-Demand JWT Architecture: Maintained the v2 upgrade. The system still uses the optimized
- *    on-demand JWT fetch right before dispatching API calls, ensuring maximum security and
- *    eliminating all unnecessary background polling.
+ * [NEW UPGRADE — v3.5.0]
+ * SUMMARY: Production-Ready Data Payloads, WhatsApp-Style History & Safe Error Masking.
+ * 1. FILE READER BUG FIX: The `attached_files` and `toolingContext` variables are now properly 
+ *    injected into the `POST /stream` body so the Go backend actually receives the R2 object keys.
+ * 2. WHATSAPP PAGINATION: Added `.reverse()` to the `loadChatHistory` formatted logs mapping. 
+ *    Since the Go backend now serves DESC (newest first), this seamlessly prepends older messages 
+ *    to the top of the screen as the user scrolls up.
+ * 3. GLOBAL ERROR TOAST: Ripped out the messy `❌ **Stream Interruption:**` text injection from 
+ *    the chat bubbles. Errors now trigger a sleek, temporary `globalError` UI Toast at the top of 
+ *    the screen, keeping the chat interface immaculate.
+ * 4. DOUBLE BUBBLE BUG FIX: Upgraded the array slicing logic during `onRegenerateResponse`. It now 
+ *    completely drops the old AI response and forces a genuinely new `aiMessageId` to prevent React 
+ *    from duplicating the prompt nodes.
  * ================================================================================================
  */
 
@@ -58,10 +26,6 @@ import AIChatInterface from "@/jemer-components/tutor/ai-chat-interface.jsx";
 import AITutorPromptBox from "@/jemer-components/tutor/ai-tutor-prompt-box.jsx";
 import PersonalizationEngine from "@/jemer-components/tutor/personalization.jsx";
 
-// 🆕 v3.1.0: Minimal readiness guard for the globally-loaded auth engine (window.JemerAuth,
-// injected once by layout.js via <Script strategy="afterInteractive">). That script loads after
-// first paint, so an effect firing on mount could technically run before it exists — this polls
-// briefly instead of assuming it's already there. Replaces the old waitForAuthSDKReady.
 const waitForJemerAuthReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
   const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.authenticatedFetch === "function";
   if (isReady()) return true;
@@ -87,6 +51,9 @@ export default function TutorPage() {
   const [historyOffset, setHistoryOffset] = useState(0);
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  
+  // 🚀 NEW: Global Error Toast State
+  const [globalError, setGlobalError] = useState(null);
 
   const chatContainerRef = useRef(null);
   const topObserverTarget = useRef(null);
@@ -109,21 +76,25 @@ export default function TutorPage() {
          "http://localhost:8080");
 
       await waitForJemerAuthReady();
+      // Fetch history chunk
       const response = await window.JemerAuth.authenticatedFetch(`${BACKEND_URL}/api/v1/tutor/sessions/${sessionId}/messages?limit=30&offset=${currentOffset}`);
 
       if (response.ok) {
         const data = await response.json();
         if (data && data.length > 0) {
+          // 🚀 NEW: .reverse() the data since the backend now serves newest first (DESC).
+          // This ensures the oldest messages in the chunk go to the top of the UI.
           const formattedLogs = data.map(msg => ({
             id: msg.id,
             sender: msg.role === "user" ? "user" : "ai",
             text: msg.content || "",
             reasoning: msg.reasoning_content || "",
             isThinking: false
-          }));
+          })).reverse();
 
           const prevScrollHeight = chatContainerRef.current?.scrollHeight || 0;
 
+          // 🚀 NEW: Prepend the reversed logs to perfectly simulate WhatsApp scrolling
           setChatLog(prev => isReset ? formattedLogs : [...formattedLogs, ...prev]);
           setHistoryOffset(currentOffset + 30);
 
@@ -201,10 +172,6 @@ export default function TutorPage() {
           return;
         }
 
-        // 🆕 v3.1.0: This hits Neon's PostgREST endpoint directly (not our Go backend) and needs
-        // both Authorization + apikey headers on the same token, so it can't use
-        // window.JemerAuth.authenticatedFetch() (Authorization-only). Token still comes
-        // exclusively from the shared auth engine instead of a raw localStorage read.
         await waitForJemerAuthReady();
         const freshOnboardingToken = window.JemerAuth ? await window.JemerAuth.fetchJwtOnDemand() : null;
 
@@ -280,12 +247,15 @@ export default function TutorPage() {
     }
   };
 
+  // Helper to trigger UI error toasts safely
+  const triggerGlobalError = (message) => {
+    setGlobalError(message);
+    setTimeout(() => setGlobalError(null), 6000);
+  };
+
   const handleProcessOutboundPrompt = async (messagePayload) => {
     if (!messagePayload || !messagePayload.promptText) return;
 
-    // 🆕 v3.1.0: window.JemerAuth.authenticatedFetch() now handles the expiry check, silent
-    // refresh, and dead-session redirect internally, so the manual pre-flight token check that
-    // used to live here has been removed. We just make sure the auth engine has finished loading.
     await waitForJemerAuthReady();
 
     let aiMessageId = "";
@@ -297,12 +267,8 @@ export default function TutorPage() {
     }
 
     if (messagePayload.editTargetId) {
-      const userIdx = chatLog.findIndex(m => m.id === messagePayload.editTargetId);
-      if (userIdx !== -1 && chatLog[userIdx + 1]) {
-        aiMessageId = chatLog[userIdx + 1].id;
-      } else {
-        aiMessageId = `ai-msg-${Date.now()}`;
-      }
+      // 🚀 NEW: Generate a completely fresh ID to guarantee React doesn't reuse nodes
+      aiMessageId = `ai-msg-${Date.now()}-${Math.random().toString(36).substring(2,7)}`;
 
       setChatLog((prevLog) => {
         const newLog = [...prevLog];
@@ -310,8 +276,8 @@ export default function TutorPage() {
 
         if (targetIdx !== -1) {
           newLog[targetIdx] = { ...newLog[targetIdx], text: messagePayload.promptText };
+          // 🚀 NEW: Slice precisely at targetIdx + 1, fully dropping the old AI response.
           const truncatedLog = newLog.slice(0, targetIdx + 1);
-
           truncatedLog.push({ id: aiMessageId, sender: "ai", text: "", reasoning: "", isThinking: true });
           return truncatedLog;
         }
@@ -343,18 +309,18 @@ export default function TutorPage() {
         method: "POST",
         signal: abortControllerRef.current.signal,
         headers: { "Content-Type": "application/json" },
+        // 🚀 NEW: Fully bulletproofed payload embedding file and tool contexts!
         body: JSON.stringify({
           session_id: currentSessionId,
           tutor_id: messagePayload.selectedTutor || "jay",
           user_prompt: messagePayload.promptText,
+          attached_files: messagePayload.attached_files || [], 
+          toolingContext: messagePayload.toolingContext || {}
         }),
       });
 
       window.dispatchEvent(new Event("jemer_chat_updated"));
 
-      // 🆕 v3.1.0: authenticatedFetch already retries once internally on an unexpected 401 with
-      // a forced-fresh token (and redirects to /login.html itself if the session is truly dead),
-      // so the manual 401-emergency-retry block that used to live here has been removed.
       if (!serverStreamResponse.ok) {
         const errorPayloadText = await serverStreamResponse.text();
         throw new Error(`Server Status: ${serverStreamResponse.status}. Details: ${errorPayloadText}`);
@@ -384,26 +350,20 @@ export default function TutorPage() {
 
           if (trimmedStreamLine.startsWith("data:")) {
             const cleanedJsonContentString = trimmedStreamLine.replace("data:", "").trim();
-            // 🚀 NEW UPGRADE: Gracefully skip empty/heartbeat server packets without crashing
             if (!cleanedJsonContentString || cleanedJsonContentString === "[INITIALIZING]") {
               continue;
             }
             try {
               const unpackedChunkMetrics = JSON.parse(cleanedJsonContentString);
               
-              // 🚀 NEW UPGRADE: Check for the new handshake status and gracefully skip it
               if (unpackedChunkMetrics.status === "initializing") {
                 continue;
               }
 
+              // 🚀 NEW: Sleek Error Catching
               if (unpackedChunkMetrics.error) {
-                setChatLog((prevLog) =>
-                  prevLog.map((msgItem) =>
-                    msgItem.id === aiMessageId
-                      ? { ...msgItem, isThinking: false, text: msgItem.text + `\n\n❌ **Stream Interruption:** ${unpackedChunkMetrics.error}` }
-                      : msgItem
-                  )
-                );
+                triggerGlobalError(unpackedChunkMetrics.error);
+                setChatLog((prevLog) => prevLog.map((msgItem) => msgItem.id === aiMessageId ? { ...msgItem, isThinking: false } : msgItem));
                 break;
               }
               if (unpackedChunkMetrics.reasoning_content) {
@@ -425,7 +385,6 @@ export default function TutorPage() {
                 );
               }
             } catch (payloadParseAnomalyError) {
-                // Log parsing errors but don't crash the stream
                 console.warn("[STREAM HANDLER] Failed to parse JSON from stream chunk:", cleanedJsonContentString, payloadParseAnomalyError);
             }
           }
@@ -437,14 +396,11 @@ export default function TutorPage() {
         setIsStreaming(false);
         return;
       }
-
-      setChatLog((prevLog) =>
-        prevLog.map((msgItem) =>
-          msgItem.id === aiMessageId
-            ? { ...msgItem, isThinking: false, text: `❌ **Connection Error:** Unable to establish reliable streaming link with backend.\n\n> *Diagnostics:* ${criticalPipelineCommunicationException.message || "Verify execution states and try again."}` }
-            : msgItem
-        )
-      );
+      
+      // 🚀 NEW: Clean Global Toast error instead of corrupting the chat bubble
+      triggerGlobalError("Network timeout or connection drop. Re-verify connectivity and try again.");
+      setChatLog((prevLog) => prevLog.map((msgItem) => msgItem.id === aiMessageId ? { ...msgItem, isThinking: false } : msgItem));
+      
     } finally {
       setIsStreaming(false);
     }
@@ -479,6 +435,15 @@ export default function TutorPage() {
 
   return (
     <div className="h-full w-full flex flex-col justify-between overflow-hidden p-2 sm:p-4 md:p-6 max-w-4xl mx-auto relative">
+      
+      {/* 🚀 NEW: Universal Global Error Toast Container */}
+      {globalError && (
+        <div className="absolute top-2 sm:top-6 left-1/2 -translate-x-1/2 z-[100] bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-5 py-2.5 rounded-full shadow-lg flex items-center gap-2.5 animate-fade-in text-sm font-semibold max-w-[90%] w-max">
+           <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+           <span className="truncate">{globalError}</span>
+        </div>
+      )}
+
       <div ref={chatContainerRef} className="flex-1 w-full overflow-y-auto pr-1 scrollbar-none pb-4 flex flex-col min-h-0 justify-start">
         <div ref={topObserverTarget} className="h-2 w-full shrink-0" />
 

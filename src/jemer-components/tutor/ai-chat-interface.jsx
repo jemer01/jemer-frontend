@@ -1,33 +1,23 @@
-"use client"; // Enforces client-side processing configurations to safely manage layout hooks and browser document nodes
+"use client";
 
 /**
  * ================================================================================================
- * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR CHAT ARENA COMPONENT (v7.1.0)
+ * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR CHAT ARENA COMPONENT (v7.5.0)
  * ================================================================================================
- * [NEW UPGRADE — v7.1.0]
- * SUMMARY: Centralized Auth Engine Migration (Feedback Submit). handleSubmitFeedbackPayload used
- * to read the JWT straight out of `localStorage.getItem("jemer_session_jwt")` with zero expiry
- * check before POSTing to Neon's feedback endpoint. It now sources that token exclusively through
- * `window.JemerAuth.fetchJwtOnDemand()` (auth.js v4.0), so a token that's about to expire gets
- * silently refreshed before the request fires instead of being sent stale. This endpoint doesn't
- * require the `apikey` header, so the request shape and its `Authorization`-only header are
- * otherwise unchanged.
- * ================================================================================================
- * [PREVIOUS UPGRADE — v7.0.0]
- * SUMMARY: Multi-Modal Image Parsing & Inline Carousel Engine.
- * 1. INLINE XML PARSER: Upgraded `tokenizeBlocks` to seamlessly detect `<jemer-image-showcase>` 
- *    blocks returned by the backend's `image_search` tool.
- * 2. DYNAMIC CAROUSEL RENDERING: Images are now rendered directly inline exactly where the AI 
- *    places them in the text (e.g. after a paragraph explanation), wrapped in a sleek, horizontal, 
- *    scrollbar-free swipeable track.
- * 3. PREMIUM IMAGE MODAL: Clicking an image triggers a dedicated Mini-Modal showing the high-res 
- *    image, Title, Author, License info, and a one-click "Download to Device" utility button.
- * ================================================================================================
- * [PREVIOUS UPGRADES RETAINED]
- * - Premium Sources Modal & Markdown extraction
- * - Attached Files horizontal showcase
- * - Dynamic User Bubble widths (`w-fit`)
- * - High-Contrast Dark Mode Shimmer
+ * [NEW UPGRADE — v7.5.0]
+ * SUMMARY: Bulletproof Markdown Engine & Premium UI Overhauls.
+ * 1. LATEX LAYOUT BLOWOUT FIX: Wrapped the MarkdownRenderer inside `overflow-x-auto break-words max-w-full`. 
+ *    Massive mathematical equations and deep tables now scroll cleanly sideways within the AI bubble instead 
+ *    of breaking the entire page layout on mobile devices.
+ * 2. SOURCE FAVICON CHIPS: Upgraded the Markdown stripping logic. `[Source](URL)` elements are now completely 
+ *    purged from the AI's raw text block. Instead, they render exclusively as beautiful, clickable URL chips 
+ *    with securely fetched Favicons docked at the bottom of the AI bubble.
+ * 3. RETRACTABLE FEEDBACK STATES: Clicking an active Like/Dislike button now toggles it off, allowing 
+ *    students to retract accidental sentiment ratings instantly.
+ * 4. BUBBLE AESTHETIC POLISH: Softened the user prompt bubble background to `bg-slate-50/80` (dark mode `slate-800/50`), 
+ *    delivering an ultra-premium, smooth modern vibe without harsh borders.
+ * 5. CAROUSEL HARDWARE ACCELERATION: Injected `transform-gpu will-change-transform` into the `<jemer-image-showcase>` 
+ *    wrapper for 60fps buttery smooth image swiping on mobile devices.
  * ================================================================================================
  */
 
@@ -36,11 +26,10 @@ import { createPortal } from "react-dom";
 import { useTheme } from "@/jemer-components/context/ThemeContext.jsx";
 import MarkdownRenderer from "@/jemer-components/ui/markdown-renderer.jsx";
 
-// 🚀 NEW UPGRADE: Advanced Markdown Pre-Processor with XML Image Parsing
+// 🚀 UPGRADED: Rock-solid Markdown Pre-Processor with safe XML Image Parsing
 const tokenizeBlocks = (text) => {
   if (!text) return [];
   
-  // First, extract all XML image blocks and replace them with placeholders
   const imageBlocks = [];
   const imageRegex = /<jemer-image-showcase>([\s\S]*?)<\/jemer-image-showcase>/g;
   
@@ -59,9 +48,9 @@ const tokenizeBlocks = (text) => {
       });
     }
     
-    const placeholder = `___JEMER_IMAGE_BLOCK_${imageBlocks.length}___`;
+    const placeholder = `\n___JEMER_IMAGE_BLOCK_${imageBlocks.length}___\n`;
     imageBlocks.push({ type: 'images', images });
-    return `\n${placeholder}\n`;
+    return placeholder;
   });
 
   const lines = processedText.split('\n');
@@ -73,10 +62,8 @@ const tokenizeBlocks = (text) => {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     
-    // Check for our injected image block placeholder
     const imageBlockMatch = line.match(/___JEMER_IMAGE_BLOCK_(\d+)___/);
     if (imageBlockMatch) {
-        // Flush any pending text or tables before inserting the image block
         if (currentText.length > 0) {
             tokens.push({ type: 'text', content: currentText.join('\n') });
             currentText = [];
@@ -117,7 +104,6 @@ const tokenizeBlocks = (text) => {
   return tokens;
 };
 
-// Helper function to extract markdown links for the Sources Modal
 const extractSourcesFromMarkdown = (text) => {
   if (!text) return [];
   const regex = /\[([^\]]+)\]\((https?:\/\/[^\s]+)\)/g;
@@ -146,7 +132,6 @@ export default function AIChatInterface({
   const [expandedPrompts, setExpandedPrompts] = useState({});
   const [expandedReasoning, setExpandedReasoning] = useState({});
   
-  // Feedback States
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [activeFeedbackType, setActiveFeedbackType] = useState(null);
   const [activeMessageId, setActiveMessageId] = useState(null);
@@ -154,11 +139,9 @@ export default function AIChatInterface({
   const [feedbackText, setFeedbackText] = useState("");
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
   
-  // Sources Modal States
   const [isSourcesModalOpen, setIsSourcesModalOpen] = useState(false);
   const [activeSources, setActiveSources] = useState([]);
 
-  // 🚀 NEW: Image Showcase Modal States
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [activeImageData, setActiveImageData] = useState(null);
 
@@ -210,7 +193,12 @@ export default function AIChatInterface({
     });
   };
 
+  // 🚀 NEW: Feedback Retraction Logic
   const handleToggleLikeSentiment = (msg) => {
+    if (likedMessages[msg.id]) {
+        setLikedMessages((prev) => ({ ...prev, [msg.id]: false }));
+        return;
+    }
     setActiveMessageId(msg.id);
     setActiveMessageText(msg.text);
     setActiveFeedbackType("like");
@@ -219,6 +207,10 @@ export default function AIChatInterface({
   };
 
   const handleToggleDislikeSentiment = (msg) => {
+    if (dislikedMessages[msg.id]) {
+        setDislikedMessages((prev) => ({ ...prev, [msg.id]: false }));
+        return;
+    }
     setActiveMessageId(msg.id);
     setActiveMessageText(msg.text);
     setActiveFeedbackType("dislike");
@@ -232,13 +224,11 @@ export default function AIChatInterface({
     setIsSourcesModalOpen(true);
   };
 
-  // 🚀 NEW: Trigger the Image Details Modal
   const handleOpenImageModal = (imgData) => {
     setActiveImageData(imgData);
     setIsImageModalOpen(true);
   };
 
-  // 🚀 NEW: Handle Cross-Origin Image Downloading
   const handleDownloadImage = async (imgUrl, title) => {
     try {
       const response = await fetch(imgUrl);
@@ -253,7 +243,6 @@ export default function AIChatInterface({
       URL.revokeObjectURL(blobUrl);
     } catch (err) {
       console.error("Failed to download image:", err);
-      // Fallback: just open it in a new tab if cors blocks the blob fetch
       window.open(imgUrl, '_blank');
     }
   };
@@ -289,8 +278,6 @@ export default function AIChatInterface({
     setIsSubmittingFeedback(true);
 
     try {
-      // 🆕 v7.1.0: token now sourced from the shared auth engine (auto-refreshes if expiring)
-      // instead of a raw localStorage read.
       if (!window.JemerAuth) {
         throw new Error("Authentication engine not ready. Please try again in a moment.");
       }
@@ -457,7 +444,8 @@ export default function AIChatInterface({
                       </div>
                   )}
 
-                  <div className="w-fit max-w-[95%] sm:max-w-[85%] md:max-w-[75%] bg-slate-100 dark:bg-slate-800 border border-slate-200/40 dark:border-slate-700/50 rounded-3xl rounded-tr-sm px-5 py-4 text-left shadow-md dark:shadow-[0_8px_16px_rgba(0,0,0,0.3)] group-hover:shadow-lg transition-shadow duration-200">
+                  {/* 🚀 NEW: Aesthetics Polish - Softer, smoother prompt bubble borders and background */}
+                  <div className="w-fit max-w-[95%] sm:max-w-[85%] md:max-w-[75%] bg-slate-50/80 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/30 rounded-3xl rounded-tr-sm px-5 py-4 text-left shadow-sm transition-shadow duration-200">
                     <p className="text-sm sm:text-base font-sans font-medium text-slate-800 dark:text-slate-100 leading-relaxed whitespace-pre-wrap break-words">
                       {displayText}
                     </p>
@@ -481,8 +469,13 @@ export default function AIChatInterface({
         const internalReasoningText = msg.reasoning || "";
         const isReasoningExpanded = expandedReasoning[msg.id] || false;
         
+        // 🚀 NEW: Scrape Sources OUT of the text for the Favicon chips
         const extractedSources = extractSourcesFromMarkdown(msg.text);
         const hasSources = extractedSources.length > 0;
+        const strippedText = msg.text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s]+)\)/g, '');
+        
+        // Feed the stripped text into our tokenizer so links don't mess up the formatting
+        const responseTokens = tokenizeBlocks(strippedText);
 
         let stageWord = "Formulating approach...";
         if (isCurrentlyStreaming) {
@@ -490,8 +483,6 @@ export default function AIChatInterface({
           else if (internalReasoningText && !msg.text) stageWord = "Synthesizing logic...";
           else stageWord = "Generating response...";
         }
-
-        const responseTokens = tokenizeBlocks(msg.text);
 
         return (
           <div
@@ -567,15 +558,19 @@ export default function AIChatInterface({
                 }
 
                 if (token.type === "text") {
-                  return ( <div key={`text-${tIdx}`} className="w-full animate-fade-in transition-all duration-200"> <MarkdownRenderer text={token.content} /> </div> );
+                  // 🚀 NEW: LaTeX Overflow Container prevents layout breakage on long math lines
+                  return ( 
+                    <div key={`text-${tIdx}`} className="w-full overflow-x-auto max-w-full break-words prose-math animate-fade-in transition-all duration-200"> 
+                      <MarkdownRenderer text={token.content} /> 
+                    </div> 
+                  );
                 }
 
-                // 🚀 NEW UPGRADE: Inline Image Carousel Rendering
-                // This renders the horizontal scrollable image cards exactly where the AI placed the XML in the text flow.
+                // 🚀 NEW UPGRADE: Hardware Accelerated Carousel
                 if (token.type === "images") {
                   return (
                     <div key={`images-${tIdx}`} className="w-full my-6 overflow-hidden">
-                      <div className="flex items-center gap-4 overflow-x-auto jemer-scrollbar-hide pb-4 px-1 snap-x snap-mandatory">
+                      <div className="flex items-center gap-4 overflow-x-auto jemer-scrollbar-hide pb-4 px-1 snap-x snap-mandatory transform-gpu will-change-transform">
                         {token.images.map((img, iIdx) => (
                           <div 
                             key={iIdx} 
@@ -596,6 +591,27 @@ export default function AIChatInterface({
               })}
             </div>
 
+            {/* 🚀 NEW: Favicon Source Chips Layer (Renders purely at the bottom) */}
+            {hasSources && (
+               <div className="flex flex-wrap gap-2 mt-3 pl-1 select-none animate-fade-in">
+                  {extractedSources.map((source, idx) => {
+                      const domain = new URL(source.url).hostname;
+                      return (
+                          <a 
+                            key={idx} 
+                            href={source.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-full transition-all shadow-sm"
+                          >
+                              <img src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`} className="w-3.5 h-3.5" alt="source" onError={(e) => e.target.style.display = 'none'} />
+                              <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300 max-w-[150px] truncate">{source.title}</span>
+                          </a>
+                      );
+                  })}
+               </div>
+            )}
+
             <div className={`flex items-center flex-wrap gap-2 mt-5 pl-1 select-none animate-fade-in transition-opacity duration-200 ${isCurrentlyStreaming ? "opacity-30 pointer-events-none" : "opacity-100"}`}>
               <button type="button" onClick={() => handleToggleLikeSentiment(msg)} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer focus:outline-none ${likedMessages[msg.id] ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 shadow-xs border border-emerald-200/40" : "bg-slate-100 hover:bg-slate-200 text-slate-500 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200 border border-transparent dark:border-slate-700/60" }`} title="Good response">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"/></svg>
@@ -609,13 +625,6 @@ export default function AIChatInterface({
               <button type="button" onClick={() => executeSystemTextCopy(msg.text, msg.id)} className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200 border border-transparent dark:border-slate-700/60 flex items-center justify-center relative" title="Copy response">
                 {copyStatusTracker[msg.id] ? ( <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg> ) : ( <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg> )}
               </button>
-              
-              {hasSources && (
-                <button type="button" onClick={() => handleOpenSources(msg.text)} className="h-8 px-3 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/50 flex items-center justify-center gap-1.5 transition-all cursor-pointer focus:outline-none shadow-sm ml-2">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                  <span className="text-[11px] font-bold uppercase tracking-wider">Sources</span>
-                </button>
-              )}
             </div>
           </div>
         );
@@ -673,57 +682,6 @@ export default function AIChatInterface({
                 </button>
               </div>
             </form>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {isSourcesModalOpen && mounted && createPortal(
-        <div className="fixed inset-0 z-[9999] bg-slate-900/40 dark:bg-black/70 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 transition-all duration-300 animate-fade-in">
-          <div onClick={() => setIsSourcesModalOpen(false)} className="absolute inset-0 cursor-pointer" />
-          <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-700/50 shadow-2xl z-10 rounded-3xl flex flex-col overflow-hidden relative max-h-[85vh]">
-            <div className="px-6 pt-6 pb-4 flex items-center justify-between shrink-0 border-b border-slate-100 dark:border-slate-800/50">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-[14px] bg-gradient-to-br from-blue-100 to-indigo-50 text-blue-600 dark:from-blue-900/50 dark:to-indigo-900/20 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/50 flex items-center justify-center shadow-inner shrink-0">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                </div>
-                <div>
-                  <h3 className="text-base font-display font-black text-slate-900 dark:text-white tracking-tight leading-tight">Live Web Sources</h3>
-                  <p className="text-[10px] font-mono font-semibold text-slate-400 tracking-wider uppercase mt-0.5">Jemer Agentic Discovery</p>
-                </div>
-              </div>
-              <button type="button" onClick={() => setIsSourcesModalOpen(false)} className="w-8 h-8 shrink-0 rounded-full bg-slate-100/80 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors cursor-pointer">
-                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-            
-            <div className="px-4 py-4 flex-1 overflow-y-auto jemer-premium-scroll flex flex-col gap-3">
-              {activeSources.map((source, index) => {
-                const domain = new URL(source.url).hostname;
-                return (
-                  <a 
-                    key={index} 
-                    href={source.url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-4 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 hover:border-blue-500/50 dark:hover:border-blue-500/50 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-blue-50/30 dark:hover:bg-blue-900/20 transition-all duration-200 group"
-                  >
-                    <div className="w-8 h-8 shrink-0 rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden">
-                      <img src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`} alt="favicon" className="w-4 h-4 object-contain" onError={(e) => e.target.style.display = 'none'} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{source.title}</h4>
-                      <p className="text-[11px] font-mono text-slate-400 dark:text-slate-500 truncate mt-0.5">{domain}</p>
-                    </div>
-                    <svg className="w-4 h-4 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                  </a>
-                );
-              })}
-            </div>
-            
-            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800/50 shrink-0 flex items-center justify-center bg-slate-50/50 dark:bg-slate-900/30">
-              <p className="text-[10px] font-medium text-slate-400 text-center">Data fetched autonomously by Jemer AI.</p>
-            </div>
           </div>
         </div>,
         document.body

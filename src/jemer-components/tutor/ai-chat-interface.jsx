@@ -2,22 +2,19 @@
 
 /**
  * ================================================================================================
- * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR CHAT ARENA COMPONENT (v7.5.0)
+ * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM AI TUTOR CHAT ARENA COMPONENT (v8.0.0)
  * ================================================================================================
- * [NEW UPGRADE — v7.5.0]
- * SUMMARY: Bulletproof Markdown Engine & Premium UI Overhauls.
- * 1. LATEX LAYOUT BLOWOUT FIX: Wrapped the MarkdownRenderer inside `overflow-x-auto break-words max-w-full`. 
- *    Massive mathematical equations and deep tables now scroll cleanly sideways within the AI bubble instead 
- *    of breaking the entire page layout on mobile devices.
- * 2. SOURCE FAVICON CHIPS: Upgraded the Markdown stripping logic. `[Source](URL)` elements are now completely 
- *    purged from the AI's raw text block. Instead, they render exclusively as beautiful, clickable URL chips 
- *    with securely fetched Favicons docked at the bottom of the AI bubble.
- * 3. RETRACTABLE FEEDBACK STATES: Clicking an active Like/Dislike button now toggles it off, allowing 
- *    students to retract accidental sentiment ratings instantly.
- * 4. BUBBLE AESTHETIC POLISH: Softened the user prompt bubble background to `bg-slate-50/80` (dark mode `slate-800/50`), 
- *    delivering an ultra-premium, smooth modern vibe without harsh borders.
- * 5. CAROUSEL HARDWARE ACCELERATION: Injected `transform-gpu will-change-transform` into the `<jemer-image-showcase>` 
- *    wrapper for 60fps buttery smooth image swiping on mobile devices.
+ * [NEW UPGRADE — v8.0.0]
+ * SUMMARY: Premium Aesthetics, Inline Favicon Links & Markdown Iron-Cladding.
+ * 1. INLINE FAVICON CHIPS: Standard markdown links are now seamlessly converted into sleek HTML 
+ *    chips containing the target website's Favicon. This renders perfectly INLINE while the AI types 
+ *    without breaking markdown paragraph flow.
+ * 2. SOURCES BUTTON RESTORED: Brought the 'Sources' button back to the bottom action rail, allowing 
+ *    users to open the dedicated modal to view all cited links grouped elegantly.
+ * 3. PREMIUM SCROLLBARS: Added `jemer-premium-scroll` to all `overflow-x-auto` LaTeX containers 
+ *    and Markdown tables, completely eradicating the ugly, native HTML scrollbars.
+ * 4. FEEDBACK MODAL REDESIGN: Overhauled the Like/Dislike modal with premium gradients, better 
+ *    spacing, and native SVG vectors to match Jemer's top-tier design language.
  * ================================================================================================
  */
 
@@ -26,7 +23,6 @@ import { createPortal } from "react-dom";
 import { useTheme } from "@/jemer-components/context/ThemeContext.jsx";
 import MarkdownRenderer from "@/jemer-components/ui/markdown-renderer.jsx";
 
-// 🚀 UPGRADED: Rock-solid Markdown Pre-Processor with safe XML Image Parsing
 const tokenizeBlocks = (text) => {
   if (!text) return [];
   
@@ -193,7 +189,6 @@ export default function AIChatInterface({
     });
   };
 
-  // 🚀 NEW: Feedback Retraction Logic
   const handleToggleLikeSentiment = (msg) => {
     if (likedMessages[msg.id]) {
         setLikedMessages((prev) => ({ ...prev, [msg.id]: false }));
@@ -339,6 +334,7 @@ export default function AIChatInterface({
   return (
     <div className="w-full flex flex-col gap-6 sm:gap-8 py-6 select-none animate-fade-in relative">
 
+      {/* 🚀 NEW: Appended CSS styles for Inline Favicon Chips & Smooth Scrollbars */}
       <style dangerouslySetInnerHTML={{__html: `
         .jemer-premium-scroll::-webkit-scrollbar { width: 5px; height: 6px; }
         .jemer-premium-scroll::-webkit-scrollbar-track { background: transparent; }
@@ -347,6 +343,33 @@ export default function AIChatInterface({
         
         .jemer-scrollbar-hide::-webkit-scrollbar { display: none; }
         .jemer-scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .jemer-source-chip {
+           display: inline-flex;
+           align-items: center;
+           padding: 2px 6px;
+           background-color: rgba(241, 245, 249, 0.8);
+           border: 1px solid rgba(226, 232, 240, 0.8);
+           border-radius: 6px;
+           text-decoration: none !important;
+           font-size: 11px;
+           font-weight: 700;
+           color: #2563eb !important;
+           margin: 0 4px;
+           vertical-align: middle;
+           transition: all 0.2s;
+        }
+        .dark .jemer-source-chip {
+           background-color: rgba(30, 41, 59, 0.8);
+           border-color: rgba(51, 65, 85, 0.8);
+           color: #60a5fa !important;
+        }
+        .jemer-source-chip:hover {
+           background-color: rgba(226, 232, 240, 1);
+        }
+        .dark .jemer-source-chip:hover {
+           background-color: rgba(15, 23, 42, 1);
+        }
 
         @keyframes chatShimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
         .animate-chat-shimmer {
@@ -444,7 +467,6 @@ export default function AIChatInterface({
                       </div>
                   )}
 
-                  {/* 🚀 NEW: Aesthetics Polish - Softer, smoother prompt bubble borders and background */}
                   <div className="w-fit max-w-[95%] sm:max-w-[85%] md:max-w-[75%] bg-slate-50/80 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/30 rounded-3xl rounded-tr-sm px-5 py-4 text-left shadow-sm transition-shadow duration-200">
                     <p className="text-sm sm:text-base font-sans font-medium text-slate-800 dark:text-slate-100 leading-relaxed whitespace-pre-wrap break-words">
                       {displayText}
@@ -469,13 +491,12 @@ export default function AIChatInterface({
         const internalReasoningText = msg.reasoning || "";
         const isReasoningExpanded = expandedReasoning[msg.id] || false;
         
-        // 🚀 NEW: Scrape Sources OUT of the text for the Favicon chips
+        // 🚀 NEW: Keep text fully intact for inline parsing, but still extract links for the Sources Modal!
         const extractedSources = extractSourcesFromMarkdown(msg.text);
         const hasSources = extractedSources.length > 0;
-        const strippedText = msg.text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s]+)\)/g, '');
         
-        // Feed the stripped text into our tokenizer so links don't mess up the formatting
-        const responseTokens = tokenizeBlocks(strippedText);
+        // Pass the raw text to tokenizeBlocks. We will replace standard links with Favicon Chips INSIDE the text block.
+        const responseTokens = tokenizeBlocks(msg.text);
 
         let stageWord = "Formulating approach...";
         if (isCurrentlyStreaming) {
@@ -558,19 +579,25 @@ export default function AIChatInterface({
                 }
 
                 if (token.type === "text") {
-                  // 🚀 NEW: LaTeX Overflow Container prevents layout breakage on long math lines
+                  // 🚀 NEW: Replace standard markdown links with HTML Favicon Chips natively!
+                  let htmlFormattedText = token.content.replace(/\[([^\]]+)\]\((https?:\/\/[^\s]+)\)/g, (match, title, url) => {
+                      let domain = "";
+                      try { domain = new URL(url).hostname; } catch(e) {}
+                      return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="jemer-source-chip"><img src="https://www.google.com/s2/favicons?domain=${domain}&sz=16" class="inline-block w-3 h-3 mr-1 align-middle rounded-sm" />${title}</a>`;
+                  });
+
+                  // 🚀 NEW: `jemer-premium-scroll` and horizontal boundaries applied to contain massive LaTeX formulas
                   return ( 
-                    <div key={`text-${tIdx}`} className="w-full overflow-x-auto max-w-full break-words prose-math animate-fade-in transition-all duration-200"> 
-                      <MarkdownRenderer text={token.content} /> 
+                    <div key={`text-${tIdx}`} className="jemer-premium-scroll w-full overflow-x-auto max-w-full break-words prose-math animate-fade-in transition-all duration-200"> 
+                      <MarkdownRenderer text={htmlFormattedText} /> 
                     </div> 
                   );
                 }
 
-                // 🚀 NEW UPGRADE: Hardware Accelerated Carousel
                 if (token.type === "images") {
                   return (
                     <div key={`images-${tIdx}`} className="w-full my-6 overflow-hidden">
-                      <div className="flex items-center gap-4 overflow-x-auto jemer-scrollbar-hide pb-4 px-1 snap-x snap-mandatory transform-gpu will-change-transform">
+                      <div className="flex items-center gap-4 overflow-x-auto jemer-premium-scroll pb-4 px-1 snap-x snap-mandatory transform-gpu will-change-transform">
                         {token.images.map((img, iIdx) => (
                           <div 
                             key={iIdx} 
@@ -591,27 +618,6 @@ export default function AIChatInterface({
               })}
             </div>
 
-            {/* 🚀 NEW: Favicon Source Chips Layer (Renders purely at the bottom) */}
-            {hasSources && (
-               <div className="flex flex-wrap gap-2 mt-3 pl-1 select-none animate-fade-in">
-                  {extractedSources.map((source, idx) => {
-                      const domain = new URL(source.url).hostname;
-                      return (
-                          <a 
-                            key={idx} 
-                            href={source.url} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-full transition-all shadow-sm"
-                          >
-                              <img src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`} className="w-3.5 h-3.5" alt="source" onError={(e) => e.target.style.display = 'none'} />
-                              <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300 max-w-[150px] truncate">{source.title}</span>
-                          </a>
-                      );
-                  })}
-               </div>
-            )}
-
             <div className={`flex items-center flex-wrap gap-2 mt-5 pl-1 select-none animate-fade-in transition-opacity duration-200 ${isCurrentlyStreaming ? "opacity-30 pointer-events-none" : "opacity-100"}`}>
               <button type="button" onClick={() => handleToggleLikeSentiment(msg)} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer focus:outline-none ${likedMessages[msg.id] ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 shadow-xs border border-emerald-200/40" : "bg-slate-100 hover:bg-slate-200 text-slate-500 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200 border border-transparent dark:border-slate-700/60" }`} title="Good response">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"/></svg>
@@ -625,6 +631,14 @@ export default function AIChatInterface({
               <button type="button" onClick={() => executeSystemTextCopy(msg.text, msg.id)} className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200 border border-transparent dark:border-slate-700/60 flex items-center justify-center relative" title="Copy response">
                 {copyStatusTracker[msg.id] ? ( <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg> ) : ( <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg> )}
               </button>
+              
+              {/* 🚀 NEW: Restored 'Sources' Button to cleanly group citations in the modal */}
+              {hasSources && (
+                <button type="button" onClick={() => handleOpenSources(msg.text)} className="h-8 px-3 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/50 flex items-center justify-center gap-1.5 transition-all cursor-pointer focus:outline-none shadow-sm ml-2">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                  <span className="text-[11px] font-bold uppercase tracking-wider">Sources</span>
+                </button>
+              )}
             </div>
           </div>
         );
@@ -632,41 +646,45 @@ export default function AIChatInterface({
 
       <div ref={messagesEndRef} className="h-1 w-full" />
 
+      {/* 🚀 NEW: Premium Redesigned Feedback Modal */}
       {isFeedbackModalOpen && mounted && createPortal(
         <div className="fixed inset-0 z-[9999] bg-slate-900/40 dark:bg-black/70 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 transition-all duration-300 animate-fade-in">
           <div onClick={() => setIsFeedbackModalOpen(false)} className="absolute inset-0 cursor-pointer" />
           <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-700/50 shadow-2xl z-10 rounded-3xl flex flex-col overflow-hidden relative max-h-[90vh]">
             <form onSubmit={handleSubmitFeedbackPayload} className="flex flex-col h-full w-full max-h-[90vh]">
-              <div className="px-6 pt-6 pb-4 flex items-center justify-between shrink-0">
+              
+              {/* Premium Gradient Header */}
+              <div className={`px-6 py-5 flex items-center justify-between shrink-0 bg-gradient-to-r border-b ${activeFeedbackType === "like" ? "from-emerald-50 to-teal-50/50 border-emerald-100/50 dark:from-emerald-950/30 dark:to-teal-900/10 dark:border-emerald-800/30" : "from-rose-50 to-red-50/50 border-rose-100/50 dark:from-rose-950/30 dark:to-red-900/10 dark:border-rose-800/30"}`}>
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-[14px] flex items-center justify-center shadow-inner shrink-0 ${activeFeedbackType === "like" ? "bg-gradient-to-br from-emerald-100 to-teal-50 text-emerald-600 dark:from-emerald-900/50 dark:to-teal-900/20 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/50" : "bg-gradient-to-br from-rose-100 to-red-50 text-rose-600 dark:from-rose-900/50 dark:to-red-900/20 dark:text-rose-400 border border-rose-200/50 dark:border-rose-800/50"}`}>
+                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm shrink-0 ${activeFeedbackType === "like" ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/50" : "bg-rose-100 text-rose-600 dark:bg-rose-900/50 dark:text-rose-400 border border-rose-200/50 dark:border-rose-800/50"}`}>
                     {activeFeedbackType === 'like' ? (
-                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M7.282 20.842a2 2 0 0 1-1.99-1.576l-1.38-9a2 2 0 0 1 2-2.3h5.367V5a3 3 0 0 1 3-3l.001.002a3 3 0 0 1 3 2.998v3.963l-4 9.037H7.282ZM4 9h1v11H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z"/></svg>
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"/></svg>
                     ) : (
-                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M16.718 3.158a2 2 0 0 1 1.99 1.576l1.38 9a2 2 0 0 1-2 2.3h-5.367V19a3 3 0 0 1-3 3l-.001-.002a3 3 0 0 1-3-2.998v-3.963l4-9.037h5.718ZM20 15h-1V4h1a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2Z"/></svg>
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3zm7-13h2a2 2 0 012 2v7a2 2 0 01-2 2h-2"/></svg>
                     )}
                   </div>
                   <div>
                     <h3 className="text-base font-display font-black text-slate-900 dark:text-white tracking-tight leading-tight">{activeFeedbackType === "like" ? "Share Your Success Story" : "Help Us Optimize Pacing"}</h3>
-                    <p className="text-[10px] font-mono font-semibold text-slate-400 tracking-wider uppercase mt-0.5">Jemer Core Analytics Registry</p>
+                    <p className="text-[10px] font-mono font-semibold text-slate-500 dark:text-slate-400 tracking-wider uppercase mt-0.5">Jemer Core Analytics</p>
                   </div>
                 </div>
-                <button type="button" onClick={() => setIsFeedbackModalOpen(false)} className="w-8 h-8 shrink-0 rounded-full bg-slate-100/80 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors cursor-pointer">
+                <button type="button" onClick={() => setIsFeedbackModalOpen(false)} className="w-8 h-8 shrink-0 rounded-full bg-white/60 hover:bg-white dark:bg-slate-800/60 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors shadow-xs cursor-pointer">
                   <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
-              <div className="px-6 flex-1 overflow-y-auto jemer-premium-scroll flex flex-col gap-4 pb-2">
-                 <div className="jemer-premium-scroll p-4 bg-white/40 dark:bg-slate-800/40 backdrop-blur-md rounded-2xl border-l-4 border-l-blue-500 border-y border-r border-slate-200/50 dark:border-slate-700/50 text-xs text-slate-600 dark:text-slate-300 font-sans shadow-sm relative max-h-[120px] overflow-y-auto shrink-0">
+
+              <div className="px-6 flex-1 overflow-y-auto jemer-premium-scroll flex flex-col gap-4 pb-2 pt-4">
+                 <div className="jemer-premium-scroll p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-2xl border-l-4 border-l-blue-500 border-y border-r border-slate-200/50 dark:border-slate-700/50 text-xs text-slate-600 dark:text-slate-300 font-sans shadow-sm relative max-h-[120px] overflow-y-auto shrink-0">
                    <div className="absolute top-2 right-3 text-[9px] font-black uppercase tracking-widest text-blue-500/70 dark:text-blue-400/70">AI Snippet</div>
                    <p className="pr-6 leading-relaxed italic break-words">"{activeMessageText}"</p>
                  </div>
                  <div className="flex flex-col flex-1 min-h-[120px]">
                    <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-2 pl-1 shrink-0">Qualitative Student Commentary (Optional)</label>
-                   <textarea required value={feedbackText} onChange={(e) => setFeedbackText(e.target.value)} placeholder={ activeFeedbackType === "like" ? "What made this great? Was the analogy perfect? Did the code structure click?" : "What went sideways? Did the tutor hallucinate parameters, overcomplicate the equation, or drop detail tracks?" } className="jemer-premium-scroll w-full flex-1 min-h-[100px] p-4 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700/60 text-slate-900 dark:text-slate-100 text-sm font-medium placeholder-slate-400 rounded-[20px] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-blue-500/20 transition-all leading-relaxed resize-none font-sans shadow-sm" />
+                   <textarea required value={feedbackText} onChange={(e) => setFeedbackText(e.target.value)} placeholder={ activeFeedbackType === "like" ? "What made this great? Was the analogy perfect? Did the code structure click?" : "What went sideways? Did the tutor hallucinate parameters, overcomplicate the equation, or drop detail tracks?" } className="jemer-premium-scroll w-full flex-1 min-h-[100px] p-4 bg-slate-50/50 dark:bg-slate-950/30 border border-slate-200 dark:border-slate-700/60 text-slate-900 dark:text-slate-100 text-sm font-medium placeholder-slate-400 rounded-2xl outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-blue-500/20 transition-all leading-relaxed resize-none font-sans shadow-inner" />
                  </div>
               </div>
-              <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800/50 shrink-0 flex items-center justify-end gap-3 bg-slate-50/50 dark:bg-slate-900/30">
-                <button type="button" onClick={() => setIsFeedbackModalOpen(false)} className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800 transition-colors">Cancel</button>
+              <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800/50 shrink-0 flex items-center justify-end gap-3 bg-white dark:bg-slate-900">
+                <button type="button" onClick={() => setIsFeedbackModalOpen(false)} className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800 transition-colors">Cancel</button>
                 <button type="submit" disabled={isSubmittingFeedback} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-wider text-white transition-all shadow-lg active:scale-95 flex items-center gap-2 ${ activeFeedbackType === "like" ? "bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-emerald-500/20" : "bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 shadow-rose-500/20" } disabled:opacity-40 disabled:pointer-events-none`}>
                   {isSubmittingFeedback ? (
                     <>
@@ -687,13 +705,62 @@ export default function AIChatInterface({
         document.body
       )}
 
-      {/* 🚀 NEW UPGRADE: Premium Image Viewer & Download Modal */}
+      {isSourcesModalOpen && mounted && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-slate-900/40 dark:bg-black/70 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 transition-all duration-300 animate-fade-in">
+          <div onClick={() => setIsSourcesModalOpen(false)} className="absolute inset-0 cursor-pointer" />
+          <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-700/50 shadow-2xl z-10 rounded-3xl flex flex-col overflow-hidden relative max-h-[85vh]">
+            <div className="px-6 pt-6 pb-4 flex items-center justify-between shrink-0 border-b border-slate-100 dark:border-slate-800/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-[14px] bg-gradient-to-br from-blue-100 to-indigo-50 text-blue-600 dark:from-blue-900/50 dark:to-indigo-900/20 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/50 flex items-center justify-center shadow-inner shrink-0">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                </div>
+                <div>
+                  <h3 className="text-base font-display font-black text-slate-900 dark:text-white tracking-tight leading-tight">Live Web Sources</h3>
+                  <p className="text-[10px] font-mono font-semibold text-slate-400 tracking-wider uppercase mt-0.5">Jemer Agentic Discovery</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => setIsSourcesModalOpen(false)} className="w-8 h-8 shrink-0 rounded-full bg-slate-100/80 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors cursor-pointer">
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            
+            <div className="px-4 py-4 flex-1 overflow-y-auto jemer-premium-scroll flex flex-col gap-3">
+              {activeSources.map((source, index) => {
+                const domain = new URL(source.url).hostname;
+                return (
+                  <a 
+                    key={index} 
+                    href={source.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-4 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 hover:border-blue-500/50 dark:hover:border-blue-500/50 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-blue-50/30 dark:hover:bg-blue-900/20 transition-all duration-200 group"
+                  >
+                    <div className="w-8 h-8 shrink-0 rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden">
+                      <img src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`} alt="favicon" className="w-4 h-4 object-contain" onError={(e) => e.target.style.display = 'none'} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{source.title}</h4>
+                      <p className="text-[11px] font-mono text-slate-400 dark:text-slate-500 truncate mt-0.5">{domain}</p>
+                    </div>
+                    <svg className="w-4 h-4 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                  </a>
+                );
+              })}
+            </div>
+            
+            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800/50 shrink-0 flex items-center justify-center bg-slate-50/50 dark:bg-slate-900/30">
+              <p className="text-[10px] font-medium text-slate-400 text-center">Data fetched autonomously by Jemer AI.</p>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {isImageModalOpen && activeImageData && mounted && createPortal(
         <div className="fixed inset-0 z-[9999] bg-slate-900/80 dark:bg-black/90 backdrop-blur-lg flex items-center justify-center p-4 sm:p-6 transition-all duration-300 animate-fade-in">
           <div onClick={() => setIsImageModalOpen(false)} className="absolute inset-0 cursor-pointer" />
           <div className="w-full max-w-4xl bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-700/50 shadow-2xl z-10 rounded-3xl flex flex-col overflow-hidden relative">
             
-            {/* Modal Header */}
             <div className="absolute top-0 inset-x-0 p-4 flex items-center justify-between z-20 bg-gradient-to-b from-black/60 to-transparent">
               <div className="bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 flex items-center gap-2 max-w-[70%]">
                  <svg className="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -704,13 +771,11 @@ export default function AIChatInterface({
               </button>
             </div>
 
-            {/* High-Res Image Display */}
             <div className="w-full h-[50vh] sm:h-[60vh] bg-slate-100 dark:bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden group">
               <div className="absolute inset-0 bg-slate-200 dark:bg-slate-800 animate-pulse -z-10" />
               <img src={activeImageData.src} alt={activeImageData.title} className="w-full h-full object-contain drop-shadow-2xl z-10 transition-transform duration-300 group-hover:scale-[1.02]" />
             </div>
 
-            {/* Info & Action Footer */}
             <div className="p-5 sm:p-6 bg-white dark:bg-slate-900 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">{activeImageData.title}</h3>

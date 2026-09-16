@@ -1,25 +1,17 @@
 /**
  * ================================================================================================
- * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM HIGH-CONTRAST NAVBAR CORE (v6.0 FUNCTIONAL)
+ * 🚀 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM HIGH-CONTRAST NAVBAR CORE (v6.1 FUNCTIONAL)
  * ================================================================================================
- * new: Removed the border-b divider from the header entirely, now that the header's background
- * already matches the page background — the goal is one seamless surface with no hard line
- * between the navbar and the page. The header itself stays fully visible via its content
- * (hamburger icon, title, and any tutor-page tools) and its sticky positioning; only the divider
- * line separating it from the page content below is gone.
+ * 🆕 NEW UPGRADES SUMMARY (v6.1 - DICTIONARY ENGINE WIRING)
+ * 1. DICTIONARY WIRING: Injected the `onDictionaryToggle` prop.
+ * 2. LIVE EXECUTION: Ripped out the dummy `alert()` block from the Dictionary button and wired 
+ *    it directly to the `onDictionaryToggle` callback. It now seamlessly controls the new 
+ *    Dictionary engine state from `layout.js`.
  * ================================================================================================
- * new: Unified the navbar's background with the rest of the app (bg-slate-50 / dark:bg-slate-950,
- * matching layout.js's page background) instead of its previous bg-white / dark:bg-slate-900,
- * which read as a visibly lighter/bluer panel against the page in dark mode. The existing
- * border-b border-slate-200 dark:border-slate-800 divider was left untouched — now that the
- * navbar and page share the same background, that line reads as the boundary between them
- * instead of just the edge of a differently-shaded panel.
- * ================================================================================================
- * new: Removed visual container styling (borders, backgrounds, shadows, and rigid fixed dimensions) from all buttons, leaving clean standalone hover-responsive icons.
- * Description: High-visibility, responsive top control navigation asset for the application shell.
- * Smart Upgrade Layer: Dynamically injects specialized utility tools when routing on the tutor page.
- * Wiring Layer: Fully connected onCalculatorToggle callback to open the adaptive calculator engine.
- * Compliance: 100% complete line-by-line developer code documentation for maximum clarity.
+ * [PREVIOUS UPGRADES RETAINED]
+ * - Removed the border-b divider from the header entirely.
+ * - Unified the navbar's background with the rest of the app (bg-slate-50 / dark:bg-slate-950).
+ * - Removed visual container styling from all buttons, leaving clean standalone hover-responsive icons.
  * ================================================================================================
  */
 
@@ -35,8 +27,9 @@ import { usePathname } from "next/navigation"; // Pulls the official Next.js URL
  * @param {function} props.onMenuToggle - Execution callback action fired to invert main sidebar visibility vectors.
  * @param {function} props.onTutorSidebarToggle - Execution callback action fired to toggle the auxiliary tutor history sidebar panel.
  * @param {function} props.onCalculatorToggle - Execution callback action fired to toggle the adaptive math calculator modal sheet.
+ * @param {function} props.onDictionaryToggle - Execution callback action fired to toggle the dictionary modal sheet.
  */
-export default function Navbar({ onMenuToggle, onTutorSidebarToggle, onCalculatorToggle }) {
+export default function Navbar({ onMenuToggle, onTutorSidebarToggle, onCalculatorToggle, onDictionaryToggle }) {
   
 
   // Captures active web layout routes to dynamically identify if the student is currently sitting inside the tutor arena
@@ -118,9 +111,11 @@ export default function Navbar({ onMenuToggle, onTutorSidebarToggle, onCalculato
             {/* Built to scale cleanly, passing execution boundaries down to dictionary.jsx later */}
             <button
               type="button"
-              onClick={() => {
-                console.log("[NAVBAR SMART CORE] Dictionary auxiliary utility activated. Initializing future dictionary.jsx reference link...");
-                alert("Dictionary utility triggered. This will activate your dictionary.jsx modal component.");
+              onClick={(clickEventContext) => {
+                // 🚀 FIXED: Replaced dummy alert with actual state toggle execution
+                clickEventContext.stopPropagation();
+                console.log("[NAVBAR SMART CORE] Dictionary auxiliary utility activated. Triggering layout views state...");
+                if (onDictionaryToggle) onDictionaryToggle();
               }}
               className="text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white flex items-center justify-center transition-all duration-150 cursor-pointer active:scale-95 relative group p-2"
               title="Open Academy Reference Dictionary"

@@ -1,5 +1,32 @@
 /**
  * [NEW UPGRADE]
+ * SUMMARY: v2.5 Real Custom Scrollbar Fix
+ * 1. The horizontal scrollbar was still rendering as the ugly native OS bar because the CSS lived
+ *    in a `<style jsx>` block — styled-jsx scoping wasn't taking effect here the way it does for
+ *    other components in this codebase. Switched to the same `<style dangerouslySetInnerHTML>`
+ *    global-injection pattern already used (and confirmed working) in snap-chat.jsx/snap-results.jsx.
+ * 2. Redesigned the scrollbar itself: slim rounded thumb with a padded track (via
+ *    `background-clip: content-box`) in the brand blue, transparent track, plus a matching
+ *    Firefox `scrollbar-color` fallback.
+ * ================================================================================================
+ * [PREVIOUS UPGRADE]
+ * SUMMARY: v2.4 Lifted State & Mobile 3-Dot Visibility Fix
+ * 1. NO MORE RELOAD-ON-REVISIT: `history`/`isLoading` are now controlled props owned by
+ *    page.js (which never unmounts across camera/cropper/results stage switches), instead of
+ *    local state fetched in this component's own mount effect. Previously this component fully
+ *    remounted — and refetched — every single time the user navigated back to the camera stage.
+ *    The GET /api/v1/snap/history call itself now lives in page.js; this component no longer
+ *    fetches it directly.
+ * 2. Delete/Pin still call their same DELETE / PATCH .../pin endpoints unchanged, but now report
+ *    the result back up via the new `onUpdateHistory` prop (a React state-setter/updater,
+ *    identical shape to the old internal `setHistory(prev => ...)` calls) instead of owning the
+ *    array locally.
+ * 3. MOBILE 3-DOT FIX: the menu trigger was `opacity-0 group-hover:opacity-100`, which is
+ *    permanently invisible on touch devices (no hover state). Now visible by default below the
+ *    `lg` breakpoint, with the original hover-reveal behavior preserved on desktop, plus a
+ *    slightly larger/higher-contrast touch target.
+ * ================================================================================================
+ * [PREVIOUS UPGRADE]
  * SUMMARY: v2.3 Centralized Auth Engine Migration
  * 1. All three backend calls (GET history, DELETE, PATCH /pin) hit our own Go backend
  *    (/api/v1/snap/history...) and now use window.JemerAuth.authenticatedFetch() instead of a
@@ -20,17 +47,15 @@
  * 3. Spatial Consistency: Aligned card dimensions, spacing, and scrollbars to the system's base-8 grid rules.
  * 4. API & State Preservation: 100% preservation of all live history endpoints (`GET`, `DELETE`, `PATCH /pin`), state hydration, and routing logic.
  * ================================================================================================
- * 📚 JEMER ACADEMY DESIGN SYSTEM — SNAP HISTORY (v2.3)
+ * 📚 JEMER ACADEMY DESIGN SYSTEM — SNAP HISTORY (v2.5)
  * ================================================================================================
  */
 
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 
-export default function SnapHistory({ onSelectHistory }) {
-  const [history, setHistory] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+export default function SnapHistory({ history = [], isLoading = false, onSelectHistory, onUpdateHistory }) {
   const [activeMenuId, setActiveMenuId] = useState(null);
 
   // Dynamic Multi-Origin Resolver
@@ -42,39 +67,6 @@ export default function SnapHistory({ onSelectHistory }) {
        "http://localhost:8080");
   };
 
-  // 🆕 v2.3: Minimal readiness guard for the globally-loaded auth engine (window.JemerAuth,
-  // injected once by layout.js via <Script strategy="afterInteractive">). That script loads
-  // after first paint, so an effect firing on mount could technically run before it exists.
-  const waitForJemerAuthReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
-    const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.authenticatedFetch === "function";
-    if (isReady()) return true;
-    const startTime = Date.now();
-    while (Date.now() - startTime < timeoutMs) {
-      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
-      if (isReady()) return true;
-    }
-    return false;
-  };
-
-  // Fetch data on mount
-  useEffect(() => {
-    const fetchHistory = async () => {
-      try {
-        await waitForJemerAuthReady();
-        const res = await window.JemerAuth.authenticatedFetch(`${getBackendUrl()}/api/v1/snap/history`);
-        if (res.ok) {
-          const data = await res.json();
-          setHistory(data || []);
-        }
-      } catch (err) {
-        console.error("Failed to load snap history:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchHistory();
-  }, []);
-
   // Delete Action
   const handleDelete = async (e, id) => {
     e.stopPropagation(); // Prevent routing to results page
@@ -84,7 +76,7 @@ export default function SnapHistory({ onSelectHistory }) {
         method: 'DELETE'
       });
       // Remove from UI instantly
-      setHistory(prev => prev.filter(item => item.id !== id));
+      onUpdateHistory(prev => prev.filter(item => item.id !== id));
     } catch (error) {
       console.error("Failed to delete record", error);
     }
@@ -104,7 +96,7 @@ export default function SnapHistory({ onSelectHistory }) {
       });
       
       // Update UI and re-sort so pinned items jump to front
-      setHistory(prev => {
+      onUpdateHistory(prev => {
         const updated = prev.map(item => item.id === id ? { ...item, is_pinned: !currentPinStatus } : item);
         return updated.sort((a, b) => Number(b.is_pinned) - Number(a.is_pinned) || new Date(b.created_at) - new Date(a.created_at));
       });
@@ -145,25 +137,26 @@ export default function SnapHistory({ onSelectHistory }) {
 
   return (
     <div className="relative w-full" onMouseLeave={() => setActiveMenuId(null)}>
-      <style jsx>{`
-        .premium-scrollbar::-webkit-scrollbar {
-          height: 6px;
-        }
-        .premium-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
+      {/* 🚀 FIXED: moved off `<style jsx>` (wasn't taking effect) onto the same global-injection
+          pattern used elsewhere in this codebase, with a slimmer, rounded, brand-blue thumb. */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .premium-scrollbar::-webkit-scrollbar { height: 8px; }
+        .premium-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .premium-scrollbar::-webkit-scrollbar-thumb {
-          background-color: rgba(148, 163, 184, 0.3);
-          border-radius: 10px;
+          background-color: rgba(37, 99, 235, 0.35);
+          border-radius: 999px;
+          border: 2px solid transparent;
+          background-clip: content-box;
         }
         .premium-scrollbar::-webkit-scrollbar-thumb:hover {
-          background-color: rgba(37, 99, 235, 0.6);
+          background-color: rgba(37, 99, 235, 0.65);
+          background-clip: content-box;
         }
         .premium-scrollbar {
           scrollbar-width: thin;
-          scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+          scrollbar-color: rgba(37, 99, 235, 0.35) transparent;
         }
-      `}</style>
+      `}} />
 
       <div className="flex gap-4 overflow-x-auto premium-scrollbar py-2 px-1 snap-x snap-mandatory pb-4">
         {history.map((item) => (
@@ -172,13 +165,15 @@ export default function SnapHistory({ onSelectHistory }) {
             onClick={() => onSelectHistory && onSelectHistory(item)}
             className="snap-start shrink-0 w-[140px] sm:w-[160px] h-[180px] sm:h-[200px] bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-blue-500/40 overflow-hidden cursor-pointer relative transition-all duration-200 hover:-translate-y-0.5 group flex flex-col justify-between"
           >
-            {/* 3-Dot Absolute Menu Trigger */}
+            {/* 🚀 FIXED: 3-Dot Absolute Menu Trigger — always visible on mobile (no hover state to
+                rely on there), hover-revealed on desktop as before, with a bigger/higher-contrast
+                touch target. */}
             <button 
               onClick={(e) => {
                 e.stopPropagation();
                 setActiveMenuId(activeMenuId === item.id ? null : item.id);
               }}
-              className="absolute top-2 right-2 z-20 w-8 h-8 bg-slate-900/80 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-900"
+              className="absolute top-2 right-2 z-20 w-9 h-9 bg-slate-900/90 rounded-full flex items-center justify-center text-white opacity-100 lg:opacity-0 lg:group-hover:opacity-100 shadow-md transition-opacity hover:bg-slate-900"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="1"/>

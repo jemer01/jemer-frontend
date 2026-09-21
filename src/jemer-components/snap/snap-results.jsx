@@ -2,9 +2,19 @@
 
 /**
  * ================================================================================================
- * ✨ JEMER ACADEMY DESIGN SYSTEM — SNAP RESULTS ENGINE (v4.1.0)
+ * ✨ JEMER ACADEMY DESIGN SYSTEM — SNAP RESULTS ENGINE (v4.2.0)
  * ================================================================================================
  * [NEW UPGRADE]
+ * SUMMARY: Gated Tutor Chat & KaTeX Unicode Hardening.
+ * 1. CHAT GATING: "Tutor Chat" is now disabled (with a visual + title-tooltip cue) while
+ *    `isAnalyzing` is true, so a follow-up chat can't be opened against a solution that hasn't
+ *    finished streaming yet.
+ * 2. KATEX UNICODE HARDENING: `sanitizeMathUnicode` strips characters KaTeX's default font has no
+ *    metrics for (en/em dash, ₦) — but only *inside* `$...$`/`$$...$$` delimiters, so normal prose
+ *    is untouched. Fixes the "Unrecognized Unicode character" / "No character metrics" console
+ *    errors for math-embedded content.
+ * ================================================================================================
+ * [PREVIOUS UPGRADE]
  * SUMMARY: DeepSeek LaTeX Compatibility & UI Cleanup.
  * 1. LATEX NORMALIZATION: Added regex rules to `preprocessMarkdown` to convert DeepSeek's `\[ \]` 
  *    and `\( \)` syntax into standard `$$` and `$` wrappers. This guarantees the `MarkdownRenderer` 
@@ -15,6 +25,21 @@
 
 import React from "react";
 import MarkdownRenderer from "@/jemer-components/ui/markdown-renderer.jsx";
+
+// 🚀 NEW: Strips Unicode characters KaTeX's default font has no glyph metrics for, but ONLY
+// inside math delimiters — everything outside $...$/$$...$$ is left completely untouched since
+// it renders through the normal Markdown path, not KaTeX.
+const sanitizeMathUnicode = (text) => {
+  if (!text) return text;
+  const clean = (s) => s
+    .replace(/[\u2013\u2014]/g, '-')   // – — → hyphen
+    .replace(/\u20A6/g, 'NGN')         // ₦ → NGN (no glyph metrics in Main-Regular)
+    .replace(/[\u2018\u2019]/g, "'")   // curly single quotes
+    .replace(/[\u201C\u201D]/g, '"');  // curly double quotes
+  return text.replace(/\$\$([\s\S]*?)\$\$|\$([^$\n]+?)\$/g, (match, block, inline) =>
+    block !== undefined ? `$$${clean(block)}$$` : `$${clean(inline)}$`
+  );
+};
 
 const tokenizeBlocks = (text) => {
   if (!text) return [];
@@ -79,6 +104,9 @@ export default function SnapResults({ imageUrl, onReset, onChat, streamedRespons
     processed = processed.replace(/([^\n])\n(\|[\s\S]*?\|)(?!\n)/g, '$1\n\n$2');
     processed = processed.replace(/([^\n])\n([-*]\s+)/g, '$1\n\n$2');
 
+    // 🚀 NEW: neutralize KaTeX-hostile unicode inside math regions only
+    processed = sanitizeMathUnicode(processed);
+
     return processed;
   };
 
@@ -128,14 +156,21 @@ export default function SnapResults({ imageUrl, onReset, onChat, streamedRespons
           <span>Snap Another</span>
         </button>
         
+        {/* 🚀 FIXED: disabled + visually muted while the analysis stream is still running, so a
+            follow-up chat can't be started against an incomplete solution. */}
         <button 
           onClick={onChat} 
-          className="bg-blue-600 hover:bg-blue-700 text-white py-4 px-6 rounded-2xl font-bold uppercase tracking-wider shadow-sm flex items-center justify-center gap-2 transition-colors active:scale-95 text-xs"
+          disabled={isAnalyzing}
+          title={isAnalyzing ? "Wait for the analysis to finish before asking the tutor" : "Ask the tutor a follow-up question"}
+          aria-disabled={isAnalyzing}
+          className={`bg-blue-600 text-white py-4 px-6 rounded-2xl font-bold uppercase tracking-wider shadow-sm flex items-center justify-center gap-2 transition-colors active:scale-95 text-xs ${
+            isAnalyzing ? "opacity-50 cursor-not-allowed pointer-events-none" : "hover:bg-blue-700"
+          }`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z"/>
           </svg>
-          <span>Tutor Chat</span>
+          <span>{isAnalyzing ? "Analyzing..." : "Tutor Chat"}</span>
         </button>
       </div>
 

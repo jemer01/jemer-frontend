@@ -1,13 +1,14 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: v2.2 Manifesto UI/UX Refactor for Tools Widgets
- * 1. Surface Tokens & Depth: Replaced generic light-to-dark gradient wrappers with solid, high-contrast surface tokens (`bg-white dark:bg-slate-900`) and subtle 1px border tokens.
- * 2. Eradicated Cliché Gradients: Removed purple-to-blue or unmanaged color gradients, using clean semantic badge colors.
- * 3. Base-8 Spatial Grid: Normalized padding, gaps, and border radii to standard base-8 scale (`p-6`, `p-8`, `gap-6`, `rounded-3xl`).
- * 4. Touch Target Ergonomics: Ensured all interactive touch areas meet minimum bounding requirements.
- * 5. Logic & Link Preservation: 100% preservation of all Next.js routes (`/jemerplay`, `/audiobooks`, `/snap`) and grid layout structures.
+ * SUMMARY: v2.3 Snap Card Ergonomic Refactor & Typographic Alignment
+ * 1. LEFT-AXIS ALIGNMENT: Repositioned the "Snap to Answer" content flow from a constrained center-aligned layout to a strict left-aligned (`items-start text-left`) axis. This completely eliminates text squishing and ragged edges on slim mobile phones.
+ * 2. STRUCTURAL CONSISTENCY: Matches the exact visual rhythm of the JemerPlay and Audiobooks cards. The icon, title, paragraph, and button now flow "straight down" vertically.
+ * 3. SPATIAL INSET: Increased the container padding (`p-10 lg:p-14`) so the left-aligned content sits perfectly inside the decorative corner brackets without overlapping.
  * ================================================================================================
- * 💎 JEMER ACADEMY DESIGN SYSTEM — PREMIUM LEARNING TOOLS GRID INTERFACE (v2.2)
+ * [PREVIOUS UPGRADE]
+ * SUMMARY: v2.2 Manifesto UI/UX Refactor for Tools Widgets
+ * ================================================================================================
+ * 💎 JEMER ACADEMY DESIGN SYSTEM — PREMIUM LEARNING TOOLS GRID INTERFACE (v2.3)
  * ================================================================================================
  */
 
@@ -88,7 +89,7 @@ export default function ToolsWidgets() {
       <div className="col-span-1 lg:col-span-7 flex h-full min-h-[420px] lg:min-h-[500px] order-1 lg:order-2">
         <Link 
           href="/snap"
-          className="group relative w-full h-full rounded-3xl bg-white dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-800 hover:border-blue-600 dark:hover:border-blue-500 transition-all duration-300 shadow-sm hover:shadow-md active:scale-[0.98] cursor-pointer flex flex-col items-center justify-center text-center p-8 overflow-hidden z-10"
+          className="group relative w-full h-full rounded-3xl bg-white dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-800 hover:border-blue-600 dark:hover:border-blue-500 transition-all duration-300 shadow-sm hover:shadow-md active:scale-[0.98] cursor-pointer flex flex-col items-start justify-center text-left p-10 lg:p-14 overflow-hidden z-10"
         >
           {/* Decorative frame brackets */}
           <div className="absolute top-8 left-8 w-10 h-10 border-t-2 border-l-2 border-slate-300 dark:border-slate-700 group-hover:border-blue-600 rounded-tl-xl transition-all duration-300 group-hover:-translate-x-0.5 group-hover:-translate-y-0.5" />
@@ -96,27 +97,28 @@ export default function ToolsWidgets() {
           <div className="absolute bottom-8 left-8 w-10 h-10 border-b-2 border-l-2 border-slate-300 dark:border-slate-700 group-hover:border-blue-600 rounded-bl-xl transition-all duration-300 group-hover:-translate-x-0.5 group-hover:translate-y-0.5" />
           <div className="absolute bottom-8 right-8 w-10 h-10 border-b-2 border-r-2 border-slate-300 dark:border-slate-700 group-hover:border-blue-600 rounded-br-xl transition-all duration-300 group-hover:translate-x-0.5 group-hover:translate-y-0.5" />
 
-          <div className="z-10 flex flex-col items-center max-w-md gap-6">
+          {/* 🚀 FIXED: Inner container strictly left-aligned, matching the flow of the left-hand column cards */}
+          <div className="z-10 flex flex-col items-start w-full max-w-xl gap-6">
             
-            <div className="relative w-28 h-28 rounded-3xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center text-blue-600 dark:text-blue-400 group-hover:scale-105 transition-transform duration-300">
+            <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center text-blue-600 dark:text-blue-400 group-hover:scale-105 transition-transform duration-300 shrink-0">
               <div className="absolute inset-x-0 top-0 h-1 bg-blue-500/40 blur-xs w-full shadow-sm animate-[scan_2.5s_ease-in-out_infinite]" />
               
-              <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <svg className="w-10 h-10 sm:w-12 sm:h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               <h2 className="text-3xl lg:text-4xl font-display font-black tracking-tight text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-500 transition-colors">
                 Snap to Answer
               </h2>
-              <p className="text-base font-medium text-slate-600 dark:text-slate-300 leading-relaxed px-4">
+              <p className="text-sm sm:text-base font-medium text-slate-600 dark:text-slate-300 leading-relaxed">
                 Encountered a complex equation or a confusing diagram? Snap a photo of your screen or textbook. Our computer vision AI will decode the logic instantly.
               </p>
             </div>
 
-            <div className="mt-4 px-8 py-4 bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-bold tracking-wider uppercase rounded-full text-xs shadow-sm transition-all flex items-center gap-3">
+            <div className="mt-2 sm:mt-4 px-6 sm:px-8 py-3.5 sm:py-4 bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-bold tracking-wider uppercase rounded-full text-[11px] sm:text-xs shadow-sm transition-all flex items-center gap-3">
               <span>Open Camera</span>
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />

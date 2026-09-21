@@ -1,46 +1,89 @@
+"use client";
+
 /**
- * [NEW UPGRADE]
- * SUMMARY: v3.4 Robust Markdown Block-Spacing & Table Parser Fix
- * 1. Multi-Pass Block Preprocessor: Added automatic insertion of double newlines (`\n\n`) before all markdown headers (`#`), tables (`|`), and bullet lists (`-`, `*`) to prevent markdown parsers from swallowing or failing to render tables and body text.
- * 2. Header Normalization: Strips bold wrappers from headers (`**### Heading**` -> `### Heading`) cleanly.
- * 3. Preserved Infrastructure: 100% preservation of all existing layout optimizations, mobile spacing, and `MarkdownRenderer` component integration.
  * ================================================================================================
- * ✨ JEMER ACADEMY DESIGN SYSTEM — SNAP RESULTS ENGINE (v3.4)
+ * ✨ JEMER ACADEMY DESIGN SYSTEM — SNAP RESULTS ENGINE (v4.1.0)
+ * ================================================================================================
+ * [NEW UPGRADE]
+ * SUMMARY: DeepSeek LaTeX Compatibility & UI Cleanup.
+ * 1. LATEX NORMALIZATION: Added regex rules to `preprocessMarkdown` to convert DeepSeek's `\[ \]` 
+ *    and `\( \)` syntax into standard `$$` and `$` wrappers. This guarantees the `MarkdownRenderer` 
+ *    properly catches and formats all math and science equations.
+ * 2. SUBTITLE REMOVAL: Stripped out the "Jemer Intelligence v3.0" subtitle to keep the header clean.
  * ================================================================================================
  */
-
-"use client";
 
 import React from "react";
 import MarkdownRenderer from "@/jemer-components/ui/markdown-renderer.jsx";
 
+const tokenizeBlocks = (text) => {
+  if (!text) return [];
+
+  const lines = text.split('\n');
+  const tokens = [];
+  let currentText = [];
+  let currentTable = [];
+  let inTable = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const isTableLine = line.trim().startsWith('|') && line.indexOf('|', 1) !== -1;
+
+    if (isTableLine) {
+      if (!inTable) {
+        inTable = true;
+        if (currentText.length > 0) {
+          tokens.push({ type: 'text', content: currentText.join('\n') });
+          currentText = [];
+        }
+      }
+      currentTable.push(line);
+    } else {
+      if (inTable) {
+        inTable = false;
+        tokens.push({ type: 'table', content: currentTable.join('\n') });
+        currentTable = [];
+      }
+      currentText.push(line);
+    }
+  }
+
+  if (currentText.length > 0) tokens.push({ type: 'text', content: currentText.join('\n') });
+  if (currentTable.length > 0) tokens.push({ type: 'table', content: currentTable.join('\n') });
+
+  return tokens;
+};
+
 export default function SnapResults({ imageUrl, onReset, onChat, streamedResponse, isAnalyzing }) {
-  // Robust preprocessor to normalize AI markdown formatting and ensure block elements parse fully
+  
   const preprocessMarkdown = (content) => {
     if (!content) return "";
     
     let processed = content
       .replace(/\r\n/g, "\n")
-      // Clean bolded headers: e.g. **### Heading** -> ### Heading
       .replace(/\*\*(#{1,6}\s+[^*]+)\*\*/g, '$1')
       .replace(/\*\*###\s+/g, '### ')
       .replace(/\*\*##\s+/g, '## ')
-      .replace(/\*\*#\s+/g, '# ');
+      .replace(/\*\*#\s+/g, '# ')
+      .replace(/```(?:plaintext|text|markdown)?\n?/gi, '')
+      .replace(/```/g, '');
 
-    // Ensure headers have a blank line before them so they don't merge with preceding text
+    // 🚀 NEW: Convert DeepSeek's escaped LaTeX wrappers to standard Katex dollar signs
+    processed = processed.replace(/\\\[/g, '$$$'); // Block math
+    processed = processed.replace(/\\\]/g, '$$$'); 
+    processed = processed.replace(/\\\(/g, '$');   // Inline math
+    processed = processed.replace(/\\\)/g, '$');
+
     processed = processed.replace(/([^\n])\n(#{1,6}\s+)/g, '$1\n\n$2');
-
-    // Ensure markdown tables have proper surrounding spacing so parsers render them completely
     processed = processed.replace(/([^\n])\n(\|[\s\S]*?\|)\n([^\n])/g, '$1\n\n$2\n\n$3');
     processed = processed.replace(/([^\n])\n(\|[\s\S]*?\|)(?!\n)/g, '$1\n\n$2');
-
-    // Ensure bullet lists have proper block separation
     processed = processed.replace(/([^\n])\n([-*]\s+)/g, '$1\n\n$2');
 
     return processed;
   };
 
   const formattedResponse = preprocessMarkdown(streamedResponse);
+  const responseTokens = tokenizeBlocks(formattedResponse);
 
   return (
     <div className="w-full max-w-4xl mx-auto px-4 sm:px-0 flex flex-col gap-6 pt-3 sm:pt-0 animate-fade-in pb-12">
@@ -65,7 +108,6 @@ export default function SnapResults({ imageUrl, onReset, onChat, streamedRespons
             </div>
           )}
           
-          {/* Solid Tag Overlay */}
           <div className="absolute top-3 left-3 bg-slate-950 px-3 py-1.5 rounded-full border border-slate-800 flex items-center gap-2 text-[10px] font-mono text-slate-300">
             <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
             Scan Capture
@@ -100,6 +142,13 @@ export default function SnapResults({ imageUrl, onReset, onChat, streamedRespons
       {/* ── AI SOLUTION MATRIX CONTAINER ── */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden min-h-[380px] flex flex-col">
         
+        <style dangerouslySetInnerHTML={{__html: `
+          .snap-premium-scroll::-webkit-scrollbar { width: 5px; height: 6px; }
+          .snap-premium-scroll::-webkit-scrollbar-track { background: transparent; }
+          .snap-premium-scroll::-webkit-scrollbar-thumb { background-color: rgba(148,163,184,0.3); border-radius: 10px; }
+          .snap-premium-scroll::-webkit-scrollbar-thumb:hover { background-color: rgba(148,163,184,0.5); }
+        `}} />
+
         {/* Header Bar */}
         <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3 sm:gap-4">
@@ -120,13 +169,9 @@ export default function SnapResults({ imageUrl, onReset, onChat, streamedRespons
               <h2 className="font-display font-black text-slate-900 dark:text-white text-base sm:text-xl tracking-tight leading-tight">
                 AI Solution Engine
               </h2>
-              <p className="text-[10px] sm:text-xs text-slate-500 font-mono uppercase tracking-widest mt-0.5 sm:mt-1">
-                Jemer Intelligence v3.0
-              </p>
             </div>
           </div>
 
-          {/* Status Badge */}
           <div className="flex items-center gap-2">
             {isAnalyzing ? (
               <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-[9px] sm:text-[10px] font-mono font-bold bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
@@ -159,11 +204,56 @@ export default function SnapResults({ imageUrl, onReset, onChat, streamedRespons
               <div className="w-2/3 h-4 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse"></div>
             </div>
           ) : formattedResponse ? (
-            <div className="relative w-full whitespace-pre-wrap break-words overflow-x-hidden">
-              <MarkdownRenderer text={formattedResponse} />
-              {isAnalyzing && (
-                <span className="inline-block w-2 h-4 bg-blue-600 animate-pulse ml-1 align-middle" />
-              )}
+            <div className="relative w-full text-slate-800 dark:text-slate-200 text-[15px] leading-relaxed font-sans font-medium break-words overflow-x-hidden">
+              
+              {responseTokens.map((token, tIdx) => {
+                if (token.type === "table") {
+                  const tableLines = token.content.split('\n').map(l => l.trim()).filter(Boolean);
+                  if (tableLines.length < 2) return null;
+                  const headers = tableLines[0].split('|').filter(Boolean).map(h => h.trim());
+                  let dataStartIndex = 1;
+                  if (tableLines[1] && tableLines[1].replace(/[-:| ]/g, '') === '') { dataStartIndex = 2; }
+                  const bodyLines = tableLines.slice(dataStartIndex).map(line => line.split('|').filter(Boolean).map(c => c.trim()));
+                  return (
+                    <div key={`table-${tIdx}`} className="snap-premium-scroll w-full overflow-x-auto my-5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-md bg-white dark:bg-slate-950">
+                      <table className="w-full text-left border-collapse text-sm min-w-[600px]">
+                        <thead>
+                          <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
+                            {headers.map((h, i) => (
+                              <th key={i} className="p-4 font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                                <MarkdownRenderer text={h} />
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {bodyLines.map((row, i) => (
+                            <tr key={i} className="even:bg-slate-50/50 dark:even:bg-slate-900/50 hover:bg-slate-100/50 dark:hover:bg-slate-800/30 transition-colors">
+                              {row.map((cell, j) => (
+                                <td key={j} className="p-4 text-slate-600 dark:text-slate-300 font-medium align-top">
+                                  <MarkdownRenderer text={cell} />
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                }
+
+                if (token.type === "text") {
+                  return (
+                    <div key={`text-${tIdx}`} className="snap-premium-scroll w-full overflow-x-auto max-w-full break-words prose-math animate-fade-in transition-all duration-200">
+                      <MarkdownRenderer text={token.content} />
+                      {isAnalyzing && tIdx === responseTokens.length - 1 && (
+                        <span className="inline-block w-2 h-4 bg-blue-600 animate-pulse ml-1 align-middle" />
+                      )}
+                    </div>
+                  );
+                }
+              })}
+              
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center text-center py-12 text-slate-400">

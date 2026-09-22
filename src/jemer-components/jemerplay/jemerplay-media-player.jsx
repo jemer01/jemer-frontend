@@ -1,28 +1,44 @@
+"use client";
+
 /**
- * [NEW UPGRADE]
- * SUMMARY: Executed v2.2 JemerPlay Media Player & UX Overhaul.
- * 1. Mobile Edge-to-Edge: Stripped horizontal padding (`px-4`) on mobile devices specifically for the video container so it stretches fully across small screens. Ensured titles and descriptions scale perfectly without squishing.
- * 2. Widescreen Scaling Fix: Injected strict vertical ceilings (`max-h-[65vh] lg:max-h-[70vh]`) to the aspect-video container. This prevents the player from becoming too tall when the sidebar closes, allowing users to watch without scrolling down.
- * 3. Action Purge: Removed distracting social actions (Subscribe, Like, Dislike, Share) to lock users into an educational, distraction-free mindset. Re-aligned Channel and Views to look clean.
- * 4. Related Videos Integration: Replaced `dummyVideos` with the live `searchResults` array. Automatically filters out the currently playing video and pushes the remaining 19 results into the "More related videos" rail.
  * ================================================================================================
- * 📺 JEMERPLAY — MEDIA PLAYER VIEW COMPONENT (v2.2)
+ * 📺 JEMERPLAY — MEDIA PLAYER VIEW COMPONENT (v3.0.0)
+ * ================================================================================================
+ * [NEW UPGRADE — v3.0.0]
+ * SUMMARY: Intelligent Fallback Rails & Mobile Edge-to-Edge Fluidity
+ * 1. RELATED VIDEOS FALLBACK: Implemented a `Map` merge between `searchResults` and `watchHistory`.
+ *    If a user enters the player via their watch history, the related videos rail dynamically 
+ *    populates from their past history instead of rendering completely blank. Duplicates are stripped.
+ * 2. MOBILE EDGE-TO-EDGE: Forced the player to stretch 100% full-bleed on mobile screens by removing 
+ *    padding and borders, while preserving the premium rounded `max-h-[70vh]` aesthetic on desktop.
+ * 3. ACTION PURGE: Maintained the distraction-free environment. No Like/Subscribe buttons, keeping 
+ *    the focus purely on educational content.
  * ================================================================================================
  */
-
-"use client";
 
 import React from "react";
 // Importing the shared scrollable rail logic we exported from the Home view
 import { HorizontalVideoList } from "./jemerplay-home"; 
 
-export default function JemerPlayMediaPlayer({ video, goHome, onVideoSelect, searchResults }) {
+export default function JemerPlayMediaPlayer({ video, goHome, onVideoSelect, searchResults, watchHistory }) {
   if (!video) return null;
 
-  // 🚀 NEW: Filter out the active video from the live search results array to generate the 19 related videos
-  const relatedVideos = (searchResults || []).filter(
-    (v) => (v.youtube_id || v.id) !== (video.youtube_id || video.id)
-  );
+  // 🚀 FIXED: Intelligent Related Videos Merge
+  // Combines active search results and user watch history to guarantee the rail is never empty.
+  // Uses a Map to instantly filter out duplicates and the currently playing video.
+  const allAvailableVideos = [...(searchResults || []), ...(watchHistory || [])];
+  const uniqueVideosMap = new Map();
+  
+  allAvailableVideos.forEach((v) => {
+    const videoId = v.youtube_id || v.id;
+    const currentActiveId = video.youtube_id || video.id;
+    
+    if (videoId && videoId !== currentActiveId && !uniqueVideosMap.has(videoId)) {
+      uniqueVideosMap.set(videoId, v);
+    }
+  });
+  
+  const relatedVideos = Array.from(uniqueVideosMap.values());
 
   return (
     // Outer container: padding removed on mobile (sm:px-4) to allow the player to stretch edge-to-edge
@@ -32,7 +48,7 @@ export default function JemerPlayMediaPlayer({ video, goHome, onVideoSelect, sea
       <div className="px-4 sm:px-0">
         <button 
           onClick={goHome} 
-          className="mb-3 sm:mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors w-fit p-2 -ml-2"
+          className="mb-3 sm:mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors w-fit p-2 -ml-2 focus:outline-none"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -42,7 +58,7 @@ export default function JemerPlayMediaPlayer({ video, goHome, onVideoSelect, sea
       </div>
 
       {/* ── IMMERSIVE THEATER MODE PLAYER ── */}
-      {/* 🚀 FIXED: Mobile edge-to-edge (no rounded corners on small screens), and strict vertical max-height (max-h-[65vh] lg:max-h-[70vh]) on desktop to prevent the player from getting too tall when sidebar closes */}
+      {/* 🚀 FIXED: Mobile edge-to-edge (no rounded corners on small screens), and strict vertical max-height (max-h-[65vh] lg:max-h-[70vh]) on desktop */}
       <div className="w-full aspect-video max-h-[65vh] lg:max-h-[70vh] bg-black sm:rounded-2xl md:rounded-[2rem] overflow-hidden relative shadow-2xl ring-0 sm:ring-1 ring-white/10 border-y sm:border border-slate-800 group mx-auto flex items-center justify-center">
         
         {/* Official YouTube IFrame Player with strict boundary parameters */}
@@ -57,7 +73,6 @@ export default function JemerPlayMediaPlayer({ video, goHome, onVideoSelect, sea
       </div>
 
       {/* ── VIDEO METADATA ── */}
-      {/* 🚀 FIXED: Removed social actions (Like, Share, Subscribe) and optimized mobile padding */}
       <div className="mt-5 sm:mt-6 flex flex-col gap-4 pb-8 sm:pb-10 border-b border-slate-200 dark:border-slate-800/80 px-4 sm:px-0">
         
         <div>
@@ -81,10 +96,12 @@ export default function JemerPlayMediaPlayer({ video, goHome, onVideoSelect, sea
       </div>
 
       {/* ── BOTTOM RE-ENTRY POINT ── */}
-      {/* 🚀 FIXED: Injecting the live `relatedVideos` array mapped from the active search results */}
-      <div className="pt-6 sm:pt-8">
-        <HorizontalVideoList title="More related videos" videos={relatedVideos} onSelect={onVideoSelect} />
-      </div>
+      {/* 🚀 FIXED: Injects the smartly merged relatedVideos array so users can always chain-watch */}
+      {relatedVideos.length > 0 && (
+        <div className="pt-6 sm:pt-8">
+          <HorizontalVideoList title="More related videos" videos={relatedVideos} onSelect={onVideoSelect} />
+        </div>
+      )}
       
     </div>
   );

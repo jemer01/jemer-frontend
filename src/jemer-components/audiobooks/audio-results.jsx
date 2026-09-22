@@ -1,8 +1,29 @@
 /**
  * ================================================================================================
- * ✨ JEMER ACADEMY DESIGN SYSTEM — AUDIOBOOKS RESULTS ENGINE (v6.0.0)
+ * ✨ JEMER ACADEMY DESIGN SYSTEM — AUDIOBOOKS RESULTS ENGINE (v6.1.0)
  * ================================================================================================
- * [NEW UPGRADE — v6.0.0]
+ * [NEW UPGRADE]
+ * SUMMARY: Replaced the Broken jsPDF Exporter with @react-pdf/renderer.
+ * 1. ROOT CAUSE OF THE "BROKEN/UGLY" PDF: the old exporter hand-placed text at manually computed
+ *    x/y coordinates and did its own page-break math (`checkPageBreak`), and it dumped
+ *    `key_points`/`action_items` into the PDF as one raw markdown-stripped text blob instead of
+ *    the structured cards/checklist already rendered on screen — that mismatch is what produced
+ *    the overlapping/ugly layout.
+ * 2. NEW ENGINE: `@react-pdf/renderer` (npm i @react-pdf/renderer) — a real flexbox layout engine
+ *    driven by JSX, so wrapping and pagination are handled by the engine instead of by hand.
+ *    Requires `npm install @react-pdf/renderer`.
+ * 3. TRUE VISUAL PARITY: the PDF now reuses the exact same parsed data already computed on this
+ *    page — `parsedTranscript`, `parsedKeyPoints`, `parsedActionItems`, `tokenizedNotes` — so the
+ *    numbered key-point cards, the checklist, the table-aware notes section, and the color-coded
+ *    quiz answers in the PDF match what's on screen, instead of a separately hand-built export.
+ * 4. Repeating header/footer + real page numbers (`Page X of Y`) are now handled natively via
+ *    react-pdf's `fixed` views and `render={({ pageNumber, totalPages }) => ...}`, replacing the
+ *    old manual `pageCount` bookkeeping.
+ * 5. Removed the CDN-script jsPDF loader (`loadJsPDF`) entirely — no longer needed.
+ * 6. Everything else in this file (tabs, audio player, resources modal, markdown rendering, quiz/
+ *    checklist interactivity, transcript click-to-seek) is unchanged.
+ * ================================================================================================
+ * [PREVIOUS UPGRADE — v6.0.0]
  * SUMMARY: Phase 2 UI/UX Polish, Portal Modal, Markdown Iron-Cladding & Interactive Modules
  * 1. VIEWPORT-FIXED RESOURCES PORTAL: Wrapped the download modal in `createPortal(..., document.body)`.
  *    The modal now pops up dead-center in the user's viewport with a high-contrast frosted backdrop,
@@ -16,8 +37,6 @@
  *    - Action Items: Interactive checklist with clickable checkboxes and live progress counter.
  * 4. CLICK-TO-SEEK TRANSCRIPT: Clicking any timestamp block (e.g. [02:15]) seeks the audio player
  *    directly to that second and auto-plays.
- * 5. EXECUTIVE MULTI-PAGE PDF ENGINE: Rebuilt the jsPDF exporter with corporate header ribbons,
- *    page numbering (Page X of Y), clean text wrapping, and high-contrast section dividers.
  * ================================================================================================
  */
 
@@ -25,6 +44,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
+import { Document, Page, Text, View, StyleSheet, pdf } from "@react-pdf/renderer";
 import MarkdownRenderer from "@/jemer-components/ui/markdown-renderer.jsx";
 
 // 🚀 Markdown block tokenizer for custom Tailwind tables
@@ -91,6 +111,189 @@ const preprocessMarkdown = (content) => {
 
   return processed;
 };
+
+// ================================================================================================
+// 🚀 NEW: @react-pdf/renderer document definitions
+// ================================================================================================
+
+const pdfStyles = StyleSheet.create({
+  page: { paddingTop: 68, paddingBottom: 46, paddingHorizontal: 40, fontFamily: "Helvetica", fontSize: 10, color: "#334155" },
+  headerBanner: { position: "absolute", top: 0, left: 0, right: 0, height: 32, backgroundColor: "#4F46E5", flexDirection: "row", alignItems: "center", paddingHorizontal: 40 },
+  headerBannerText: { color: "#FFFFFF", fontSize: 8, fontFamily: "Helvetica-Bold" },
+  title: { fontSize: 19, fontFamily: "Helvetica-Bold", color: "#1E293B", marginBottom: 4 },
+  metaRow: { flexDirection: "row", justifyContent: "space-between", fontSize: 9, color: "#64748B", marginBottom: 10 },
+  divider: { borderBottomWidth: 1, borderBottomColor: "#E2E8F0", marginBottom: 16 },
+  sectionTitle: { fontSize: 13, fontFamily: "Helvetica-Bold", color: "#4F46E5", marginTop: 16, marginBottom: 8 },
+  paragraph: { fontSize: 10, lineHeight: 1.5, color: "#334155", marginBottom: 8 },
+  card: { backgroundColor: "#F8FAFC", borderRadius: 6, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: "#E2E8F0", flexDirection: "row" },
+  badge: { width: 16, height: 16, borderRadius: 8, backgroundColor: "#EEF2FF", color: "#4F46E5", fontSize: 8, fontFamily: "Helvetica-Bold", textAlign: "center", paddingTop: 3.5, marginRight: 8 },
+  checklistBox: { width: 9, height: 9, borderWidth: 1, borderColor: "#94A3B8", borderRadius: 2, marginRight: 8, marginTop: 1.5 },
+  cardText: { flex: 1, fontSize: 9.5, lineHeight: 1.45, color: "#334155" },
+  quizCard: { backgroundColor: "#F8FAFC", borderRadius: 6, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: "#E2E8F0" },
+  quizQuestion: { fontSize: 10.5, fontFamily: "Helvetica-Bold", color: "#1E293B", marginBottom: 6 },
+  quizOption: { fontSize: 9.5, color: "#475569", marginBottom: 3, paddingLeft: 4 },
+  quizOptionCorrect: { fontSize: 9.5, color: "#047857", fontFamily: "Helvetica-Bold", marginBottom: 3, paddingLeft: 4 },
+  quizExplanation: { fontSize: 9, color: "#4F46E5", marginTop: 6, lineHeight: 1.45 },
+  transcriptRow: { marginBottom: 8 },
+  transcriptMeta: { fontSize: 8, fontFamily: "Helvetica-Bold", color: "#4F46E5", marginBottom: 2 },
+  transcriptText: { fontSize: 9.5, lineHeight: 1.4, color: "#334155" },
+  tableWrap: { marginBottom: 10, borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 4 },
+  tableHeaderRow: { flexDirection: "row", backgroundColor: "#F1F5F9" },
+  tableRow: { flexDirection: "row", borderTopWidth: 1, borderTopColor: "#E2E8F0" },
+  tableCellHeader: { flex: 1, padding: 5, fontSize: 8.5, fontFamily: "Helvetica-Bold", color: "#1E293B" },
+  tableCell: { flex: 1, padding: 5, fontSize: 8.5, color: "#334155" },
+  footer: { position: "absolute", bottom: 18, left: 40, right: 40, flexDirection: "row", justifyContent: "space-between", fontSize: 7.5, color: "#94A3B8" },
+});
+
+// Strips markdown syntax markers for plain PDF text — same intent as the old addParagraph cleaner.
+const cleanText = (text) => (text || "").replace(/[*#`_]/g, "").trim();
+
+const PDFHeaderBanner = () => (
+  <View style={pdfStyles.headerBanner} fixed>
+    <Text style={pdfStyles.headerBannerText}>JEMER ACADEMY  //  ACADEMIC STUDY PACK</Text>
+  </View>
+);
+
+const PDFFooter = () => (
+  <View style={pdfStyles.footer} fixed>
+    <Text>Generated by Jemer Academy AI Intelligence Core</Text>
+    <Text render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
+  </View>
+);
+
+function TranscriptPDF({ fileName, parsedTranscript }) {
+  return (
+    <Document>
+      <Page size="A4" style={pdfStyles.page} wrap>
+        <PDFHeaderBanner />
+        <Text style={pdfStyles.title}>Lecture Audio Transcript</Text>
+        <View style={pdfStyles.metaRow}>
+          <Text>Source: {(fileName || "").substring(0, 70)}</Text>
+          <Text>{new Date().toLocaleDateString("en-US", { dateStyle: "long" })}</Text>
+        </View>
+        <View style={pdfStyles.divider} />
+        {parsedTranscript.length === 0 ? (
+          <Text style={pdfStyles.paragraph}>No transcript content available.</Text>
+        ) : (
+          parsedTranscript.map((block) => (
+            <View key={block.id} style={pdfStyles.transcriptRow} wrap={false}>
+              {(block.time || block.speaker) && (
+                <Text style={pdfStyles.transcriptMeta}>
+                  {block.time ? `[${block.time}]  ` : ""}{block.speaker || ""}
+                </Text>
+              )}
+              <Text style={pdfStyles.transcriptText}>{block.content}</Text>
+            </View>
+          ))
+        )}
+        <PDFFooter />
+      </Page>
+    </Document>
+  );
+}
+
+function StudyPackPDF({ fileName, summary, summaryMetrics, keyPoints, actionItems, quiz, notesTokens }) {
+  return (
+    <Document>
+      <Page size="A4" style={pdfStyles.page} wrap>
+        <PDFHeaderBanner />
+        <Text style={pdfStyles.title}>Executive Study Notes</Text>
+        <View style={pdfStyles.metaRow}>
+          <Text>Source: {(fileName || "").substring(0, 70)}</Text>
+          <Text>{new Date().toLocaleDateString("en-US", { dateStyle: "long" })}</Text>
+        </View>
+        <View style={pdfStyles.divider} />
+
+        {summary && (
+          <View wrap={false}>
+            <Text style={pdfStyles.sectionTitle}>1. Executive Summary</Text>
+            <Text style={{ fontSize: 8.5, color: "#94A3B8", marginBottom: 6 }}>
+              {summaryMetrics.wordCount} words · ~{summaryMetrics.readTimeMinutes} min read
+            </Text>
+            <Text style={pdfStyles.paragraph}>{cleanText(summary)}</Text>
+          </View>
+        )}
+
+        {keyPoints.length > 0 && (
+          <View>
+            <Text style={pdfStyles.sectionTitle}>2. Core Conceptual Takeaways</Text>
+            {keyPoints.map((point, i) => (
+              <View key={i} style={pdfStyles.card} wrap={false}>
+                <Text style={pdfStyles.badge}>{i + 1}</Text>
+                <Text style={pdfStyles.cardText}>{cleanText(point)}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {actionItems.length > 0 && (
+          <View>
+            <Text style={pdfStyles.sectionTitle}>3. Action Items &amp; Study Checklist</Text>
+            {actionItems.map((item, i) => (
+              <View key={i} style={pdfStyles.card} wrap={false}>
+                <View style={pdfStyles.checklistBox} />
+                <Text style={pdfStyles.cardText}>{cleanText(item)}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {notesTokens.length > 0 && (
+          <View>
+            <Text style={pdfStyles.sectionTitle}>4. Comprehensive Lecture Notes</Text>
+            {notesTokens.map((token, tIdx) => {
+              if (token.type === "table") {
+                const tableLines = token.content.split("\n").map((l) => l.trim()).filter(Boolean);
+                if (tableLines.length < 2) return null;
+                const headers = tableLines[0].split("|").filter(Boolean).map((h) => cleanText(h));
+                let dataStartIndex = 1;
+                if (tableLines[1] && tableLines[1].replace(/[-:| ]/g, "") === "") dataStartIndex = 2;
+                const bodyLines = tableLines.slice(dataStartIndex).map((line) => line.split("|").filter(Boolean).map((c) => cleanText(c)));
+                return (
+                  <View key={`table-${tIdx}`} style={pdfStyles.tableWrap} wrap={false}>
+                    <View style={pdfStyles.tableHeaderRow}>
+                      {headers.map((h, i) => <Text key={i} style={pdfStyles.tableCellHeader}>{h}</Text>)}
+                    </View>
+                    {bodyLines.map((row, ri) => (
+                      <View key={ri} style={pdfStyles.tableRow}>
+                        {row.map((cell, ci) => <Text key={ci} style={pdfStyles.tableCell}>{cell}</Text>)}
+                      </View>
+                    ))}
+                  </View>
+                );
+              }
+              const paragraphs = token.content.split("\n").map((l) => cleanText(l)).filter(Boolean);
+              return paragraphs.map((p, pi) => (
+                <Text key={`p-${tIdx}-${pi}`} style={pdfStyles.paragraph}>{p}</Text>
+              ));
+            })}
+          </View>
+        )}
+
+        {quiz.length > 0 && (
+          <View>
+            <Text style={pdfStyles.sectionTitle}>5. Self-Assessment Quiz</Text>
+            {quiz.map((q, idx) => (
+              <View key={idx} style={pdfStyles.quizCard} wrap={false}>
+                <Text style={pdfStyles.quizQuestion}>Question {idx + 1}: {cleanText(q.question)}</Text>
+                {Object.entries(q.options || {}).map(([k, val]) => (
+                  <Text key={k} style={k === q.correct_answer ? pdfStyles.quizOptionCorrect : pdfStyles.quizOption}>
+                    {k}. {cleanText(val)}{k === q.correct_answer ? "   ✓ Correct" : ""}
+                  </Text>
+                ))}
+                {q.explanation && (
+                  <Text style={pdfStyles.quizExplanation}>{cleanText(q.explanation)}</Text>
+                )}
+              </View>
+            ))}
+          </View>
+        )}
+
+        <PDFFooter />
+      </Page>
+    </Document>
+  );
+}
 
 export default function AudioResults({ audioData, onReset, onChat, analysisData, transcript }) {
   // ── CORE STATES ──
@@ -190,198 +393,7 @@ export default function AudioResults({ audioData, onReset, onChat, analysisData,
   const safeDuration = isFinite(duration) && duration > 0 ? duration : 0;
   const progressPercent = safeDuration > 0 ? (currentTime / safeDuration) * 100 : 0;
 
-  // ── 🚀 PRODUCTION MULTI-PAGE PDF & AUDIO DOWNLOAD ENGINE ──
-  const handleDownload = async (type) => {
-    setIsDownloading(true);
-    
-    try {
-      if (type === "audio" && audioUrl) {
-        try {
-          const res = await fetch(audioUrl);
-          const blob = await res.blob();
-          const localUrl = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = localUrl;
-          a.download = `${fileName}.webm`;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          URL.revokeObjectURL(localUrl);
-        } catch (e) {
-          const a = document.createElement("a");
-          a.href = audioUrl;
-          a.download = `${fileName}.webm`;
-          a.target = "_blank";
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-        }
-        setIsResourcesModalOpen(false);
-        setIsDownloading(false);
-        return;
-      }
-
-      // Load jsPDF dynamically
-      const loadJsPDF = () => {
-        return new Promise((resolve, reject) => {
-          if (window.jspdf) return resolve(window.jspdf.jsPDF);
-          const script = document.createElement("script");
-          script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-          script.onload = () => resolve(window.jspdf.jsPDF);
-          script.onerror = reject;
-          document.body.appendChild(script);
-        });
-      };
-
-      const JsPDFClass = await loadJsPDF();
-      const doc = new JsPDFClass({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4"
-      });
-
-      let pageCount = 1;
-      let y = 30;
-      const leftMargin = 16;
-      const contentWidth = 178;
-
-      const drawHeaderBanner = () => {
-        doc.setFillColor(79, 70, 229);
-        doc.rect(0, 0, 210, 10, "F");
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(8);
-        doc.setTextColor(255, 255, 255);
-        doc.text("JEMER ACADEMY  //  ACADEMIC STUDY PACK", leftMargin, 6.5);
-      };
-
-      const drawFooter = () => {
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8);
-        doc.setTextColor(148, 163, 184);
-        doc.text(`Page ${pageCount}`, 190, 288, { align: "right" });
-        doc.text("Generated by Jemer Academy AI Intelligence Core", leftMargin, 288);
-      };
-
-      const checkPageBreak = (neededSpace = 12) => {
-        if (y + neededSpace > 275) {
-          drawFooter();
-          doc.addPage();
-          pageCount++;
-          drawHeaderBanner();
-          y = 22;
-        }
-      };
-
-      drawHeaderBanner();
-
-      // Document Title Header
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(20);
-      doc.setTextColor(30, 41, 59);
-      doc.text(type === "transcript" ? "Lecture Audio Transcript" : "Executive Study Notes", leftMargin, y);
-      y += 8;
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(100, 116, 139);
-      doc.text(`Source Session: ${fileName.substring(0, 70)}`, leftMargin, y);
-      doc.text(`Export Date: ${new Date().toLocaleDateString("en-US", { dateStyle: "long" })}`, leftMargin + 100, y);
-      y += 8;
-
-      doc.setDrawColor(226, 232, 240);
-      doc.setLineWidth(0.4);
-      doc.line(leftMargin, y, leftMargin + contentWidth, y);
-      y += 10;
-
-      const addSectionTitle = (title) => {
-        checkPageBreak(16);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(14);
-        doc.setTextColor(79, 70, 229);
-        doc.text(title, leftMargin, y);
-        y += 7;
-      };
-
-      const addParagraph = (text) => {
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
-        doc.setTextColor(51, 65, 85);
-        const clean = (text || "").replace(/[*#`]/g, "").trim();
-        const lines = doc.splitTextToSize(clean, contentWidth);
-        lines.forEach((line) => {
-          checkPageBreak(6);
-          doc.text(line, leftMargin, y);
-          y += 5.2;
-        });
-        y += 4;
-      };
-
-      if (type === "transcript") {
-        addSectionTitle("Official Transcript");
-        addParagraph(transcript || "No transcript content available.");
-        drawFooter();
-        doc.save(`${fileName}_Transcript.pdf`);
-      } else {
-        if (analysisData?.summary) {
-          addSectionTitle("1. Executive Summary");
-          addParagraph(analysisData.summary);
-        }
-
-        if (analysisData?.key_points) {
-          addSectionTitle("2. Core Conceptual Takeaways");
-          addParagraph(analysisData.key_points);
-        }
-
-        if (analysisData?.action_items) {
-          addSectionTitle("3. Action Items & Study Checklist");
-          addParagraph(analysisData.action_items);
-        }
-
-        if (analysisData?.full_notes) {
-          addSectionTitle("4. Comprehensive Lecture Notes");
-          addParagraph(analysisData.full_notes);
-        }
-
-        if (analysisData?.interactive_quiz && Array.isArray(analysisData.interactive_quiz)) {
-          addSectionTitle("5. Self-Assessment Quiz");
-          analysisData.interactive_quiz.forEach((q, idx) => {
-            checkPageBreak(20);
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(10.5);
-            doc.setTextColor(30, 41, 59);
-            doc.text(`Question ${idx + 1}: ${q.question}`, leftMargin, y);
-            y += 6;
-
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(9.5);
-            doc.setTextColor(71, 85, 105);
-            Object.entries(q.options || {}).forEach(([k, val]) => {
-              checkPageBreak(5);
-              doc.text(`[ ${k} ]  ${val}`, leftMargin + 4, y);
-              y += 5;
-            });
-
-            checkPageBreak(8);
-            doc.setFont("helvetica", "bold");
-            doc.setTextColor(16, 185, 129);
-            doc.text(`Correct: Option ${q.correct_answer}`, leftMargin + 4, y);
-            y += 8;
-          });
-        }
-
-        drawFooter();
-        doc.save(`${fileName}_StudyPack.pdf`);
-      }
-    } catch (error) {
-      console.error("PDF generation pipeline failed:", error);
-      alert("Failed to build PDF. Please try again.");
-    } finally {
-      setIsResourcesModalOpen(false);
-      setIsDownloading(false);
-    }
-  };
-
-  // ── TRANSCRIPT PARSER ──
+  // ── TRANSCRIPT PARSER ── (moved above handleDownload since the PDF export now consumes it too)
   const parsedTranscript = useMemo(() => {
     if (!transcript) return [];
     const lines = transcript.split("\n").filter((l) => l.trim().length > 0);
@@ -442,6 +454,80 @@ export default function AudioResults({ audioData, onReset, onChat, analysisData,
       .filter((l) => l.length > 0);
   }, [analysisData?.action_items]);
 
+  const formattedNotes = useMemo(() => {
+    return preprocessMarkdown(analysisData?.full_notes || "");
+  }, [analysisData?.full_notes]);
+
+  const tokenizedNotes = useMemo(() => {
+    return tokenizeBlocks(formattedNotes);
+  }, [formattedNotes]);
+
+  // ── 🚀 EXPORT ENGINE — @react-pdf/renderer (replaces the old manual-coordinate jsPDF exporter) ──
+  const handleDownload = async (type) => {
+    setIsDownloading(true);
+
+    try {
+      if (type === "audio" && audioUrl) {
+        try {
+          const res = await fetch(audioUrl);
+          const blob = await res.blob();
+          const localUrl = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = localUrl;
+          a.download = `${fileName}.webm`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(localUrl);
+        } catch (e) {
+          const a = document.createElement("a");
+          a.href = audioUrl;
+          a.download = `${fileName}.webm`;
+          a.target = "_blank";
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        }
+        setIsResourcesModalOpen(false);
+        setIsDownloading(false);
+        return;
+      }
+
+      // 🚀 NEW: build the actual PDF via @react-pdf/renderer, reusing the same parsed data the
+      // page already renders on screen — this is what guarantees the PDF matches the UI.
+      const docElement =
+        type === "transcript" ? (
+          <TranscriptPDF fileName={fileName} parsedTranscript={parsedTranscript} />
+        ) : (
+          <StudyPackPDF
+            fileName={fileName}
+            summary={analysisData?.summary}
+            summaryMetrics={summaryMetrics}
+            keyPoints={parsedKeyPoints}
+            actionItems={parsedActionItems}
+            quiz={Array.isArray(analysisData?.interactive_quiz) ? analysisData.interactive_quiz : []}
+            notesTokens={tokenizedNotes}
+          />
+        );
+
+      const blob = await pdf(docElement).toBlob();
+      const localUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = localUrl;
+      a.download = type === "transcript" ? `${fileName}_Transcript.pdf` : `${fileName}_StudyPack.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(localUrl);
+    } catch (error) {
+      console.error("PDF generation pipeline failed:", error);
+      alert("Failed to build PDF. Please try again.");
+    } finally {
+      setIsResourcesModalOpen(false);
+      setIsDownloading(false);
+    }
+  };
+
   const toggleActionItem = (idx) => {
     setCompletedActions((prev) => ({ ...prev, [idx]: !prev[idx] }));
   };
@@ -465,14 +551,6 @@ export default function AudioResults({ audioData, onReset, onChat, analysisData,
     if (selectedAnswers[questionIndex]) return;
     setSelectedAnswers((prev) => ({ ...prev, [questionIndex]: optionKey }));
   };
-
-  const formattedNotes = useMemo(() => {
-    return preprocessMarkdown(analysisData?.full_notes || "");
-  }, [analysisData?.full_notes]);
-
-  const tokenizedNotes = useMemo(() => {
-    return tokenizeBlocks(formattedNotes);
-  }, [formattedNotes]);
 
   return (
     <div className="w-full max-w-6xl mx-auto flex flex-col gap-6 animate-fade-in pb-16 pt-4 px-4 lg:px-6 relative select-none">

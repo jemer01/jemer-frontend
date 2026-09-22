@@ -3,19 +3,22 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-  "predev": "mkdir -p /tmp/jemer-next-cache && ln -sfn $(pwd)/node_modules /tmp/jemer-next-cache/node_modules",
-  "dev": "next dev --turbo",
-  "build": "next build",
-  "start": "next start"
-},
+    "predev": "mkdir -p /tmp/jemer-next-cache && ln -sfn $(pwd)/node_modules /tmp/jemer-next-cache/node_modules",
+    "dev": "next dev --turbo",
+    "build": "next build",
+    "start": "next start"
+  },
   "dependencies": {
     "@gsap/react": "^2.1.2",
     "@neondatabase/neon-js": "^0.6.2-beta",
     "@neondatabase/serverless": "^1.1.0",
+    "@react-pdf/renderer": "^4.9.0",
     "autoprefixer": "^10.5.0",
     "cropperjs": "^2.1.1",
     "gsap": "^3.15.0",
+    "html2pdf.js": "^0.14.0",
     "katex": "^0.17.0",
+    "marked": "^18.0.14",
     "mathjs": "^15.2.0",
     "next": "16.2.9",
     "plotly.js-dist-min": "^3.6.0",

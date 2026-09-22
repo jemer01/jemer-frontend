@@ -1,15 +1,20 @@
+"use client";
+
 /**
- * [NEW UPGRADE]
- * SUMMARY: Executed v2.0 JemerPlay Home History Integration.
- * 1. Live History Rail: Replaced `dummyVideos` with the live `watchHistory` prop fetched from the Postgres database.
- * 2. Conditional Rendering: The "Continue Watching" rail now completely hides itself cleanly if the user has no watch history, maintaining a flawless UI layout.
- * 3. Preserved Animations & Structure: The rotating typewriter, glow edge animations, and feature advertisement grid are 100% untouched.
  * ================================================================================================
- * 🏠 JEMERPLAY — HOME VIEW COMPONENT (v2.0)
+ * 🏠 JEMERPLAY — HOME VIEW COMPONENT (v3.0.0)
+ * ================================================================================================
+ * [NEW UPGRADE — v3.0.0]
+ * SUMMARY: Phase 1 Context Menus & UI Aesthetics
+ * 1. CONTEXT MENUS (Right-Click & Long-Press): Injected robust `onContextMenu` (Desktop) and 
+ *    `onTouchStart/End` (Mobile) handlers into `HorizontalVideoList`. Shows a sleek, frosted 
+ *    glassmorphism "Remove from History" overlay.
+ * 2. PREMIUM AESTHETICS: Upgraded video cards with smooth `hover:scale-105` transforms, 
+ *    subtle dark-mode `ring-1 ring-white/10` borders, and `backdrop-blur-md` on duration badges.
+ * 3. LOGIC PRESERVATION: Retained the rotating typewriter hero text, search payload propagation, 
+ *    and horizontal scrolling mechanics perfectly.
  * ================================================================================================
  */
-
-"use client";
 
 import React, { useState, useEffect, useRef } from "react";
 
@@ -27,7 +32,7 @@ const PLACEHOLDER_TEXTS = [
   "What do you want to master today?"
 ];
 
-export default function JemerPlayHome({ searchQuery, setSearchQuery, handleSearch, onVideoSelect, watchHistory }) {
+export default function JemerPlayHome({ searchQuery, setSearchQuery, handleSearch, onVideoSelect, watchHistory, onDeleteHistoryItem }) {
   const [placeholder, setPlaceholder] = useState("");
   const [textIndex, setTextIndex] = useState(0);
   const [charIndex, setCharIndex] = useState(0);
@@ -43,7 +48,7 @@ export default function JemerPlayHome({ searchQuery, setSearchQuery, handleSearc
         setPlaceholder(currentFullText.substring(0, charIndex + 1));
         setCharIndex((prev) => prev + 1);
         if (charIndex + 1 === currentFullText.length) {
-          setTimeout(() => setIsDeleting(true), 1500); // Pause before deleting
+          setTimeout(() => setIsDeleting(true), 1500); 
         }
       } else {
         setPlaceholder(currentFullText.substring(0, charIndex - 1));
@@ -70,7 +75,6 @@ export default function JemerPlayHome({ searchQuery, setSearchQuery, handleSearc
           </span>
         </div>
         
-        {/* Upgraded Header: Straight line alignment for mobile & desktop */}
         <h1 className="text-3xl sm:text-4xl lg:text-5xl font-display font-black tracking-tight text-slate-900 dark:text-white leading-tight text-center mb-3 flex items-center justify-center gap-2 sm:gap-3 flex-wrap">
           <span>Explore</span>
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400">
@@ -81,14 +85,12 @@ export default function JemerPlayHome({ searchQuery, setSearchQuery, handleSearc
           Your centralized hub for premium educational content.
         </p>
 
-        {/* Search Bar Container with Expanded Mobile Width & Glow Edge Animation */}
         <div className="w-full max-w-4xl flex flex-col items-center gap-3 px-0 sm:px-2">
           <label className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 px-2 sm:px-0">
             Find your next lecture
           </label>
           <form onSubmit={handleSearch} className="w-full relative group p-[2px] rounded-[2.2rem] overflow-hidden">
             
-            {/* 5-Second Multi-Color Rolling Glow Edge Animation */}
             <div className="absolute inset-0 bg-gradient-to-r from-blue-500 via-purple-500 via-pink-500 to-blue-500 rounded-[2.2rem] animate-[spin_5s_linear_infinite] opacity-80 blur-[2px]" style={{ backgroundSize: '300% 300%' }}></div>
             
             <div className="relative w-full bg-white dark:bg-slate-900 rounded-[2.1rem] flex items-center">
@@ -116,9 +118,13 @@ export default function JemerPlayHome({ searchQuery, setSearchQuery, handleSearc
       </div>
 
       {/* ── CONTINUE WATCHING RAIL ── */}
-      {/* 🚀 NEW: Dynamically renders the horizontal rail ONLY if there is actual watch history data */}
       {watchHistory && watchHistory.length > 0 && (
-        <HorizontalVideoList title="Continue Watching" videos={watchHistory} onSelect={onVideoSelect} />
+        <HorizontalVideoList 
+          title="Continue Watching" 
+          videos={watchHistory} 
+          onSelect={onVideoSelect} 
+          onDelete={onDeleteHistoryItem} // 🚀 FIXED: Passes delete hook explicitly
+        />
       )}
 
       {/* ── FEATURE ADVERTISEMENT SECTION ── */}
@@ -128,7 +134,6 @@ export default function JemerPlayHome({ searchQuery, setSearchQuery, handleSearc
           How JemerPlay Works
         </h2>
         
-        {/* Desktop Grid / Mobile Horizontal Swipeable Row without navigation buttons */}
         <div className="flex lg:grid lg:grid-cols-3 gap-6 overflow-x-auto snap-x snap-mandatory horizontal-premium-scroll pb-4 -mx-4 px-4 lg:mx-0 lg:px-0">
           
           {/* Ad Card 1 */}
@@ -163,7 +168,7 @@ export default function JemerPlayHome({ searchQuery, setSearchQuery, handleSearc
             </div>
           </div>
 
-          {/* Ad Card 3 (Fixed text breaking into SVG padding issue) */}
+          {/* Ad Card 3 */}
           <div className="group relative shrink-0 w-[280px] sm:w-[320px] lg:w-auto snap-start min-h-[220px] rounded-[2rem] bg-slate-900 overflow-hidden shadow-lg border border-slate-800 p-8 pt-20 lg:pt-8 flex flex-col justify-end transform transition-transform duration-300 hover:-translate-y-1.5 cursor-pointer ring-1 ring-white/5">
             <div className="absolute inset-0 bg-gradient-to-tr from-emerald-600/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             <div className="absolute top-6 right-6 w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20 shadow-xl group-hover:scale-110 transition-transform">
@@ -186,15 +191,44 @@ export default function JemerPlayHome({ searchQuery, setSearchQuery, handleSearc
   );
 }
 
-// ── UTILITY: HORIZONTAL RAIL (Exported for reuse) ──
-export function HorizontalVideoList({ title, videos, onSelect }) {
+// ── UTILITY: HORIZONTAL RAIL (With Context Menu) ──
+export function HorizontalVideoList({ title, videos, onSelect, onDelete }) {
   const scrollRef = useRef(null);
+  
+  // 🚀 NEW: Context Menu States for Desktop Right-Click & Mobile Long-Press
+  const [activeMenuId, setActiveMenuId] = useState(null);
+  let touchTimer = useRef(null);
+
+  useEffect(() => {
+    const closeMenu = () => setActiveMenuId(null);
+    document.addEventListener("click", closeMenu);
+    return () => document.removeEventListener("click", closeMenu);
+  }, []);
 
   const handleScroll = (direction) => {
     if (scrollRef.current) {
       const scrollAmount = direction === "left" ? -420 : 420;
       scrollRef.current.scrollBy({ left: scrollAmount, behavior: "smooth" });
     }
+  };
+
+  // Mobile Long-Press Logic
+  const handleTouchStart = (videoId) => {
+    if (!onDelete) return;
+    touchTimer.current = setTimeout(() => {
+      setActiveMenuId(videoId);
+    }, 600); // 600ms hold triggers the menu
+  };
+
+  const handleTouchEnd = () => {
+    if (touchTimer.current) clearTimeout(touchTimer.current);
+  };
+
+  // Desktop Right-Click Logic
+  const handleContextMenu = (e, videoId) => {
+    if (!onDelete) return;
+    e.preventDefault();
+    setActiveMenuId(videoId);
   };
 
   if (!videos || videos.length === 0) return null;
@@ -215,19 +249,57 @@ export function HorizontalVideoList({ title, videos, onSelect }) {
           </button>
         </div>
       </div>
-      <div ref={scrollRef} className="flex gap-4 sm:gap-6 overflow-x-auto snap-x snap-mandatory horizontal-premium-scroll pb-6 px-4">
+      <div ref={scrollRef} className="flex gap-4 sm:gap-6 overflow-x-auto snap-x snap-mandatory horizontal-premium-scroll pb-6 px-4 select-none">
         {videos.map((video) => (
-          <div key={video.id} onClick={() => onSelect(video)} className="group shrink-0 w-[280px] sm:w-[340px] snap-start cursor-pointer flex flex-col gap-3">
+          <div 
+            key={video.id} 
+            onClick={() => {
+              if (activeMenuId === video.id) {
+                setActiveMenuId(null);
+                return;
+              }
+              onSelect(video);
+            }} 
+            onContextMenu={(e) => handleContextMenu(e, video.id)}
+            onTouchStart={() => handleTouchStart(video.id)}
+            onTouchEnd={handleTouchEnd}
+            onTouchMove={handleTouchEnd} // Cancel long press if user scrolls
+            className="group shrink-0 w-[280px] sm:w-[340px] snap-start cursor-pointer flex flex-col gap-3 relative"
+          >
+            {/* 🚀 FIXED: Upgraded aesthetics with hover:scale-105, frosted badge, and ring border */}
             <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-200 dark:bg-slate-800 shadow-md ring-1 ring-slate-900/5 dark:ring-white/10">
-              <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
-              <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/80 text-white text-[10px] font-black tracking-widest rounded-md backdrop-blur-sm shadow-sm">{video.duration}</div>
+              <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out" />
+              
+              <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/60 text-white text-[10px] font-black tracking-widest rounded-md backdrop-blur-md shadow-sm">
+                {video.duration}
+              </div>
+
+              {/* 🚀 NEW: Context Menu Overlay for History Deletion */}
+              {activeMenuId === video.id && onDelete && (
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-20 flex items-center justify-center animate-fade-in rounded-2xl">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(video.youtube_id || video.id);
+                      setActiveMenuId(null);
+                    }}
+                    className="flex items-center gap-2 px-4 py-3 bg-red-600 hover:bg-red-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-2xl transition-transform active:scale-95 border border-red-500/50"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Remove
+                  </button>
+                </div>
+              )}
             </div>
-            <div>
+            
+            <div className="pr-2">
               <h3 className="font-bold text-slate-900 dark:text-white line-clamp-2 leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors text-sm sm:text-base">{video.title}</h3>
               <p className="text-[11px] sm:text-xs font-bold text-slate-500 mt-1.5 flex items-center gap-2">
-                <span>{video.channel}</span>
-                <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600"></span>
-                <span>{video.views}</span>
+                <span className="truncate max-w-[60%]">{video.channel}</span>
+                <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600 shrink-0"></span>
+                <span className="shrink-0">{video.views} views</span>
               </p>
             </div>
           </div>

@@ -1,9 +1,27 @@
 /**
  * [NEW UPGRADE]
+ * SUMMARY: Executed v2.10.0 — Fixed Dead Inline-Math Regex & KaTeX Unicode Crashes
+ * 1. DEAD REGEX FIX: Pass 2 of `parseInlineText` (the `$...$` extractor) contained a stray
+ *    `\vert{}` — `\v` (vertical-tab escape) followed by literal `ert{}` text — which meant that
+ *    pattern essentially never matched. Most single-dollar inline math written mid-paragraph was
+ *    silently falling through unrendered, only ever caught by Pass 3's end-of-string fallback.
+ *    Replaced with the equivalent, working regex, preserving the exact same non-space-boundary
+ *    currency guard (still won't swallow "I have $10 and $20") the original comment described.
+ * 2. KATEX UNICODE HARDENING: Added `sanitizeMathUnicode` (used by both InlineMath and BlockMath)
+ *    to normalize en/em dash and the true minus sign to a plain hyphen, curly quotes to straight
+ *    ones, and swap common currency symbols (₦, ₵, ₹, £, €) for `\text{...}` equivalents — KaTeX's
+ *    default font has no glyph metrics for these, which is what produced the "Unrecognized Unicode
+ *    character" / "No character metrics" console errors and missing/broken glyphs. Since this is
+ *    the shared renderer, every consumer (tutor, snap, audiobooks) gets this automatically.
+ * 3. Added `strict: false` to both `katex.renderToString` calls as a backstop for any other
+ *    unicode symbol outside the explicit list above, so it degrades quietly instead of spamming
+ *    the console.
+ * ================================================================================================
+ * [PREVIOUS UPGRADE]
  * SUMMARY: Executed v2.9.1 - Robust Type Safeguard for MarkdownRenderer
  * 1. Runtime Type Safety: Added a robust type guard at the start of `renderedBlocks` to check if `text` is a string. If the backend passes objects, arrays, or numbers (such as structured JSON fields in action items or key points), it automatically converts them to a readable JSON string or primitive string instead of crashing with `text.replace is not a function`.
  * ================================================================================================
- * 💎 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM MARKDOWN & MATH RENDERER (v2.9.1)
+ * 💎 JEMER ACADEMY STARTUP ECOSYSTEM — PREMIUM MARKDOWN & MATH RENDERER (v2.10.0)
  * ================================================================================================
  * Location: src/jemer-components/ui/markdown-renderer.jsx
  * Dependencies Required: npm install katex prismjs
@@ -21,13 +39,33 @@ import "prismjs/themes/prism-tomorrow.css"; // Imports the dark syntax theme for
 // import "prismjs/components/prism-python"; import "prismjs/components/prism-go";
 
 /**
+ * 🚀 NEW: Strips/normalizes Unicode characters KaTeX's default fonts have no glyph metrics for —
+ * en/em dash and the true minus sign become a plain hyphen, curly quotes become straight ones, and
+ * common currency symbols become their `\text{...}` equivalent so they render as real upright text
+ * instead of a missing-glyph box. Shared by InlineMath and BlockMath below.
+ */
+const sanitizeMathUnicode = (math) => {
+  if (!math) return math;
+  return math
+    .replace(/[\u2013\u2014\u2212]/g, '-')   // – — − (en/em dash, true minus) → hyphen-minus
+    .replace(/[\u2018\u2019]/g, "'")          // curly single quotes
+    .replace(/[\u201C\u201D]/g, '"')          // curly double quotes
+    .replace(/\u00A0/g, ' ')                  // non-breaking space
+    .replace(/\u20A6/g, '\\text{NGN}')        // ₦ Naira
+    .replace(/\u20B5/g, '\\text{GHS}')        // ₵ Cedi
+    .replace(/\u20B9/g, '\\text{INR}')        // ₹ Rupee
+    .replace(/\u00A3/g, '\\text{GBP}')        // £ Pound
+    .replace(/\u20AC/g, '\\text{EUR}');       // € Euro
+};
+
+/**
  * ── SUB-COMPONENT 1: THE INLINE MATH RENDERER ──
  * Renders algebraic strings (e.g. $E=mc^2$) wrapped directly inside standard paragraph text.
  */
 const InlineMath = ({ math }) => {
   const html = useMemo(() => {
     try {
-      return katex.renderToString(math, { displayMode: false, throwOnError: false });
+      return katex.renderToString(sanitizeMathUnicode(math), { displayMode: false, throwOnError: false, strict: false });
     } catch (e) {
       return `<span class="text-red-500 font-mono">${math}</span>`;
     }
@@ -43,7 +81,7 @@ const InlineMath = ({ math }) => {
 const BlockMath = ({ math }) => {
   const html = useMemo(() => {
     try {
-      return katex.renderToString(math, { displayMode: true, throwOnError: false });
+      return katex.renderToString(sanitizeMathUnicode(math), { displayMode: true, throwOnError: false, strict: false });
     } catch (e) {
       return `<span class="text-red-500 font-mono">Math Error: ${e.message}</span>`;
     }
@@ -123,7 +161,10 @@ const parseInlineText = (text) => {
 
   // 2. Pass 2: Extract $...$ securely without triggering on currency
   // Matches tightly packed math but enforces non-space boundaries to avoid swallowing "I have $10 and $20"
-  processed = processed.replace(/\$([^\s$][^$]*?[^\s$]\vert{}[^\s$])\$/g, (match, math) => {
+  // 🚀 FIXED: this previously contained a stray `\vert{}` (a vertical-tab escape + literal "ert{}"
+  // text) which made the pattern essentially never match real content. Rewritten to the equivalent,
+  // working regex — same non-space-boundary guard, minus the dead token.
+  processed = processed.replace(/\$([^\s$](?:[^$]*?[^\s$])?)\$/g, (match, math) => {
     // Anti-Eviction Currency Guard: If it's purely numbers, commas, or decimals (e.g. $100.00), ignore it
     if (/^[\d.,]+$/.test(math.trim())) return match;
     const id = `__INLINE_MATH_${counter++}__`;

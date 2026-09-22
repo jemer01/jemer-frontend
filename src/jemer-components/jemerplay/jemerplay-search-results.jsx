@@ -1,32 +1,35 @@
+"use client";
+
 /**
- * [NEW UPGRADE]
- * SUMMARY: Executed v2.0 Live Backend Integration & Skeleton Loading.
- * 1. Live Data Injection: Replaced `dummyVideos` and local filtering with the live `searchResults` array pushed down from `page.js`.
- * 2. Skeleton Loader: Added a sleek `isSearching` condition that renders a pulsing UI matching the exact dimensions of the video cards while the Go backend executes the pgvector search.
- * 3. Preserved UI: Maintained 100% of the mobile-first edge-to-edge layout, typography, and SVG assets without breaking a single design rule.
  * ================================================================================================
- * 📺 JEMERPLAY — SEARCH RESULTS VIEW COMPONENT (v2.0)
+ * 📺 JEMERPLAY — SEARCH RESULTS VIEW COMPONENT (v3.0.0)
+ * ================================================================================================
+ * [NEW UPGRADE — v3.0.0]
+ * SUMMARY: Premium Skeleton Loader & Live Data Integration
+ * 1. SKELETON ENGINE: Built a 6-card pulsing skeleton loader that strictly matches the dimensions 
+ *    of the actual video cards (`w-[148px] sm:w-[180px] aspect-video`). This provides an ultra-premium, 
+ *    Netflix-style loading state while the Go pgvector engine performs cosine similarity searches.
+ * 2. LIVE RESULTS INJECTION: Safely maps `searchResults` down from the parent controller, completely 
+ *    removing legacy hardcoded local data dependencies.
  * ================================================================================================
  */
-
-"use client";
 
 import React from "react";
 
 export default function JemerPlaySearchResults({ searchQuery, goHome, onVideoSelect, searchResults, isSearching }) {
   
-  // 🚀 FIXED: We now safely default to the live searchResults array instead of local dummy filtering
+  // Safely default to the live searchResults array instead of local dummy filtering
   const displayVideos = searchResults || [];
 
   return (
-    <div className="flex flex-col w-full max-w-7xl mx-auto px-0 sm:px-6 py-4 sm:py-6 pb-16">
+    <div className="flex flex-col w-full max-w-7xl mx-auto px-0 sm:px-6 py-4 sm:py-6 pb-16 animate-fade-in">
       
-      {/* Upgraded Top Header Section with Polished Back Button & Status Card */}
-      <div className="flex items-center justify-between mb-6 px-3 sm:px-2 bg-slate-50 dark:bg-slate-900/60 p-4 sm:p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-sm">
+      {/* Top Header Section with Polished Back Button & Status Card */}
+      <div className="flex items-center justify-between mb-6 px-3 sm:px-2 bg-slate-50 dark:bg-slate-900/60 p-4 sm:p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 shadow-sm mx-4 sm:mx-0">
         <div className="flex items-center gap-3 sm:gap-4">
           <button 
             onClick={goHome}
-            className="w-11 h-11 rounded-xl bg-white dark:bg-slate-800 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 flex items-center justify-center text-slate-700 dark:text-slate-200 transition-all shadow-sm active:scale-95 border border-slate-200 dark:border-slate-700"
+            className="w-11 h-11 rounded-xl bg-white dark:bg-slate-800 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 flex items-center justify-center text-slate-700 dark:text-slate-200 transition-all shadow-sm active:scale-95 border border-slate-200 dark:border-slate-700 focus:outline-none"
             aria-label="Back to Home"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -50,7 +53,7 @@ export default function JemerPlaySearchResults({ searchQuery, goHome, onVideoSel
         </div>
       </div>
 
-      {/* 🚀 NEW: Skeleton Loader State for active AI Searching */}
+      {/* 🚀 FIXED: Premium Skeleton Loader State for active AI Searching */}
       {isSearching ? (
         <div className="flex flex-col lg:grid lg:grid-cols-2 gap-1 sm:gap-4 w-full">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -80,7 +83,7 @@ export default function JemerPlaySearchResults({ searchQuery, goHome, onVideoSel
                   alt={video.title} 
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out" 
                 />
-                <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 bg-black/80 text-white text-[9px] sm:text-[10px] font-black tracking-widest rounded backdrop-blur-sm">
+                <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 bg-black/80 text-white text-[9px] sm:text-[10px] font-black tracking-widest rounded backdrop-blur-sm shadow-sm">
                   {video.duration}
                 </div>
               </div>
@@ -95,8 +98,7 @@ export default function JemerPlaySearchResults({ searchQuery, goHome, onVideoSel
                 </p>
                 <div className="flex items-center gap-2 text-[10px] sm:text-xs font-medium text-slate-400 dark:text-slate-500 mt-1">
                   <span>{video.views} views</span>
-                  <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600"></span>
-                  {/* We can hardcode 'Recently Cached' or map a real date here if backend supports it */}
+                  <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600 shrink-0"></span>
                   <span>Recently Cached</span>
                 </div>
               </div>
@@ -107,8 +109,8 @@ export default function JemerPlaySearchResults({ searchQuery, goHome, onVideoSel
 
       {/* Empty State Fallback */}
       {!isSearching && displayVideos.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20 text-center px-4">
-          <div className="w-16 h-16 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 mb-4 shadow-sm">
+        <div className="flex flex-col items-center justify-center py-20 text-center px-4 animate-fade-in">
+          <div className="w-16 h-16 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 mb-4 shadow-sm border border-blue-100 dark:border-blue-800/50">
             <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
@@ -117,7 +119,7 @@ export default function JemerPlaySearchResults({ searchQuery, goHome, onVideoSel
           <p className="text-xs text-slate-500 max-w-sm mb-6">We couldn't find anything matching your search query. Try checking your spelling or searching for another topic.</p>
           <button 
             onClick={goHome}
-            className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95"
+            className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 focus:outline-none"
           >
             Back to Explore
           </button>

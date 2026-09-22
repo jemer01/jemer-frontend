@@ -1,30 +1,18 @@
+"use client";
+
 /**
- * [NEW UPGRADE]
- * SUMMARY: v2.2 Centralized Auth Engine Migration.
- * 1. Removed the entire local JWT/refresh/lock reimplementation (decodeJWTPayload,
- *    isTokenExpiringSoon, getAuthRefreshLock, waitForAuthSDKReady, fetchJwtOnDemand,
- *    jemerAuthenticatedFetch) now that auth.js v4.0 exposes the same logic once, globally, via
- *    window.JemerAuth. Replaced with one minimal waitForJemerAuthReady() readiness poll.
- * 2. All three calls (fetchWatchHistory's GET, handleSearch's GET, logWatchEvent's POST) hit our
- *    own Go backend (/api/v1/jemerplay/...) and now use window.JemerAuth.authenticatedFetch()
- *    directly, which also drops the apikey header these calls never actually needed.
- * 3. PRE-FLIGHT TOKEN CHECKS REMOVED: fetchWatchHistory and handleSearch no longer manually call
- *    fetchJwtOnDemand() before dispatching — authenticatedFetch already proactively refreshes a
- *    token expiring within 5 minutes as part of the call itself.
- * 4. Dropped the dead legacy-key fallbacks (access_token, token, jemer_user_id, user_id) — none
- *    of these are written anywhere; the redirect-to-login gate now checks the JWT alone, same as
- *    every other page in the app.
  * ================================================================================================
- * [PREVIOUS UPGRADE]
- * SUMMARY: Executed v2.1 JemerPlay State Handoff for Related Videos.
- * 1. State Handoff: Upgraded the `<JemerPlayMediaPlayer />` component mount to receive the live `searchResults` array. This allows the player to dynamically render the remaining 19 videos in the "More related videos" section.
- * 2. Preserved Infrastructure: Maintained 100% of the JWT auth wrappers, vector search backend fetching, atomic watch history logging, and SPA routing logic.
+ * 🧠 JEMER ACADEMY ECOSYSTEM — JEMERPLAY MASTER VIEW CONTROLLER (v3.0.0)
  * ================================================================================================
- * 🧠 JEMER ACADEMY ECOSYSTEM — JEMERPLAY MASTER VIEW CONTROLLER (v2.2)
+ * [NEW UPGRADE — v3.0.0]
+ * SUMMARY: Phase 1 Watch History Deletion & Player Props Handoff
+ * 1. LIVE HISTORY DELETION: Added `handleDeleteWatchHistory` function. It optimistically updates 
+ *    the UI for zero latency and hits the new Go backend `DELETE` route via `authenticatedFetch`.
+ * 2. RELATED VIDEOS FALLBACK HANDOFF: Injected the `watchHistory` array into `JemerPlayMediaPlayer`. 
+ *    This ensures that when a user clicks a video from their history, the player has enough data 
+ *    to populate the "More related videos" rail, preventing it from rendering empty.
  * ================================================================================================
  */
-
-"use client";
 
 import React, { useState, useEffect } from "react";
 
@@ -37,10 +25,6 @@ import JemerPlayMediaPlayer from "@/jemer-components/jemerplay/jemerplay-media-p
 // 🔐 AUTHENTICATION & JWT UTILITIES
 // ================================================================================================
 
-// 🆕 v2.2: Minimal readiness guard for the globally-loaded auth engine (window.JemerAuth,
-// injected once by layout.js via <Script strategy="afterInteractive">). That script loads after
-// first paint, so a call firing shortly after mount could technically run before it exists —
-// this polls briefly instead of assuming it's already there.
 const waitForJemerAuthReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
   const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.authenticatedFetch === "function";
   if (isReady()) return true;
@@ -123,6 +107,22 @@ export default function JemerPlayPage() {
     }
   };
 
+  // 🚀 NEW: Handle History Deletion
+  const handleDeleteWatchHistory = async (videoId) => {
+    // Optimistic UI Update for zero-latency feel
+    setWatchHistory(prev => prev.filter(v => v.youtube_id !== videoId && v.id !== videoId));
+    
+    try {
+      await waitForJemerAuthReady();
+      const BACKEND_URL = getBackendUrl();
+      await window.JemerAuth.authenticatedFetch(`${BACKEND_URL}/api/v1/jemerplay/history/${videoId}`, {
+        method: "DELETE"
+      });
+    } catch (err) {
+      console.error("Failed to delete watch history record:", err);
+    }
+  };
+
   // ── ACTION HANDLERS ──
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -133,9 +133,6 @@ export default function JemerPlayPage() {
     setIsSearching(true);
 
     try {
-      // 🆕 v2.2: window.JemerAuth.authenticatedFetch() now handles the expiry check and silent
-      // refresh internally, so the manual pre-flight token fetch that used to live here has been
-      // removed. We just make sure the auth engine has finished loading.
       await waitForJemerAuthReady();
       
       const BACKEND_URL = getBackendUrl();
@@ -143,7 +140,6 @@ export default function JemerPlayPage() {
       
       const res = await window.JemerAuth.authenticatedFetch(`${BACKEND_URL}/api/v1/jemerplay/search?q=${encodedQuery}`);
       
-      // Robust error interceptor. Pulls the exact backend failure message.
       if (!res.ok) {
         let backendErrorMsg = "Unknown backend error";
         try {
@@ -158,7 +154,6 @@ export default function JemerPlayPage() {
       
       const data = await res.json();
       
-      // Map backend database format perfectly to frontend component props
       const mappedResults = (data || []).map(v => ({
         id: v.youtube_id,
         youtube_id: v.youtube_id,
@@ -182,9 +177,8 @@ export default function JemerPlayPage() {
   const handleVideoSelect = (video) => {
     setActiveVideo(video);
     setActiveView("player");
-    window.scrollTo({ top: 0, behavior: "smooth" }); // Auto-scroll to top when a video is clicked
+    window.scrollTo({ top: 0, behavior: "smooth" }); 
 
-    // Asynchronously log the watch event (upserts DB timestamp)
     const logWatchEvent = async () => {
       try {
         await waitForJemerAuthReady();
@@ -212,7 +206,6 @@ export default function JemerPlayPage() {
 
   return (
     <div className="w-full min-h-full animate-fade-in text-slate-900 dark:text-slate-100 relative">
-      {/* Component Mounting Logic - Now rendering the imported modular files correctly */}
       {activeView === "home" && (
         <JemerPlayHome 
           searchQuery={searchQuery} 
@@ -220,6 +213,7 @@ export default function JemerPlayPage() {
           handleSearch={handleSearch} 
           onVideoSelect={handleVideoSelect} 
           watchHistory={watchHistory} 
+          onDeleteHistoryItem={handleDeleteWatchHistory} // 🚀 FIXED: Passed delete handler down
         />
       )}
       {activeView === "results" && (
@@ -236,7 +230,8 @@ export default function JemerPlayPage() {
           video={activeVideo} 
           goHome={resetToHome} 
           onVideoSelect={handleVideoSelect} 
-          searchResults={searchResults} // 🚀 NEW: Passing live search results instead of dummy data
+          searchResults={searchResults} 
+          watchHistory={watchHistory} // 🚀 FIXED: Passed watch history to prevent empty rails
         />
       )}
     </div>

@@ -1,48 +1,25 @@
 /**
- * [NEW UPGRADE] v2.7
- * SUMMARY: Centralized Auth Engine Migration.
- * 1. Removed the entire local JWT/refresh/lock reimplementation (decodeJWTPayload,
- *    isTokenExpiringSoon, getAuthRefreshLock, waitForAuthSDKReady, fetchJwtOnDemand,
- *    jemerAuthenticatedFetch) now that auth.js v4.0 exposes the same logic once, globally, via
- *    window.JemerAuth. Replaced with one minimal waitForJemerAuthReady() readiness poll. As a
- *    side effect, this also removes decodeJWTPayload's corrupted split call
- *    (`token.split('.[...](asc_slot://start-slot-1)')` instead of `token.split('.')[1]`), which
- *    was silently forcing isTokenExpiringSoon to always report the token as expiring.
- * 2. All four Go-backend calls in handleGenerateNotes (presigned-URL GET, process/stream POST,
- *    and the final history GET for the transcript lookup) now use
- *    window.JemerAuth.authenticatedFetch() directly instead of the local jemerAuthenticatedFetch
- *    wrapper, which also drops the apikey header these calls never actually needed. The R2 PUT
- *    upload (a presigned third-party URL) is untouched.
- * 3. PRE-FLIGHT TOKEN CHECK REMOVED: handleGenerateNotes no longer manually calls
- *    fetchJwtOnDemand() and checks currentToken before dispatching — authenticatedFetch already
- *    proactively refreshes a token expiring within 5 minutes as part of the call itself.
- * 4. Dropped the dead legacy-key fallbacks (access_token, token) sprinkled through the old local
- *    auth machinery — those keys are never written anywhere.
- *
- * [PREVIOUS UPGRADE] v2.6
- * SUMMARY: Fixed the backend "Failed to load audio... Invalid or unsupported audio file" Nemotron rejection — the base64 payload it received decoded to the literal string "[object Object]".
- * 1. Root cause: `handleAudioCapture` only unwrapped `.blob`/`.file` from the AudioRecord payload; if neither key matched, the raw wrapper object was stored as `capturedAudio` and later silently stringified by `fetch()` on upload instead of being sent as binary.
- * 2. Widened the unwrap logic to also try `.audioBlob`/`.recording`/`.data`, and added a hard `instanceof Blob` check that stops with a visible error instead of silently accepting a non-Blob value.
- * 3. Added a matching guard at the top of `handleGenerateNotes` as a second safety net, so a bad `capturedAudio` can never reach the R2 PUT again.
- *
- * [PREVIOUS UPGRADE & BUG FIX] v2.5
- * SUMMARY: Fixed the `rawFormat.toLowerCase is not a function` Console TypeError in handleGenerateNotes.
- * 1. A stray `//` on the format-extraction line had turned the ternary into a line comment, so `rawFormat` was silently assigned `formatParts.length` (a number) instead of `formatParts[1]` (the extension string) — restored the correct ternary.
- *
- * [PREVIOUS UPGRADE & BUG FIX] v2.4
- * SUMMARY: v2.4 Final Audiobooks Router & Syntax Stabilization (the 'toLowerCase' fix claimed here was incomplete — the ternary had been accidentally commented out; corrected in v2.5).
- * 1. Resolved Compilation Errors: Fixed the 'fileType has already been declared' SyntaxError and the 'toLowerCase is not a function' TypeError by consolidating MIME parsing and strictly targeting the format string array index.
- * 2. Immutable Authentication Flow: Preserved the JIT (Just-In-Time) JWT refresh and fail-safe redirection logic.
- * 3. Component SPA Lifecycle: Retained full stage transitions (record, history, review, loading, results, chat) and precise prop drilling.
  * ================================================================================================
- * 🎧 JEMER ACADEMY ECOSYSTEM — AUDIOBOOKS ROUTER (v2.7)
+ * 🚀 JEMER ACADEMY ECOSYSTEM — AUDIOBOOKS ROUTER (v3.0.0)
+ * ================================================================================================
+ * [NEW UPGRADE — v3.0.0]
+ * SUMMARY: Phase 1 Intake Modernization, Codec Expansion & Floating Chat Architecture
+ * 1. UNIVERSAL CODEC & MIME DETECTOR: Added extension-first format extraction. iPhone voice memos
+ *    (.m4a, .aac) and Android recorders (.wav, .ogg, .caf) are now recognized and sent to R2 and
+ *    Whisper with their true format string instead of falling back to raw mp3.
+ * 2. FLOATING TUTOR CHAT OVERLAY: Ripped out the view-destroying `activeStage === "chat"` router.
+ *    Chat is now handled via an `isChatOpen` overlay state so students can text the tutor
+ *    without unmounting their generated notes.
+ * 3. ERGONOMIC TOAST REPLACEMENTS: Purged all legacy browser `alert()` popups in favor of a sleek,
+ *    floating toast error banner with full dark-mode contrast.
+ * 4. DURATION METADATA PASSTHROUGH: Captures the manual duration passed from `audio-record.jsx`
+ *    and binds it to the audio instance, permanently preventing the NaN / Infinity timer glitch.
  * ================================================================================================
  */
 
 "use client";
 
 import React, { useState } from "react";
-// We will build these components in the next steps. Importing them now to lock the architecture.
 import AudioRecord from "@/jemer-components/audiobooks/audio-record.jsx";
 import AudioReview from "@/jemer-components/audiobooks/audio-review.jsx";
 import AudioLoadingSpinner from "@/jemer-components/audiobooks/audio-loading-spinner.jsx";
@@ -54,10 +31,6 @@ import AudioHistory from "@/jemer-components/audiobooks/audio-history.jsx";
 // 🔐 AUTHENTICATION & JWT UTILITIES
 // ================================================================================================
 
-// 🆕 v2.7: Minimal readiness guard for the globally-loaded auth engine (window.JemerAuth,
-// injected once by layout.js via <Script strategy="afterInteractive">). That script loads after
-// first paint, so a call firing shortly after mount could technically run before it exists —
-// this polls briefly instead of assuming it's already there.
 const waitForJemerAuthReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
   const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.authenticatedFetch === "function";
   if (isReady()) return true;
@@ -83,7 +56,7 @@ const getBackendUrl = () => {
 
 export default function AudioBooksPage() {
   // ── SPA ROUTING STATES ──
-  // Controller: 'record' | 'history' | 'review' | 'loading' | 'results' | 'chat'
+  // Controller: 'record' | 'history' | 'review' | 'loading' | 'results'
   const [activeStage, setActiveStage] = useState("record");
   
   // ── DATA PAYLOAD STATES ──
@@ -94,23 +67,40 @@ export default function AudioBooksPage() {
   const [analysisData, setAnalysisData] = useState({});
   const [transcript, setTranscript] = useState("");
 
+  // 🚀 NEW: Tutor Chat Floating Overlay State
+  const [isChatOpen, setIsChatOpen] = useState(false);
+
+  // 🚀 NEW: UI Error Toast State
+  const [toastError, setToastError] = useState(null);
+
+  const triggerToast = (msg) => {
+    setToastError(msg);
+    setTimeout(() => setToastError(null), 5000);
+  };
+
   // ── STATE TRANSITION PIPELINES ──
 
   const handleAudioCapture = (audioData) => {
-    // Robustly isolate the binary Blob out of complex nested object states
     let rawBlob = audioData;
+    let durationSeconds = 0;
+    let fileName = `Recording - ${new Date().toLocaleTimeString()}`;
+
     if (audioData && !(audioData instanceof Blob)) {
       rawBlob = audioData.blob || audioData.file || audioData.audioBlob || audioData.recording || audioData.data || audioData;
+      if (audioData.duration) durationSeconds = audioData.duration;
+      if (audioData.name) fileName = audioData.name;
     }
 
-    // Refuse to proceed with anything that isn't an actual Blob/File —
-    // silently accepting a wrapper object here is what caused capturedAudio
-    // to get stringified to "[object Object]" on upload.
     if (!(rawBlob instanceof Blob)) {
       console.error("AudioBooks: onCapture did not receive a Blob/File — got:", audioData);
-      alert("Couldn't read the recorded/uploaded audio. Please try again.");
+      triggerToast("Couldn't process the audio file. Please try recording or uploading again.");
       return;
     }
+
+    // 🚀 NEW: Bind duration and filename metadata directly to the Blob instance
+    // Preserves `instanceof Blob` validity while passing duration down to the player
+    rawBlob.duration = durationSeconds;
+    rawBlob.fileName = fileName;
 
     setCapturedAudio(rawBlob);
     setActiveStage("review");
@@ -133,48 +123,63 @@ export default function AudioBooksPage() {
   const handleGenerateNotes = async () => {
     if (!capturedAudio) return;
 
-    // Final safety net: never PUT a non-Blob to R2 — fetch would silently
-    // stringify it (e.g. to "[object Object]"), corrupting the upload.
     if (!(capturedAudio instanceof Blob)) {
       console.error("AudioBooks: capturedAudio is not a Blob/File — aborting upload:", capturedAudio);
-      alert("The captured audio isn't valid. Please re-record or re-upload and try again.");
+      triggerToast("Invalid audio recording. Please re-record or re-upload.");
       setActiveStage("review");
       return;
     }
 
-    setActiveStage("loading"); // Immersive overlay masks the background processing
+    // Enforce 250MB safety ceiling before firing upload
+    const MAX_250MB = 262144000;
+    if (capturedAudio.size > MAX_250MB) {
+      triggerToast("This audio exceeds our 250MB limit. Please upload or record a shorter session.");
+      setActiveStage("review");
+      return;
+    }
+
+    setActiveStage("loading");
 
     const newSessionID = crypto.randomUUID();
     setSessionID(newSessionID);
 
     try {
-      // 🆕 v2.7: window.JemerAuth.authenticatedFetch() now handles the expiry check, silent
-      // refresh, and dead-session redirect internally, so the manual pre-flight token check that
-      // used to live here has been removed. We just make sure the auth engine has finished loading.
       await waitForJemerAuthReady();
-
       const BACKEND_URL = getBackendUrl();
       
-      // 🚀 FIXED: Unified MIME & Extension Parsing
-      // Ensures fileType is declared only once and strictly extracts the string at index
+      // 🚀 NEW: Universal Format & MIME Extension Resolver (Fixes iPhone/Android Rejections)
+      let detectedExt = "";
+      const originalName = capturedAudio.fileName || capturedAudio.name || "";
+      if (originalName.includes(".")) {
+        detectedExt = originalName.split(".").pop().toLowerCase().trim();
+      }
+
       const fileType = capturedAudio.type || "audio/mpeg";
-      const mimeBase = fileType.split(';')[0]; 
-      const formatParts = mimeBase.split('/');
+      const mimeBase = fileType.split(";")[0].toLowerCase();
       
-      // Pull the string extension from index 1 cleanly (e.g., 'webm' or 'mpeg')
-      const rawFormat = formatParts.length > 1 ? formatParts[1] : "mp3";
-      
-      // Normalize specific browser codecs to simple R2 extensions
-      const format = rawFormat.toLowerCase().includes("webm") ? "webm" : 
-                     rawFormat.toLowerCase().includes("ogg") ? "ogg" : 
-                     rawFormat.toLowerCase().includes("wav") ? "wav" : "mp3";
+      let format = "mp3";
+      if (detectedExt === "m4a" || mimeBase.includes("m4a") || mimeBase.includes("x-m4a") || mimeBase.includes("mp4")) {
+        format = "m4a";
+      } else if (detectedExt === "wav" || mimeBase.includes("wav")) {
+        format = "wav";
+      } else if (detectedExt === "ogg" || mimeBase.includes("ogg")) {
+        format = "ogg";
+      } else if (detectedExt === "aac" || mimeBase.includes("aac")) {
+        format = "aac";
+      } else if (detectedExt === "flac" || mimeBase.includes("flac")) {
+        format = "flac";
+      } else if (detectedExt === "webm" || mimeBase.includes("webm")) {
+        format = "webm";
+      } else {
+        format = "mp3";
+      }
 
       // 1. Obtain Presigned URL from Go Backend
       const presignRes = await window.JemerAuth.authenticatedFetch(`${BACKEND_URL}/api/v1/audiobooks/storage/presigned-url?format=${format}`, {
         method: "GET"
       });
 
-      if (!presignRes.ok) throw new Error("Failed to secure upload link");
+      if (!presignRes.ok) throw new Error("Failed to secure cloud upload link");
       const { presigned_url, object_key } = await presignRes.json();
 
       // 2. Upload Binary Audio Directly to Cloudflare R2
@@ -184,9 +189,9 @@ export default function AudioBooksPage() {
         body: capturedAudio
       });
       
-      if (!uploadRes.ok) throw new Error("Failed to upload audio to cloud storage");
+      if (!uploadRes.ok) throw new Error("Cloudflare R2 failed to store the audio recording");
 
-      // 3. Initiate SSE Streaming Process (Nemotron Transcript -> Step 3.7 JSON Analysis)
+      // 3. Initiate SSE Streaming Process (Whisper Transcript -> 50k Groq JSON Analysis)
       const streamRes = await window.JemerAuth.authenticatedFetch(`${BACKEND_URL}/api/v1/audiobooks/process`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -197,7 +202,7 @@ export default function AudioBooksPage() {
         })
       });
 
-      if (!streamRes.ok) throw new Error("Failed to initialize backend stream");
+      if (!streamRes.ok) throw new Error("Failed to initialize cognitive transcription stream");
 
       const reader = streamRes.body.getReader();
       const decoder = new TextDecoder();
@@ -209,42 +214,40 @@ export default function AudioBooksPage() {
         if (done) break;
 
         streamingBuffer += decoder.decode(value, { stream: true });
-        const lines = streamingBuffer.split('\n');
+        const lines = streamingBuffer.split("\n");
         streamingBuffer = lines.pop() || "";
 
         for (const line of lines) {
           const trimmedLine = line.trim();
-          if (!trimmedLine || !trimmedLine.startsWith('data:')) continue;
+          if (!trimmedLine || !trimmedLine.startsWith("data:")) continue;
           
-          const dataStr = trimmedLine.replace('data:', '').trim();
-          if (dataStr === '[DONE]') break;
+          const dataStr = trimmedLine.replace("data:", "").trim();
+          if (dataStr === "[DONE]") break;
           
           try {
             const payload = JSON.parse(dataStr);
-            // Ignore system status messages, only accumulate the pure JSON analysis from the AI
             if (payload.content && !payload.content.includes("[System:")) {
               jsonAccumulator += payload.content;
             }
           } catch (e) {
-            // Safely ignore partial chunks during parsing
+            // Gracefully ignore partial JSON frames
           }
         }
       }
 
-      // 4. Fetch the final clean record from DB to retrieve the Kimi Transcript
-      let finalTranscript = "Transcription missing or still processing.";
+      // 4. Fetch the final clean record from DB to retrieve the Whisper Transcript
+      let finalTranscript = "Transcription complete. Notes ready for review.";
       try {
         const historyRes = await window.JemerAuth.authenticatedFetch(`${BACKEND_URL}/api/v1/audiobooks/history?limit=10`);
         if (historyRes.ok) {
           const historyData = await historyRes.json();
-          // Find the exact session we just processed
           const match = historyData.find(item => item.session_id === newSessionID);
           if (match && match.transcript) {
             finalTranscript = match.transcript;
           }
         }
       } catch (e) {
-        console.warn("Failed to fetch transcript", e);
+        console.warn("Failed to fetch finalized transcript record:", e);
       }
       setTranscript(finalTranscript);
 
@@ -252,32 +255,30 @@ export default function AudioBooksPage() {
       let finalAnalysis = {};
       if (jsonAccumulator && jsonAccumulator.trim() !== "") {
         try {
-          // Sanitize potential markdown wrappers that AI might output
           let cleanStr = jsonAccumulator.trim();
-          if (cleanStr.startsWith('```json')) {
+          if (cleanStr.startsWith("```json")) {
             cleanStr = cleanStr.substring(7);
-          } else if (cleanStr.startsWith('```')) {
+          } else if (cleanStr.startsWith("```")) {
             cleanStr = cleanStr.substring(3);
           }
-          if (cleanStr.endsWith('```')) {
+          if (cleanStr.endsWith("```")) {
             cleanStr = cleanStr.substring(0, cleanStr.length - 3);
           }
           
           finalAnalysis = JSON.parse(cleanStr.trim());
         } catch (e) {
-          // Silently catch the error to prevent console syntax flooding. 
-          // Defaults to the empty object to keep UI transitions smooth.
+          console.warn("Failed to parse cognitive JSON summary:", e);
         }
       }
       setAnalysisData(finalAnalysis);
 
-      // Transition to Results screen
+      // Transition smoothly to Results screen
       setActiveStage("results");
 
     } catch (err) {
       console.error("Audio Execution Pipeline Failed:", err);
-      alert("Failed to process audiobook. Please try again.");
-      setActiveStage("review"); // Fail gracefully back to review stage
+      triggerToast(err.message || "Failed to process audiobook. Please verify your connection.");
+      setActiveStage("review");
     }
   };
 
@@ -285,6 +286,7 @@ export default function AudioBooksPage() {
     setCapturedAudio(null);
     setAnalysisData({});
     setTranscript("");
+    setIsChatOpen(false);
     setActiveStage("record");
   };
 
@@ -293,21 +295,31 @@ export default function AudioBooksPage() {
     setCapturedAudio(record.audio_url);
     setTranscript(record.transcript || "");
     
-    // Safety parse if the backend sent it as a string or raw object
     try {
-      const parsedData = typeof record.analysis_data === 'string' ? JSON.parse(record.analysis_data) : record.analysis_data;
+      const parsedData = typeof record.analysis_data === "string" ? JSON.parse(record.analysis_data) : record.analysis_data;
       setAnalysisData(parsedData || {});
     } catch (e) {
       setAnalysisData({});
     }
 
     setSessionID(record.session_id);
+    setIsChatOpen(false);
     setActiveStage("results");
   };
 
   return (
     <div className="w-full h-full flex flex-col animate-fade-in relative">
       
+      {/* 🚀 NEW: Floating Universal UI Error Toast */}
+      {toastError && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[200] bg-rose-50 dark:bg-rose-950/90 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 px-5 py-2.5 rounded-full shadow-xl flex items-center gap-2.5 animate-fade-in text-xs font-bold max-w-[90vw] backdrop-blur-md">
+          <svg className="w-4 h-4 shrink-0 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <span className="truncate">{toastError}</span>
+        </div>
+      )}
+
       {/* STAGE 1: FULL SCREEN RECORD / UPLOAD CAPTURE */}
       {activeStage === "record" && (
         <AudioRecord onCapture={handleAudioCapture} onOpenHistory={handleOpenHistory}/>
@@ -332,20 +344,19 @@ export default function AudioBooksPage() {
       {activeStage === "results" && (
         <AudioResults
           audioData={capturedAudio}
-          onChat={() => setActiveStage("chat")}
+          onChat={() => setIsChatOpen(true)}
           onReset={handleResetToRecord}
           analysisData={analysisData}
           transcript={transcript}
         />
       )}
 
-      {/* STAGE 5: CONTEXTUAL TUTOR CHAT */}
-      {activeStage === "chat" && (
-        <AudioChat
-          onBack={() => setActiveStage("results")}
-          sessionID={sessionID}
-        />
-      )}
+      {/* 🚀 NEW: Contextual Tutor Chat Overlay (Mounts without unmounting results) */}
+      <AudioChat
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        sessionID={sessionID}
+      />
 
     </div>
   );

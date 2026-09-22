@@ -1,12 +1,18 @@
 /**
- * [NEW] 
- * SUMMARY: Phase 1 UI/UX Recording Engine Upgrade
- * 1. Animation Bug Fix: The waveform jump issue was caused by `Math.random()` re-rendering every 1 second when the timer ticked. Replaced with a `useMemo` block so the bars are generated once and animate purely via smooth CSS transitions.
- * 2. 500MB Size Limit UI: Updated strict byte logic to `523239424` (499MB). Replaced `alert()` with a stunning custom CSS overlay modal.
- * 3. Live Record Auto-Stop Logic: Tracks byte size actively during recording via `ondataavailable`. If it hits 499MB, it stops automatically, saves the audio, and shows the modal beautifully.
- * 4. Strict Logic Preservation: Maintained media recorder flow, refs, and cleanup processes.
  * ================================================================================================
- * 🎙️ JEMER ACADEMY DESIGN SYSTEM — AUDIO RECORD ENGINE (v3.0)
+ * 🎙️ JEMER ACADEMY DESIGN SYSTEM — AUDIO RECORD ENGINE (v4.0.0)
+ * ================================================================================================
+ * [NEW UPGRADE — v4.0.0]
+ * SUMMARY: 250MB Production Threshold, NaN Duration Eraser & Universal Format Picker
+ * 1. 250MB STRICT CEILING: Updated byte limit from 499MB down to exactly 262,144,000 bytes (250MB) 
+ *    for both manual device uploads and real-time live recording auto-stops.
+ * 2. UNIVERSAL MOBILE FILE PICKER: Broadened file input `accept` to explicitly support 
+ *    iPhone voice memos (.m4a, .aac) and Android recorders (.wav, .ogg, .caf, .webm, .flac).
+ * 3. NAN / INFINITY DURATION ELIMINATION: Emits the manual elapsed `recordingTime` directly into 
+ *    the `onCapture` payload (`duration: recordingTime`). The downstream review player now has the 
+ *    exact duration in seconds, completely bypassing browser WebM blob timestamp omissions.
+ * 4. UPLOAD DURATION RECOVERY: Non-blocking off-screen audio metadata inspector calculates 
+ *    duration for uploaded audio files, passing it forward cleanly.
  * ================================================================================================
  */
 
@@ -24,7 +30,7 @@ export default function AudioRecord({ onCapture, onOpenHistory }) {
   const [isPaused, setIsPaused] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   
-  // 🚀 [NEW] Custom Modal State for Error Handling
+  // Custom Modal State for Error Handling
   const [sizeErrorModal, setSizeErrorModal] = useState({ isOpen: false, title: "", message: "" });
   
   // ==========================================
@@ -37,23 +43,21 @@ export default function AudioRecord({ onCapture, onOpenHistory }) {
   const timerIntervalRef = useRef(null);
   const streamRef = useRef(null);
   
-  // 🚀 [NEW] Real-time Byte Tracker
   const currentBytesRef = useRef(0);
   const limitTriggeredRef = useRef(false);
 
-  // 499MB Strict Guard Limit in Bytes
-  const MAX_FILE_SIZE_BYTES = 523239424; 
+  // 🚀 FIXED: 250MB Strict Guard Limit in Bytes (250 * 1024 * 1024)
+  const MAX_FILE_SIZE_BYTES = 262144000; 
 
   // ==========================================
-  // 🚀 [NEW] UI WAVEFORM MEMOIZATION
-  // Fixes the issue where bars changed size every second on re-render
+  // UI WAVEFORM MEMOIZATION
   // ==========================================
   const waveBars = useMemo(() => {
     return Array.from({ length: 25 }).map(() => ({
       height: 20 + Math.random() * 80,
       delay: Math.random() * 1.2
     }));
-  }, []); // Empty dependency array means this only computes once per mount
+  }, []);
 
   // ==========================================
   // SIDE EFFECTS
@@ -99,16 +103,15 @@ export default function AudioRecord({ onCapture, onOpenHistory }) {
           audioChunksRef.current.push(e.data);
           currentBytesRef.current += e.data.size;
 
-          // 🚀 [NEW] Real-Time Auto-Stop Logic if Limit is Reached
+          // 🚀 Real-Time 250MB Auto-Stop Logic
           if (currentBytesRef.current > MAX_FILE_SIZE_BYTES && !limitTriggeredRef.current) {
              limitTriggeredRef.current = true;
              setSizeErrorModal({
                isOpen: true,
-               title: "Storage Limit Reached",
-               message: "You've hit the 500MB max capacity. We automatically stopped and saved the recording up to this point."
+               title: "250MB Limit Reached",
+               message: "You've reached our 250MB maximum recording capacity. We automatically secured and saved your audio up to this point."
              });
              
-             // Stopping it will automatically trigger the onstop event which handles the saving
              if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
                mediaRecorderRef.current.stop();
                setIsRecording(false);
@@ -119,19 +122,26 @@ export default function AudioRecord({ onCapture, onOpenHistory }) {
 
       mediaRecorderRef.current.onstop = () => {
         if (audioChunksRef.current.length > 0) {
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
           
-          // Double check block for manual stop edge cases. We do NOT discard it, we process it.
           if (audioBlob.size > MAX_FILE_SIZE_BYTES && !limitTriggeredRef.current) {
             setSizeErrorModal({
                isOpen: true,
-               title: "Recording Ended",
-               message: "Recording reached the 500MB max limit and has been saved."
+               title: "Recording Saved",
+               message: "Recording reached the 250MB max limit and has been preserved for review."
             });
           }
 
           const audioUrl = URL.createObjectURL(audioBlob);
-          onCapture({ blob: audioBlob, url: audioUrl, name: `Live Recording - ${new Date().toLocaleTimeString()}`, size: audioBlob.size });
+
+          // 🚀 NEW: Passes `duration: recordingTime` to erase the NaN/Infinity player bug
+          onCapture({ 
+            blob: audioBlob, 
+            url: audioUrl, 
+            name: `Live Recording - ${new Date().toLocaleTimeString()}`, 
+            size: audioBlob.size,
+            duration: recordingTime 
+          });
         }
         
         if (streamRef.current) {
@@ -142,13 +152,13 @@ export default function AudioRecord({ onCapture, onOpenHistory }) {
         setIsPaused(false);
       };
 
-      mediaRecorderRef.current.start(1000); // 🚀 [NEW] Capture data every 1 second to enforce accurate real-time limit checking
+      mediaRecorderRef.current.start(1000);
       
       setIsRecording(true);
       setIsPaused(false);
     } catch (err) {
       console.error("[AUDIO HARDWARE FAULT] Microphone access denied:", err);
-      alert("Please allow microphone permissions to record audio.");
+      alert("Please allow microphone permissions to record audio notes.");
     }
   };
 
@@ -187,21 +197,46 @@ export default function AudioRecord({ onCapture, onOpenHistory }) {
     const file = e.target.files[0];
     if (!file) return;
 
-    // 🚀 [NEW] Beautiful CSS Modal trigger instead of ugly alert
+    // 🚀 FIXED: Strict 250MB Limit Validation
     if (file.size > MAX_FILE_SIZE_BYTES) {
       setSizeErrorModal({
          isOpen: true,
-         title: "File Too Large",
-         message: "The selected file exceeds the 500MB limit. Please select a smaller audio file to continue."
+         title: "File Exceeds 250MB",
+         message: "The selected audio file is larger than our 250MB capacity. Please select a compressed file or a shorter lecture."
       });
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
 
     const audioUrl = URL.createObjectURL(file);
-    onCapture({ blob: file, url: audioUrl, name: file.name, size: file.size });
-    
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    const tempAudio = new Audio(audioUrl);
+    let dispatched = false;
+
+    // Non-blocking metadata duration extraction for uploaded files
+    const dispatchCapture = (dur = 0) => {
+      if (dispatched) return;
+      dispatched = true;
+      onCapture({ 
+        blob: file, 
+        url: audioUrl, 
+        name: file.name, 
+        size: file.size, 
+        duration: isFinite(dur) ? dur : 0 
+      });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    };
+
+    tempAudio.onloadedmetadata = () => {
+      dispatchCapture(tempAudio.duration);
+    };
+
+    tempAudio.onerror = () => {
+      dispatchCapture(0);
+    };
+
+    setTimeout(() => {
+      dispatchCapture(0);
+    }, 450);
   };
 
   // ==========================================
@@ -209,7 +244,7 @@ export default function AudioRecord({ onCapture, onOpenHistory }) {
   // ==========================================
   
   return (
-    <div className="w-full min-h-[calc(100vh-80px)] flex flex-col justify-between items-center relative animate-fade-in p-6 lg:p-12">
+    <div className="w-full min-h-[calc(100vh-80px)] flex flex-col justify-between items-center relative animate-fade-in p-6 lg:p-12 select-none">
       
       {/* 🚀 CSS INJECTION */}
       <style dangerouslySetInnerHTML={{__html: `
@@ -229,8 +264,6 @@ export default function AudioRecord({ onCapture, onOpenHistory }) {
           0%, 100% { transform: scale(0.95); opacity: 0.7; }
           50% { transform: scale(1.1); opacity: 1; }
         }
-        
-        /* 🚀 [NEW] Smoother Fluid Wave Animation */
         @keyframes fluid-wave-pulse {
           0%, 100% { transform: scaleY(0.4); opacity: 0.6; }
           50% { transform: scaleY(1); opacity: 1; }
@@ -246,16 +279,15 @@ export default function AudioRecord({ onCapture, onOpenHistory }) {
           border-radius: 99px;
           background: linear-gradient(to top, #6366f1, #a855f7, #ec4899);
           transform-origin: center;
-          /* Apply smooth ease-in-out for fluid equalizer feel */
           animation: fluid-wave-pulse 1.4s ease-in-out infinite;
           transition: height 0.3s ease;
         }
         @media (min-width: 640px) { .wave-line { width: 5px; } }
       `}} />
 
-      {/* 🚀 [NEW] CUSTOM CSS OVERLAY MODAL */}
+      {/* 🚀 CUSTOM CSS OVERLAY MODAL */}
       {sizeErrorModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center relative transform transition-all animate-scale-in">
             <div className="w-16 h-16 bg-red-50 dark:bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-5">
               <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-red-500"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -268,7 +300,7 @@ export default function AudioRecord({ onCapture, onOpenHistory }) {
               onClick={() => setSizeErrorModal({ isOpen: false, title: "", message: "" })}
               className="w-full py-3.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold uppercase tracking-wider text-xs active:scale-95 transition-transform"
             >
-              Got it
+              Understood
             </button>
           </div>
         </div>
@@ -280,19 +312,19 @@ export default function AudioRecord({ onCapture, onOpenHistory }) {
           <>
             <h2 className="text-sm sm:text-base font-bold text-slate-500 dark:text-slate-400 tracking-wide mb-2 flex items-center justify-center gap-2">
               <span className={`w-2.5 h-2.5 rounded-full shadow-sm ${isPaused ? "bg-amber-500" : "bg-red-500 animate-pulse shadow-red-500/50"}`}></span>
-              {isPaused ? "Recording Paused" : "Capturing your audio..."}
+              {isPaused ? "Recording Paused" : "Capturing lecture audio..."}
             </h2>
             <p className="text-lg sm:text-xl font-display font-medium text-slate-800 dark:text-white leading-snug transition-colors">
-              Speak clearly into your microphone
+              Speak naturally into your device
             </p>
           </>
         ) : (
           <>
             <h2 className="text-sm sm:text-base font-bold text-slate-500 dark:text-slate-400 tracking-wide mb-2">
-              Ready to capture your voice?
+              Transform Voice to Study Notes
             </h2>
             <p className="text-lg sm:text-xl font-display font-medium text-slate-800 dark:text-white leading-snug transition-colors">
-              Upload a file or start recording instantly.
+              Record live or upload your audio up to 250MB.
             </p>
           </>
         )}
@@ -312,7 +344,6 @@ export default function AudioRecord({ onCapture, onOpenHistory }) {
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center w-full">
-            {/* 🚀 [NEW] Stable, Memoized Waveform Visualizer */}
             <div className="flex items-center justify-center gap-1.5 sm:gap-2 h-32 sm:h-40 w-full mb-8">
               {waveBars.map((bar, i) => (
                   <div 
@@ -340,8 +371,15 @@ export default function AudioRecord({ onCapture, onOpenHistory }) {
         
         {!isRecording ? (
           <>
+            {/* 🚀 FIXED: Universal File Picker (Allows iPhone .m4a, Android .aac, .wav, .ogg, etc.) */}
             <label className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex items-center justify-center text-slate-600 dark:text-slate-300 cursor-pointer hover:border-indigo-400 hover:text-indigo-500 transition-all active:scale-95 group">
-              <input type="file" ref={fileInputRef} accept="audio/*" className="hidden" onChange={handleFileUpload} />
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                accept="audio/*,video/*,.m4a,.aac,.wav,.ogg,.mp3,.mp4,.webm,.flac" 
+                className="hidden" 
+                onChange={handleFileUpload} 
+              />
               <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover:-translate-y-1 transition-transform"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
             </label>
 
@@ -368,20 +406,20 @@ export default function AudioRecord({ onCapture, onOpenHistory }) {
           </>
         ) : (
           <>
-           <div className="flex flex-col items-center gap-3">
-  <button 
-    onClick={cancelRecording}
-    className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center text-slate-600 dark:text-slate-300 hover:text-red-500 hover:border-red-500 hover:bg-red-500/10 transition-all active:scale-95"
-  >
-    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="3 6 5 6 21 6"></polyline>
-      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-      <line x1="10" y1="11" x2="10" y2="17"></line>
-      <line x1="14" y1="11" x2="14" y2="17"></line>
-    </svg>
-  </button>
-  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Trash</span>
-</div>
+            <div className="flex flex-col items-center gap-3">
+              <button 
+                onClick={cancelRecording}
+                className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center text-slate-600 dark:text-slate-300 hover:text-red-500 hover:border-red-500 hover:bg-red-500/10 transition-all active:scale-95"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  <line x1="10" y1="11" x2="10" y2="17"></line>
+                  <line x1="14" y1="11" x2="14" y2="17"></line>
+                </svg>
+              </button>
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Trash</span>
+            </div>
 
             <div className="flex flex-col items-center gap-3">
               <button

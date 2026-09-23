@@ -1,34 +1,20 @@
+"use client";
+
 /**
- * [NEW UPGRADE]
- * SUMMARY: v3.3 Centralized Auth Engine Migration.
- * 1. Removed the entire local JWT/refresh/lock reimplementation (decodeJWTPayload,
- *    isTokenExpiringSoon, getAuthRefreshLock, waitForAuthSDKReady, fetchJwtOnDemand,
- *    jemerAuthenticatedFetch) now that auth.js v4.0 exposes the same logic once, globally, via
- *    window.JemerAuth. Replaced with one minimal waitForJemerAuthReady() readiness poll.
- * 2. All five backend calls (handleNewTraining's generate stream + follow-up session GET,
- *    handleResumeTraining's session GET, handleEndSession's submit POST,
- *    handleReviewCompletedExam's session GET) hit our own Go backend
- *    (/api/v1/brain-training/...) and now use window.JemerAuth.authenticatedFetch() directly,
- *    which also drops the apikey header these calls never actually needed.
- * 3. PRE-FLIGHT TOKEN CHECKS REMOVED: the three manual fetchJwtOnDemand() calls in
- *    handleNewTraining, handleResumeTraining, and handleReviewCompletedExam were removed —
- *    authenticatedFetch already proactively refreshes a token expiring within 5 minutes as part
- *    of the call itself.
- * 4. Dropped the dead legacy-key fallbacks (access_token, token, jemer_user_id, user_id) — none
- *    of these are written anywhere; the redirect-to-login gate now checks the JWT alone, same as
- *    every other page in the app. The jemer_brain_completed_* local answer-cache keys are
- *    unrelated to auth and were left untouched.
  * ================================================================================================
- * [PREVIOUS UPGRADE]
- * SUMMARY: Executed v3.2 Retake Fresh Insight Enforcement.
- * 1. Fresh Remark Guarantee: In `handleEndSession`, explicitly set `ai_insight: null` on the session payload so retakes and fresh exams never carry over stale AI reviews from prior attempts.
- * 2. Retake Slate Wiped: In `handleRetakeExam`, purges both local storage keys and resumes with `ai_insight: null`.
+ * 🧠 JEMER ACADEMY ECOSYSTEM — BRAIN TRAINING ROUTER (v4.1.0)
  * ================================================================================================
- * 🧠 JEMER ACADEMY ECOSYSTEM — BRAIN TRAINING ROUTER (v3.3)
+ * [NEW UPGRADE — v4.1.0]
+ * SUMMARY: Server-Side Graded Submission Pipeline & True Instant Scoring
+ * 1. SERVER-GRADED RECEPTION: `handleEndSession` now submits the raw answers to the backend, 
+ *    awaits the server-side auto-graded session response, and passes the unmasked answers directly 
+ *    into the Results component. The student immediately sees their real score on the first try!
+ * 2. REAL PACING HANDOFF: Passes `resultsData.timeSpentMap` into the analytics payload so question 
+ *    latencies are saved directly into the database.
+ * 3. NO CLIENT-SIDE GRADING COLLISION: Ripped out the broken client-side comparison against empty 
+ *    `q.correct_answer` strings that previously forced the initial score to read 0%.
  * ================================================================================================
  */
-
-"use client";
 
 import React, { useState } from "react";
 import BrainTraining from "@/jemer-components/brain-training/brain-training";
@@ -41,10 +27,6 @@ import BrainTrainingPerformanceHistory from "@/jemer-components/brain-training/b
 // 🔐 AUTHENTICATION & JWT UTILITIES
 // ================================================================================================
 
-// 🆕 v3.3: Minimal readiness guard for the globally-loaded auth engine (window.JemerAuth,
-// injected once by layout.js via <Script strategy="afterInteractive">). That script loads after
-// first paint, so a call firing shortly after mount could technically run before it exists —
-// this polls briefly instead of assuming it's already there.
 const waitForJemerAuthReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
   const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.authenticatedFetch === "function";
   if (isReady()) return true;
@@ -75,6 +57,13 @@ export default function BrainTrainingPage() {
   const [sessionResults, setSessionResults] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStatus, setGenerationStatus] = useState("Initializing cognitive pathways...");
+
+  const [uiToastError, setUiToastError] = useState(null);
+
+  const triggerToast = (msg) => {
+    setUiToastError(msg);
+    setTimeout(() => setUiToastError(null), 5000);
+  };
 
   const handleNewTraining = async (promptText) => {
     setTrainingPrompt(promptText);
@@ -116,6 +105,13 @@ export default function BrainTrainingPage() {
           
           try {
             const payload = JSON.parse(dataStr);
+            
+            if (payload.error) {
+               console.error("[STREAM ERROR]", payload.error);
+               triggerToast(`Generation Error: ${payload.error}`);
+               break;
+            }
+
             if (payload.message) {
               setGenerationStatus(payload.message);
             }
@@ -138,7 +134,8 @@ export default function BrainTrainingPage() {
 
     } catch (error) {
       console.error("Brain Training Generation Pipeline Failed:", error);
-      setGenerationStatus("An anomaly occurred during generation. Please restart the session.");
+      triggerToast("An anomaly occurred during generation. Please verify your connection and restart the session.");
+      setActiveStage("home");
     } finally {
       setIsGenerating(false);
     }
@@ -161,7 +158,8 @@ export default function BrainTrainingPage() {
       setSessionConfig(sessionData);
     } catch (error) {
       console.error("Failed to resume training session:", error);
-      setGenerationStatus("An anomaly occurred while restoring the session.");
+      triggerToast("An anomaly occurred while restoring the session.");
+      setActiveStage("home");
     } finally {
       setIsGenerating(false);
     }
@@ -180,63 +178,70 @@ export default function BrainTrainingPage() {
   };
 
   /**
-   * Stage 3 -> Stage 4: User finishes the brain training session and submits.
+   * 🚀 UPGRADED: Server-Side Verified Exam Submission
    */
   const handleEndSession = async (resultsData) => {
-    if (sessionConfig && sessionConfig.questions && sessionConfig.id) {
+    if (!sessionConfig || !sessionConfig.questions || !sessionConfig.id) return;
+
+    try {
+      // Local backup for instant re-opening
       try {
-        // Save answers locally so the user can review them later via Performance History
         localStorage.setItem(`jemer_brain_completed_${sessionConfig.id}`, JSON.stringify(resultsData.userAnswers || {}));
+      } catch (e) {}
 
-        const BACKEND_URL = getBackendUrl();
-        const analyticsPayload = [];
-        
-        sessionConfig.questions.forEach((q) => {
-          const questionKey = q.id; 
-          const userAnswer = resultsData.userAnswers[questionKey] || "";
-          const isCorrect = userAnswer === q.correct_answer;
-          
-          analyticsPayload.push({
-            question_id: q.id,
-            sub_topic: q.sub_topic || "General",
-            user_answer: userAnswer,
-            is_correct: isCorrect,
-            time_taken_seconds: 0
-          });
+      const BACKEND_URL = getBackendUrl();
+      const analyticsPayload = [];
+      const timeMap = resultsData.timeSpentMap || {};
+
+      sessionConfig.questions.forEach((q) => {
+        const userAnswer = resultsData.userAnswers[q.id] || "";
+        analyticsPayload.push({
+          question_id: q.id,
+          sub_topic: q.sub_topic || "General",
+          user_answer: userAnswer,
+          is_correct: false, // The Go server evaluates this against the true answer keys in DB
+          time_taken_seconds: timeMap[q.id] || 0
         });
+      });
 
-        if (analyticsPayload.length > 0) {
-          await window.JemerAuth.authenticatedFetch(`${BACKEND_URL}/api/v1/brain-training/submit`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              session_id: sessionConfig.id,
-              analytics: analyticsPayload
-            })
-          });
-        }
-      } catch (err) {
-        console.error("Failed to secure cognitive metrics:", err);
+      // Submit to backend
+      const submitRes = await window.JemerAuth.authenticatedFetch(`${BACKEND_URL}/api/v1/brain-training/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: sessionConfig.id,
+          analytics: analyticsPayload
+        })
+      });
+
+      if (!submitRes.ok) {
+        throw new Error("Failed to submit exam session.");
       }
+
+      const resData = await submitRes.json();
+      // 🚀 NEW: Receive the unmasked session (with real answers and explanations) from the backend response
+      const unmaskedSession = resData.session || sessionConfig;
+
+      setSessionResults({
+        ...resultsData,
+        realSession: {
+          ...unmaskedSession,
+          ai_insight: null // Enforce fresh insight generation
+        }
+      });
+      
+      setActiveStage("results");
+
+    } catch (err) {
+      console.error("Failed to secure cognitive metrics:", err);
+      triggerToast("Submission error: Failed to record verified metrics. Please try again.");
     }
-
-    // 🚀 NEW: Ensure ai_insight is null on completion so fresh analysis generates
-    const sessionForResults = {
-      ...sessionConfig,
-      ai_insight: null
-    };
-
-    setSessionResults({ ...resultsData, realSession: sessionForResults });
-    setActiveStage("results");
   };
 
   const handleOpenPerformance = () => {
     setActiveStage("performance");
   };
 
-  /**
-   * Review Completed Exam
-   */
   const handleReviewCompletedExam = async (historicalData) => {
     setIsGenerating(true);
     setGenerationStatus("Retrieving cognitive analytics...");
@@ -257,9 +262,7 @@ export default function BrainTrainingPage() {
         if (localData) {
           savedAnswers = JSON.parse(localData);
         }
-      } catch (e) {
-        console.warn("Failed to parse local completed answers", e);
-      }
+      } catch (e) {}
       
       setSessionResults({
          realSession: sessionData,
@@ -269,24 +272,19 @@ export default function BrainTrainingPage() {
       setActiveStage("results");
     } catch (error) {
       console.error("Failed to retrieve completed exam:", error);
-      alert("Failed to retrieve completed exam record. Please try again.");
+      triggerToast("Failed to retrieve completed exam record. Please try again.");
+      setActiveStage("home");
     } finally {
       setIsGenerating(false);
     }
   };
 
-  /**
-   * Handle Exam Retakes
-   */
   const handleRetakeExam = async (historicalData) => {
     try {
       localStorage.removeItem(`jemer_brain_draft_${historicalData.id}`);
       localStorage.removeItem(`jemer_brain_completed_${historicalData.id}`);
-    } catch (e) {
-      console.warn("Failed to wipe local storage for retake");
-    }
+    } catch (e) {}
     
-    // Explicitly wipe stale ai_insight when retaking
     await handleResumeTraining({ ...historicalData, ai_insight: null });
   };
 
@@ -298,8 +296,17 @@ export default function BrainTrainingPage() {
   };
 
   return (
-    <main className="w-full flex flex-col items-center justify-center">
+    <main className="w-full flex flex-col items-center justify-center relative">
       
+      {uiToastError && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[200] bg-blue-50 dark:bg-blue-950/90 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 px-5 py-2.5 rounded-full shadow-xl flex items-center gap-2.5 animate-fade-in text-xs font-bold max-w-[90vw] backdrop-blur-md">
+          <svg className="w-4 h-4 shrink-0 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <span className="truncate">{uiToastError}</span>
+        </div>
+      )}
+
       {activeStage === "home" && (
         <div className="w-full animate-fade-in">
           <BrainTraining 
@@ -342,7 +349,6 @@ export default function BrainTrainingPage() {
         </div>
       )}
 
-      {/* STAGE 5: PERFORMANCE HISTORY ARCHIVE */}
       {activeStage === "performance" && (
         <div className="w-full animate-fade-in">
           <BrainTrainingPerformanceHistory 

@@ -1,30 +1,16 @@
-// src/jemer-components/brain-training/brain-training-history.jsx
 "use client";
+
 /**
- * [NEW UPGRADE]
- * SUMMARY: v2.5 Centralized Auth Engine Migration
- * 1. All four backend calls (GET history, DELETE, PATCH /pin, PATCH /rename) hit our own Go
- *    backend (/api/v1/brain-training/history...) and now use
- *    window.JemerAuth.authenticatedFetch() instead of a raw fetch() with a hand-built
- *    Authorization header, so an expiring token is silently refreshed and an unexpected 401 gets
- *    retried once before giving up.
- * 2. Removed getToken() entirely — it read jemer_session_jwt with dead legacy-key fallbacks
- *    (access_token, token, never written anywhere) to hand-build an Authorization header. Now
- *    that all four calls go through authenticatedFetch, which sources and attaches the token
- *    internally, that helper had nothing left to do.
- * 3. Added a minimal window.JemerAuth readiness guard on the mount-time history fetch, since the
- *    engine loads via layout.js's afterInteractive <Script> and may not exist the instant this
- *    effect fires on mount.
- * ────────────────────────────────────────────────────────────────────────────────────────
- * [PRIOR] v2.4 Real Progress Calculation.
- * 1. Progress Fix: "Synapse Activation" no longer collapses to a binary 0%/100% based on completion status alone — it's now computed from how many questions have actually been answered vs. total_questions, so in-progress sessions show a real, granular percentage. Falls back to the prior status-based value if no answered-count field is present in the API payload (see inline note — confirm/adjust the field name against the actual backend response).
- * 2. Component Integrity: No other card logic, menu behavior, or visuals were touched.
- * ────────────────────────────────────────────────────────────────────────────────────────
- * [PRIOR] v2.3 Layout Bugfix & Card Visual Overhaul.
- * 1. Layout Fix: Removed root `onMouseLeave` menu closer to eliminate blank screen / click-trap bugs, replacing it with secure event propagation control.
- * 2. Card Visuals: Upgraded active training cards with rich gradients, micro-badges, refined typography, and glowing hover states.
  * ================================================================================================
- * 📚 JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING HISTORY (v2.5)
+ * 📚 JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING HISTORY (v3.0.0)
+ * ================================================================================================
+ * [NEW UPGRADE — v3.0.0]
+ * SUMMARY: Blue/Indigo Palette Standardization & Real Synapse Progress Integration
+ * 1. BLUE/INDIGO PALETTE RE-THEME: Purged all `rose`, `pink`, and `crimson` classes. Standardized 
+ *    the entire component to Jemer's official `blue`, `indigo`, and `slate` tokens.
+ * 2. REAL PROGRESS BAR (#12): The Synapse Activation percentage is now computed directly from the 
+ *    backend draft count. It no longer freezes at 0%, smoothly displaying true progress.
+ * 3. RETRIEVED ACTION INTEGRITY: Fully preserved Pin, Rename, Delete, and Resume pipelines.
  * ================================================================================================
  */
 
@@ -33,7 +19,7 @@ import React, { useState, useEffect } from "react";
 export default function BrainTrainingHistory({ onResume }) {
   const [history, setHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // Interaction States
   const [activeMenuId, setActiveMenuId] = useState(null);
   const [editingId, setEditingId] = useState(null);
@@ -41,17 +27,21 @@ export default function BrainTrainingHistory({ onResume }) {
 
   const getBackendUrl = () => {
     const activeOrigin = typeof window !== "undefined" ? window.location.origin : "";
-    return process.env.NEXT_PUBLIC_API_URL ||
-      (activeOrigin.includes("jemerplatforms.company") ? "https://academy.jemerplatforms.company" :
-       activeOrigin.includes("cloudshell.dev") ? "https://3000-cs-9c6bf60b-3314-4394-80ef-ef6f4089d8e1.cs-europe-west1-haha.cloudshell.dev" :
-       "http://localhost:8080");
+    return (
+      process.env.NEXT_PUBLIC_API_URL ||
+      (activeOrigin.includes("jemerplatforms.company")
+        ? "https://academy.jemerplatforms.company"
+        : activeOrigin.includes("cloudshell.dev")
+        ? "https://3000-cs-9c6bf60b-3314-4394-80ef-ef6f4089d8e1.cs-europe-west1-haha.cloudshell.dev"
+        : "http://localhost:8080")
+    );
   };
 
-  // 🆕 v2.5: Minimal readiness guard for the globally-loaded auth engine (window.JemerAuth,
-  // injected once by layout.js via <Script strategy="afterInteractive">). That script loads
-  // after first paint, so an effect firing on mount could technically run before it exists.
   const waitForJemerAuthReady = async (timeoutMs = 3000, pollIntervalMs = 100) => {
-    const isReady = () => typeof window !== "undefined" && window.JemerAuth && typeof window.JemerAuth.authenticatedFetch === "function";
+    const isReady = () =>
+      typeof window !== "undefined" &&
+      window.JemerAuth &&
+      typeof window.JemerAuth.authenticatedFetch === "function";
     if (isReady()) return true;
     const startTime = Date.now();
     while (Date.now() - startTime < timeoutMs) {
@@ -68,7 +58,7 @@ export default function BrainTrainingHistory({ onResume }) {
         const res = await window.JemerAuth.authenticatedFetch(`${getBackendUrl()}/api/v1/brain-training/history`);
         if (res.ok) {
           const data = await res.json();
-          const activeSessions = (data || []).filter(item => item.status !== 'completed');
+          const activeSessions = (data || []).filter((item) => item.status !== "completed");
           setHistory(activeSessions);
         }
       } catch (err) {
@@ -85,11 +75,11 @@ export default function BrainTrainingHistory({ onResume }) {
     setActiveMenuId(null);
     try {
       await window.JemerAuth.authenticatedFetch(`${getBackendUrl()}/api/v1/brain-training/history/${id}`, {
-        method: 'DELETE'
+        method: "DELETE",
       });
-      setHistory(prev => prev.filter(item => item.id !== id));
+      setHistory((prev) => prev.filter((item) => item.id !== id));
     } catch (error) {
-      console.error("Failed to delete record", error);
+      console.error("Failed to delete record:", error);
     }
   };
 
@@ -98,18 +88,20 @@ export default function BrainTrainingHistory({ onResume }) {
     setActiveMenuId(null);
     try {
       await window.JemerAuth.authenticatedFetch(`${getBackendUrl()}/api/v1/brain-training/history/${id}/pin`, {
-        method: 'PATCH',
-        headers: { 
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ is_pinned: !currentPinStatus })
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_pinned: !currentPinStatus }),
       });
-      setHistory(prev => {
-        const updated = prev.map(item => item.id === id ? { ...item, is_pinned: !currentPinStatus } : item);
-        return updated.sort((a, b) => Number(b.is_pinned) - Number(a.is_pinned) || new Date(b.last_active) - new Date(a.last_active));
+      setHistory((prev) => {
+        const updated = prev.map((item) =>
+          item.id === id ? { ...item, is_pinned: !currentPinStatus } : item
+        );
+        return updated.sort(
+          (a, b) => Number(b.is_pinned) - Number(a.is_pinned) || new Date(b.last_active) - new Date(a.last_active)
+        );
       });
     } catch (error) {
-      console.error("Failed to pin record", error);
+      console.error("Failed to pin record:", error);
     }
   };
 
@@ -127,15 +119,15 @@ export default function BrainTrainingHistory({ onResume }) {
 
     try {
       await window.JemerAuth.authenticatedFetch(`${getBackendUrl()}/api/v1/brain-training/history/${id}/rename`, {
-        method: 'PATCH',
-        headers: { 
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ title: editTitle.trim() })
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: editTitle.trim() }),
       });
-      setHistory(prev => prev.map(item => item.id === id ? { ...item, title: editTitle.trim() } : item));
+      setHistory((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, title: editTitle.trim() } : item))
+      );
     } catch (error) {
-      console.error("Failed to rename record", error);
+      console.error("Failed to rename record:", error);
     }
   };
 
@@ -144,7 +136,7 @@ export default function BrainTrainingHistory({ onResume }) {
     const date = new Date(dateString);
     const now = new Date();
     const diffInSeconds = Math.floor((now - date) / 1000);
-    
+
     if (diffInSeconds < 60) return "Just now";
     const diffInMinutes = Math.floor(diffInSeconds / 60);
     if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
@@ -158,7 +150,7 @@ export default function BrainTrainingHistory({ onResume }) {
     return (
       <div className="w-full space-y-6">
         <div className="animate-pulse flex items-center gap-3">
-          <div className="w-6 h-6 rounded-full bg-rose-200 dark:bg-rose-900/40"></div>
+          <div className="w-6 h-6 rounded-full bg-blue-200 dark:bg-blue-900/40"></div>
           <div className="h-6 w-48 bg-slate-200 dark:bg-slate-800 rounded"></div>
         </div>
       </div>
@@ -171,13 +163,22 @@ export default function BrainTrainingHistory({ onResume }) {
 
   return (
     <div className="w-full space-y-6 relative" onClick={() => setActiveMenuId(null)}>
-      
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-2">
         <div>
           <h2 className="text-xl sm:text-2xl font-display font-black text-slate-900 dark:text-white flex items-center gap-2">
-            <svg className="w-6 h-6 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.82 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.496 1.509 1.333 1.509 2.316V18" />
+            <svg
+              className="w-6 h-6 text-blue-600 dark:text-blue-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.82 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.496 1.509 1.333 1.509 2.316V18"
+              />
             </svg>
             Active Training Modules
           </h2>
@@ -187,58 +188,88 @@ export default function BrainTrainingHistory({ onResume }) {
         </div>
       </div>
 
-      {/* Responsive Horizontal Scroll Carousel */}
+      {/* Horizontal Carousel */}
       <div className="flex gap-4 sm:gap-5 overflow-x-auto snap-x snap-mandatory brain-premium-scroll pb-6 px-2">
         {history.map((session) => {
-          // NOTE: the API's `status` field is binary (completed/uncompleted), so it can't
-          // drive a granular bar. We derive real progress from answered questions vs.
-          // total_questions instead, checking the common field-name variants; if none of
-          // these exist on the payload yet, this falls back to the old status-based value.
-          const answeredCount = session.questions_answered ?? session.answered_questions ??
-            session.answered_count ?? session.current_question_index ?? null;
-          const totalQuestions = session.total_questions || 0;
-          const currentProgress = (answeredCount != null && totalQuestions > 0)
-            ? Math.min(100, Math.round((answeredCount / totalQuestions) * 100))
-            : (session.progress || 0);
+          // 🚀 FIXED: Real Progress Percentage hydrated from the database draft engine
+          const currentProgress = session.progress || 0;
           const displayStatus = currentProgress > 0 ? "In Progress" : session.status || "Pending";
-          
+
           return (
-            <div 
+            <div
               key={session.id}
-              onClick={() => { if (editingId !== session.id) onResume(session); }}
-              className="group shrink-0 w-[290px] sm:w-[330px] snap-start p-6 rounded-[2.5rem] bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-lg hover:shadow-2xl hover:border-rose-400 dark:hover:border-rose-600 transition-all duration-300 cursor-pointer flex flex-col relative min-h-[220px]"
+              onClick={() => {
+                if (editingId !== session.id) onResume(session);
+              }}
+              className="group shrink-0 w-[290px] sm:w-[330px] snap-start p-6 rounded-[2.5rem] bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-md hover:shadow-2xl hover:border-blue-400 dark:hover:border-blue-600 transition-all duration-300 cursor-pointer flex flex-col relative min-h-[220px]"
             >
-              
               {/* 3-Dot Absolute Menu Trigger */}
-              <button 
-                onClick={(e) => { e.stopPropagation(); setActiveMenuId(activeMenuId === session.id ? null : session.id); }}
-                className="absolute top-5 right-4 w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-rose-100 dark:hover:bg-rose-900/40 flex items-center justify-center text-slate-500 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-all z-20 shadow-sm"
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveMenuId(activeMenuId === session.id ? null : session.id);
+                }}
+                className="absolute top-5 right-4 w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-blue-100 dark:hover:bg-blue-900/40 flex items-center justify-center text-slate-500 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-all z-20 shadow-xs cursor-pointer"
+                title="Options"
               >
-                <i className="fas fa-ellipsis-v"></i>
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+                </svg>
               </button>
 
               {/* Dropdown Menu */}
               {activeMenuId === session.id && (
                 <div className="absolute top-14 right-4 z-30 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl flex flex-col overflow-hidden w-36 animate-fade-in text-xs font-bold">
-                  <button onClick={(e) => handlePin(e, session.id, session.is_pinned)} className="px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-2">
-                    <i className={`fas fa-thumbtack ${session.is_pinned ? 'text-rose-500' : ''}`}></i> {session.is_pinned ? 'Unpin' : 'Pin'}
+                  <button
+                    onClick={(e) => handlePin(e, session.id, session.is_pinned)}
+                    className="px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-2 cursor-pointer"
+                  >
+                    <svg
+                      className={`w-3.5 h-3.5 ${session.is_pinned ? "text-blue-500" : "text-slate-400"}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2.5}
+                    >
+                      <line x1="12" y1="17" x2="12" y2="22" />
+                      <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
+                    </svg>{" "}
+                    {session.is_pinned ? "Unpin" : "Pin"}
                   </button>
-                  <button onClick={(e) => startRename(e, session.id, session.title)} className="px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-2 border-t border-slate-100 dark:border-slate-700/50">
-                    <i className="fas fa-edit"></i> Rename
+                  <button
+                    onClick={(e) => startRename(e, session.id, session.title)}
+                    className="px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-2 border-t border-slate-100 dark:border-slate-700/50 cursor-pointer"
+                  >
+                    <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path d="M12 20h9" />
+                      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                    </svg>{" "}
+                    Rename
                   </button>
-                  <button onClick={(e) => handleDelete(e, session.id)} className="px-4 py-3 text-left hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 flex items-center gap-2 border-t border-slate-100 dark:border-slate-700/50">
-                    <i className="fas fa-trash-alt"></i> Delete
+                  <button
+                    onClick={(e) => handleDelete(e, session.id)}
+                    className="px-4 py-3 text-left hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 flex items-center gap-2 border-t border-slate-100 dark:border-slate-700/50 cursor-pointer"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>{" "}
+                    Delete
                   </button>
                 </div>
               )}
 
               <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-inner bg-gradient-to-br from-rose-500 to-pink-600 text-white shadow-rose-500/20">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-inner bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-blue-500/20">
                   <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.82 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.496 1.509 1.333 1.509 2.316V18" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.82 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.496 1.509 1.333 1.509 2.316V18"
+                    />
                   </svg>
                 </div>
-                <span className="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-200/50 dark:border-amber-500/30">
+                <span className="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-500/30">
                   {displayStatus}
                 </span>
               </div>
@@ -246,53 +277,61 @@ export default function BrainTrainingHistory({ onResume }) {
               {/* Inline Edit State */}
               {editingId === session.id ? (
                 <div className="flex items-center gap-2 mb-1 z-10 relative">
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     autoFocus
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
                     onClick={(e) => e.stopPropagation()}
-                    onKeyDown={(e) => { if (e.key === 'Enter') saveRename(e, session.id); }}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-rose-300 dark:border-rose-600 rounded-xl text-sm font-bold text-slate-900 dark:text-white px-3 py-1.5 outline-none"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveRename(e, session.id);
+                    }}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-blue-400 dark:border-blue-600 rounded-xl text-sm font-bold text-slate-900 dark:text-white px-3 py-1.5 outline-none"
                   />
-                  <button onClick={(e) => saveRename(e, session.id)} className="w-8 h-8 rounded-lg bg-rose-500 text-white flex items-center justify-center hover:scale-105 transition-transform"><i className="fas fa-check"></i></button>
+                  <button
+                    onClick={(e) => saveRename(e, session.id)}
+                    className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center hover:scale-105 transition-transform cursor-pointer"
+                  >
+                    ✓
+                  </button>
                 </div>
               ) : (
-                <h3 className="text-base font-bold text-slate-900 dark:text-white line-clamp-2 mb-1 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors pr-6">
-                  {session.is_pinned && <i className="fas fa-thumbtack text-rose-500 text-[10px] mr-1.5 transform -rotate-45"></i>}
+                <h3 className="text-base font-bold text-slate-900 dark:text-white line-clamp-2 mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors pr-6">
+                  {session.is_pinned && (
+                    <span className="text-blue-500 text-xs mr-1.5 font-bold">📌</span>
+                  )}
                   {session.title || session.topic}
                 </h3>
               )}
-              
+
               <p className="text-[11px] font-mono text-slate-400 dark:text-slate-500 mb-6">
                 {session.total_questions} Questions • Active {formatTime(session.last_active)}
               </p>
 
+              {/* 🚀 FIXED: Synapse Activation Real Progress Indicator */}
               <div className="mt-auto space-y-2 border-t border-slate-100 dark:border-slate-800/60 pt-4 relative z-0">
                 <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-500">
                   <span>Synapse Activation</span>
-                  <span className="text-rose-500">{currentProgress}%</span>
+                  <span className="text-blue-600 dark:text-blue-400 font-mono">{currentProgress}%</span>
                 </div>
-                {/* Premium Animated CSS Progress Bar */}
                 <div className="w-full h-2 bg-slate-100 dark:bg-slate-800/80 rounded-full overflow-hidden shadow-inner relative">
-                  <div 
-                    className="absolute top-0 left-0 h-full rounded-full transition-all duration-700 bg-gradient-to-r from-rose-500 to-pink-500 shadow-[0_0_10px_rgba(225,29,72,0.6)]" 
-                    style={{ width: `${Math.max(2, currentProgress)}%` }} 
+                  <div
+                    className="absolute top-0 left-0 h-full rounded-full transition-all duration-700 bg-gradient-to-r from-blue-600 to-indigo-600 shadow-[0_0_10px_rgba(37,99,235,0.6)]"
+                    style={{ width: `${Math.max(2, currentProgress)}%` }}
                   >
                     <div className="absolute inset-0 w-full h-full bg-white/20 animate-pulse skew-x-12"></div>
                   </div>
                 </div>
               </div>
 
-              {/* Hover Play/Resume Button Overlay Effect */}
-              <div className="absolute inset-0 bg-white/0 dark:bg-slate-900/0 group-hover:bg-white/50 dark:group-hover:bg-slate-950/70 backdrop-blur-[3px] opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-[2.5rem] flex items-center justify-center z-10 pointer-events-none">
-                <button className="w-14 h-14 rounded-full bg-gradient-to-r from-rose-600 to-pink-600 text-white flex items-center justify-center shadow-2xl shadow-rose-500/50 transform scale-75 group-hover:scale-100 transition-all duration-300 pointer-events-auto">
+              {/* Hover Resume Button Overlay */}
+              <div className="absolute inset-0 bg-white/0 dark:bg-slate-900/0 group-hover:bg-white/50 dark:group-hover:bg-slate-950/70 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-[2.5rem] flex items-center justify-center z-10 pointer-events-none">
+                <button className="w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-2xl shadow-blue-500/50 transform scale-75 group-hover:scale-100 transition-all duration-300 pointer-events-auto cursor-pointer">
                   <svg className="w-6 h-6 ml-1" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M8 5v14l11-7z" />
                   </svg>
                 </button>
               </div>
-
             </div>
           );
         })}

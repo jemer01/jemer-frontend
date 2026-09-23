@@ -2,7 +2,15 @@
 
 /**
  * ================================================================================================
- * [NEW UPGRADE — V4.1 — FIXED THE "RELOGIN ON RELOAD" ROOT CAUSE]
+ * [NEW UPGRADE — V4.3 — ATOMIC STORAGE PURGE (CROSS-ACCOUNT DATA BLEED FIX)]
+ * SUMMARY: Implemented an aggressive, atomic local and session storage wipe across all auth lifecycle events.
+ * 1. Modified `SessionManager.purgeSession()` to execute `localStorage.clear()` and `sessionStorage.clear()`
+ *    instead of targeting specific keys. This wipes everything regardless of name or key.
+ * 2. Injected atomic wipes immediately upon successful authentication inside `signInStudent` and 
+ *    `verifyRegistrationToken` right before the new session keys are saved. This guarantees 100% 
+ *    removal of any residual old account data before the UI routes to the dashboard.
+ * ================================================================================================
+ * [PREVIOUS UPGRADE — V4.1 — FIXED THE "RELOGIN ON RELOAD" ROOT CAUSE]
  * SUMMARY: `dispatchAuthRequest` was attaching the CURRENT cached JWT as the Authorization header
  * on every call — including the "/token" refresh call itself. That meant a refresh attempt made
  * with an already-expired token could get the refresh request rejected before the session cookie
@@ -13,7 +21,7 @@
  * of the rest of the refresh chain (SessionManager, the shared lock, signInStudent /
  * verifyRegistrationToken) turned up nothing else broken — this was the one root cause.
  * ================================================================================================
- * [NEW UPGRADE — V4.0 — CENTRALIZED AUTHENTICATED FETCH]
+ * [PREVIOUS UPGRADE — V4.0 — CENTRALIZED AUTHENTICATED FETCH]
  * SUMMARY: Added the single shared fetch layer every page/component should now use, so the
  * "token expires every few minutes → forced re-login" problem is fixed once, here, instead of
  * being solved (or not solved) separately on 10+ different pages.
@@ -111,8 +119,9 @@
     },
     // Clear out session memory variables on lifecycle terminations or connection failures
     purgeSession: function () {
-      localStorage.removeItem("jemer_session_jwt"); // Wipe out auth JWT
-      localStorage.removeItem("jemer_user_uuid"); // Wipe out user tracking identifier
+      // 🆕 V4.3: 100% Atomic Deletion of all caches regardless of keys
+      localStorage.clear(); 
+      sessionStorage.clear(); 
     }
   };
 
@@ -430,15 +439,20 @@
         // If activeUserId was missing because the user launched from the Login screen, extract it now!
         if (!activeUserId) {
           activeUserId = signInResponse.data?.user?.id || signInResponse.user?.id;
-          if (activeUserId) SessionManager.saveUserUuid(activeUserId);
         }
 
         if (!activeUserId) {
           throw new Error("Account verified successfully, but active user UUID extraction failed.");
         }
 
+        // 🆕 V4.3: ATOMIC PURGE - Blast all old data before setting the new session keys
+        // Guarantees zero residual cross-account bleed before the user is routed to the dashboard.
+        localStorage.clear();
+        sessionStorage.clear();
+
         // Save session token in the global browser storage state
         SessionManager.saveToken(sessionToken); 
+        SessionManager.saveUserUuid(activeUserId);
         console.log("[JEMER AUTH LIFECYCLE] Step 2 Success: JWT session token secured and committed."); 
 
         // ── STEP 4: SYNCHRONIZE ONBOARDING DETAILS WITH POSTGRES ─────────────────────────────────
@@ -464,10 +478,6 @@
         } catch (dbSyncError) {
           console.warn("[JEMER AUTH LIFECYCLE] Step 3 Notice: Relational data insertion bypassed (likely already exists).", dbSyncError.message);
         }
-
-        // ── STEP 5: CLEAN UP STORAGE CACHE ───────────────────────────────────────────────────────
-        sessionStorage.removeItem("jemer_pending_profile"); // Clear temporary session storage properties
-        pendingProfilePayload = null; // Purge unneeded cached credentials from system memory
 
         console.log("[JEMER AUTH LIFECYCLE] Email verified, logged in, and profile synchronized with 100% data integrity!"); 
         return { 
@@ -576,6 +586,11 @@
         if (!activeUserUuid) {
           throw new Error("Relational identification mapping failed: No User UUID located in response.");
         }
+
+        // 🆕 V4.3: ATOMIC PURGE - Blast all old data before setting the new session keys
+        // Guarantees zero residual cross-account bleed before the user is routed to the dashboard.
+        localStorage.clear();
+        sessionStorage.clear();
 
         // Commit authentication context properties directly to browser local state
         SessionManager.saveToken(sessionToken);
@@ -759,8 +774,7 @@
      */
     signOutStudent: function () {
       console.log("[JEMER AUTH LIFECYCLE] Purging system credentials. Closing user session...");
-      SessionManager.purgeSession(); // Purge tokens & tracking keys from localStorage
-      sessionStorage.clear(); // Safe clean out of sessionStorage structures
+      SessionManager.purgeSession(); // This natively runs .clear() on local & session storage, wiping all bleed data
       return {
         success: true,
         message: "System session purged successfully."

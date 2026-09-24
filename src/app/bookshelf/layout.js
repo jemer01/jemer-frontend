@@ -1,6 +1,11 @@
 /**
  * ================================================================================================
- * 🚀 JEMER ACADEMY ECOSYSTEM — BOOKSHELF MASTER LAYOUT (v1.0)
+ * [NEW UPGRADE]
+ * SUMMARY: Bookshelf Master Layout Development Lockdown (v2.0)
+ * 1. UNIVERSAL LOCK MOUNT: Mounted `<BookshelfLockModal forceShow={true} />` inside this master layout. 
+ *    Entering `/bookshelf` or any sub-URL directly will now unconditionally trigger the non-dismissible development barrier.
+ * ================================================================================================
+ * 🚀 JEMER ACADEMY ECOSYSTEM — BOOKSHELF MASTER LAYOUT (v2.0)
  * ================================================================================================
  * SUMMARY: First-class layout wrapper for the digital library.
  * 1. Default State Sync: Initializes `isSidebarVisible` to `true` to maintain SPA consistency.
@@ -13,6 +18,7 @@
 import React, { useState } from "react";
 import Sidebar from "@/jemer-components/layout/Sidebar.jsx";
 import Navbar from "@/jemer-components/layout/Navbar.jsx";
+import BookshelfLockModal from "@/jemer-components/ui/bookshelf-lock-modal.jsx"; // 🚀 NEW: Import Lock Modal
 
 export default function BookshelfLayout({ children }) {
   // ── LAYER 1: NAVIGATION SIDEBAR VISIBILITY STATE ──
@@ -22,6 +28,9 @@ export default function BookshelfLayout({ children }) {
     // 🏛️ MASTER VIEWPORT LOCKDOWN CONTAINER
     <div className="h-screen w-full overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex relative transition-colors duration-200 font-sans">
       
+      {/* 🚀 NEW: Universal Development Lock Overlay */}
+      <BookshelfLockModal forceShow={true} />
+
       {/* 🚀 CSS INJECTION: Custom Premium Scrollbars for the Library */}
       <style dangerouslySetInnerHTML={{__html: `
         .bookshelf-premium-scroll::-webkit-scrollbar { width: 6px; }

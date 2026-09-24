@@ -2,17 +2,17 @@
 
 /**
  * ================================================================================================
- * 🧠 JEMER ACADEMY ECOSYSTEM — BRAIN TRAINING ROUTER (v4.1.0)
+ * 🧠 JEMER ACADEMY ECOSYSTEM — BRAIN TRAINING ROUTER (v4.3.0)
  * ================================================================================================
- * [NEW UPGRADE — v4.1.0]
- * SUMMARY: Server-Side Graded Submission Pipeline & True Instant Scoring
- * 1. SERVER-GRADED RECEPTION: `handleEndSession` now submits the raw answers to the backend, 
- *    awaits the server-side auto-graded session response, and passes the unmasked answers directly 
- *    into the Results component. The student immediately sees their real score on the first try!
- * 2. REAL PACING HANDOFF: Passes `resultsData.timeSpentMap` into the analytics payload so question 
- *    latencies are saved directly into the database.
- * 3. NO CLIENT-SIDE GRADING COLLISION: Ripped out the broken client-side comparison against empty 
- *    `q.correct_answer` strings that previously forced the initial score to read 0%.
+ * [NEW UPGRADE — v4.3.0]
+ * SUMMARY: Backend-Triggered Retake Exam Wipe & Fresh State Initialization
+ * 1. RETAKE API INTEGRATION: Upgraded `handleRetakeExam` to explicitly POST to the new backend 
+ *    `/retake` endpoint. This guarantees the previous analytics and old drafts are atomically wiped.
+ * 2. CLEAN RESUME: Only after the database confirms the wipe does the UI trigger `handleResumeTraining`, 
+ *    booting a 100% fresh, unmasked session with zero prior answers.
+ * ================================================================================================
+ * [PREVIOUS UPGRADE — v4.2.0]
+ * SUMMARY: Zero-LocalStorage Cross-Device Review & Verified Database Hydration
  * ================================================================================================
  */
 
@@ -178,17 +178,12 @@ export default function BrainTrainingPage() {
   };
 
   /**
-   * 🚀 UPGRADED: Server-Side Verified Exam Submission
+   * 🚀 Server-Side Verified Exam Submission
    */
   const handleEndSession = async (resultsData) => {
     if (!sessionConfig || !sessionConfig.questions || !sessionConfig.id) return;
 
     try {
-      // Local backup for instant re-opening
-      try {
-        localStorage.setItem(`jemer_brain_completed_${sessionConfig.id}`, JSON.stringify(resultsData.userAnswers || {}));
-      } catch (e) {}
-
       const BACKEND_URL = getBackendUrl();
       const analyticsPayload = [];
       const timeMap = resultsData.timeSpentMap || {};
@@ -199,12 +194,11 @@ export default function BrainTrainingPage() {
           question_id: q.id,
           sub_topic: q.sub_topic || "General",
           user_answer: userAnswer,
-          is_correct: false, // The Go server evaluates this against the true answer keys in DB
+          is_correct: false, // The Go server evaluates this against true DB answer keys
           time_taken_seconds: timeMap[q.id] || 0
         });
       });
 
-      // Submit to backend
       const submitRes = await window.JemerAuth.authenticatedFetch(`${BACKEND_URL}/api/v1/brain-training/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -219,15 +213,17 @@ export default function BrainTrainingPage() {
       }
 
       const resData = await submitRes.json();
-      // 🚀 NEW: Receive the unmasked session (with real answers and explanations) from the backend response
       const unmaskedSession = resData.session || sessionConfig;
 
+      // 🚀 Hydrate results with server-verified session, answers, and pacing
       setSessionResults({
         ...resultsData,
         realSession: {
           ...unmaskedSession,
           ai_insight: null // Enforce fresh insight generation
-        }
+        },
+        userAnswers: unmaskedSession.user_answers || resultsData.userAnswers,
+        timeSpentMap: unmaskedSession.time_spent_map || resultsData.timeSpentMap
       });
       
       setActiveStage("results");
@@ -242,50 +238,69 @@ export default function BrainTrainingPage() {
     setActiveStage("performance");
   };
 
+  /**
+   * 🚀 Review Completed Exam with 100% Server Database Hydration (Zero LocalStorage)
+   */
   const handleReviewCompletedExam = async (historicalData) => {
     setIsGenerating(true);
-    setGenerationStatus("Retrieving cognitive analytics...");
+    setGenerationStatus("Retrieving cognitive analytics from database...");
     setActiveStage("performance"); 
     
     try {
       await waitForJemerAuthReady();
       const BACKEND_URL = getBackendUrl();
       
+      // Fetches completed session; backend automatically includes user_answers and time_spent_map
       const res = await window.JemerAuth.authenticatedFetch(`${BACKEND_URL}/api/v1/brain-training/session/${historicalData.id}`);
-      if (!res.ok) throw new Error("Failed to retrieve historical session data.");
+      if (!res.ok) throw new Error("Failed to retrieve historical session data from database.");
       
       const sessionData = await res.json();
       
-      let savedAnswers = {};
-      try {
-        const localData = localStorage.getItem(`jemer_brain_completed_${historicalData.id}`);
-        if (localData) {
-          savedAnswers = JSON.parse(localData);
-        }
-      } catch (e) {}
-      
+      // Directly read answers and pacing from Neon DB payload. Works on ANY device!
       setSessionResults({
          realSession: sessionData,
-         userAnswers: savedAnswers
+         userAnswers: sessionData.user_answers || {},
+         timeSpentMap: sessionData.time_spent_map || {}
       });
       
       setActiveStage("results");
     } catch (error) {
       console.error("Failed to retrieve completed exam:", error);
-      triggerToast("Failed to retrieve completed exam record. Please try again.");
+      triggerToast("Failed to retrieve completed exam record from database.");
       setActiveStage("home");
     } finally {
       setIsGenerating(false);
     }
   };
 
+  /**
+   * 🚀 NEW: Server-Validated Retake Flow
+   */
   const handleRetakeExam = async (historicalData) => {
+    setIsGenerating(true);
+    setGenerationStatus("Wiping previous neural analytics for a fresh attempt...");
+    setActiveStage("review");
+
     try {
-      localStorage.removeItem(`jemer_brain_draft_${historicalData.id}`);
-      localStorage.removeItem(`jemer_brain_completed_${historicalData.id}`);
-    } catch (e) {}
-    
-    await handleResumeTraining({ ...historicalData, ai_insight: null });
+      await waitForJemerAuthReady();
+      const BACKEND_URL = getBackendUrl();
+      
+      // Hit the retake endpoint to atomically wipe the DB draft and analytics
+      const res = await window.JemerAuth.authenticatedFetch(`${BACKEND_URL}/api/v1/brain-training/session/${historicalData.id}/retake`, {
+        method: "POST"
+      });
+
+      if (!res.ok) throw new Error("Failed to reset session for retake.");
+
+      // After the DB confirms the wipe, resume the session normally. 
+      // It is now a fully "active" session again!
+      await handleResumeTraining({ ...historicalData, ai_insight: null });
+    } catch (error) {
+      console.error("Failed to retake exam:", error);
+      triggerToast("An anomaly occurred while preparing the retake session.");
+      setActiveStage("home");
+      setIsGenerating(false);
+    }
   };
 
   const handleReturnHome = () => {

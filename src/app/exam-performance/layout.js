@@ -3,18 +3,19 @@
 
 /**
  * ================================================================================================
- * 🆕 NEW UPGRADES SUMMARY (v1.0 - PERFORMANCE HISTORY LAYOUT)
+ * [NEW UPGRADE]
+ * SUMMARY: Performance History Layout Lockdown (v1.1)
+ * 1. DEVELOPMENT LOCK MOUNT: Injected `<ExamLockModal forceShow={true} />` to lock the `/performance-history` 
+ *    route while the exam analytics engine is in development.
  * ================================================================================================
- * 1. MASTER WRAPPER: Dedicated layout for `/performance-history` mirroring the core app architecture.
- * 2. INDIGO DASHBOARD THEME: Custom `.exam-premium-scroll` WebKit scrollbar tinted to a sleek 
- *    Indigo/Slate (`rgba(99, 102, 241, 0.3)`) to represent the global analytical dashboard vibe.
- * 3. CORE UI PRESERVED: Retains fixed Sidebar, Navbar, and responsive mobile translucent backdrop.
+ * 🆕 MASTER WRAPPER: Dedicated layout for `/performance-history` mirroring the core app architecture.
  * ================================================================================================
  */
 
 import React, { useState } from "react"; 
 import Sidebar from "@/jemer-components/layout/Sidebar"; 
 import Navbar from "@/jemer-components/layout/Navbar"; 
+import ExamLockModal from "@/jemer-components/ui/exam-lock-modal"; // 🚀 NEW: Import Lock Modal
 
 export default function PerformanceHistoryLayout({ children }) {
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
@@ -22,6 +23,9 @@ export default function PerformanceHistoryLayout({ children }) {
   return (
     <div className="h-screen w-full overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex relative transition-colors duration-200 font-sans">
       
+      {/* 🚀 NEW: Universal Development Lock Overlay */}
+      <ExamLockModal forceShow={true} />
+
       {/* Indigo/Slate themed custom scrollbars for the history dashboard */}
       <style dangerouslySetInnerHTML={{__html: `
         .exam-premium-scroll::-webkit-scrollbar { width: 6px; height: 6px; }

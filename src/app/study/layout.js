@@ -3,17 +3,16 @@
 
 /**
  * ================================================================================================
- * 🆕 NEW UPGRADES SUMMARY (v1.0 - STUDY ROOM LAYOUT)
- * ================================================================================================
- * 1. MASTER WRAPPER: Dedicated layout for `/study-room` mirroring the proven platform architecture.
- * 2. EDTECH PURPLE THEME: Custom `.exam-premium-scroll` WebKit scrollbar tinted to deep purple.
- * 3. CORE UI PRESERVED: Retains fixed Sidebar, Navbar, and responsive mobile translucent backdrop.
+ * [NEW UPGRADE]
+ * SUMMARY: Study Room Route Lockdown (v1.1)
+ * 1. DEVELOPMENT LOCK MOUNT: Injected `<ExamLockModal forceShow={true} />` into `/study-room` layout.
  * ================================================================================================
  */
 
 import React, { useState } from "react"; 
 import Sidebar from "@/jemer-components/layout/Sidebar"; 
 import Navbar from "@/jemer-components/layout/Navbar"; 
+import ExamLockModal from "@/jemer-components/ui/exam-lock-modal"; // 🚀 NEW: Import Lock Modal
 
 export default function StudyRoomLayout({ children }) {
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
@@ -21,6 +20,9 @@ export default function StudyRoomLayout({ children }) {
   return (
     <div className="h-screen w-full overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex relative transition-colors duration-200 font-sans">
       
+      {/* 🚀 NEW: Universal Development Lock Overlay */}
+      <ExamLockModal forceShow={true} />
+
       {/* EdTech Purple themed custom scrollbars */}
       <style dangerouslySetInnerHTML={{__html: `
         .exam-premium-scroll::-webkit-scrollbar { width: 6px; height: 6px; }

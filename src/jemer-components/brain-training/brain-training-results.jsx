@@ -2,18 +2,17 @@
 
 /**
  * ================================================================================================
- * ✨ JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING COGNITIVE ANALYTICS (v4.2.0)
+ * ✨ JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING COGNITIVE ANALYTICS (v4.3.0)
  * ================================================================================================
- * [NEW UPGRADE — v4.2.0]
- * SUMMARY: Pacing Persistence, Insight Truncation & Mobile Corrections Polish
- * 1. PACING PERSISTENCE: Caches real measured pacing (e.g. 6s/Q) in localStorage tied to the session ID.
- *    Reviewing or reloading past exams now displays the true recorded latency instead of the 51s fallback.
- * 2. COLLAPSIBLE AI INSIGHT: Clamps lengthy AI reviews to ~50% height with a bottom gradient fade mask
- *    and a smooth "See Full Diagnostic" toggle.
- * 3. MOBILE-OPTIMIZED CORRECTIONS: Overhauled the Exam Log layout for small screens with edge-to-edge
- *    cards, stacked badges, and overflow-safe math wrappers.
- * 4. PLOTLY MOBILE MATRIX FIX: Adjusted x-axis angles (-30°), bar gaps, and responsive margins so up
- *    to 10 module labels fill the container cleanly on phones without awkward left shifts.
+ * [NEW UPGRADE — v4.3.0]
+ * SUMMARY: Zero-LocalStorage Cross-Device Hydration & Verified Database Grading
+ * 1. CROSS-DEVICE ANSWER HYDRATION: User answers and pacing latencies are now read directly from 
+ *    `sessionData.userAnswers` and `realSession.user_answers` returned by the Neon DB backend. 
+ *    Reviewing on Device B will NEVER show 0% again!
+ * 2. LOCALSTORAGE PURGED: Removed all `localStorage` reads and writes for pacing. The pacing engine 
+ *    calculates directly from the database's `time_spent_map`.
+ * 3. ALL VISUAL POLISH RETAINED: 50% insight collapsible toggle, mobile corrections list, 
+ *    Plotly auto-margins, and official Blue/Indigo palette remain 100% active.
  * ================================================================================================
  */
 
@@ -106,8 +105,6 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
   const [aiInsight, setAiInsight] = useState(sessionData?.realSession?.ai_insight || null);
   const [isFetchingInsight, setIsFetchingInsight] = useState(false);
   const [activeBenchmarkInfo, setActiveBenchmarkInfo] = useState(null);
-
-  // 🚀 NEW: Collapsible AI Insight State (50% view truncation)
   const [isInsightExpanded, setIsInsightExpanded] = useState(false);
 
   useEffect(() => {
@@ -124,9 +121,19 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
   const neutralChartColor = "#94a3b8"; // slate-400
 
   const gradedData = useMemo(() => {
-    const { userAnswers = {}, realSession = {}, timeSpentMap = {} } = sessionData || {};
+    const { userAnswers: rawUserAnswers = {}, realSession = {}, timeSpentMap: rawTimeSpentMap = {} } = sessionData || {};
     const questions = realSession.questions || [];
     const topicName = realSession.topic || "Custom Neural Matrix";
+
+    // 🚀 FIXED: Cross-Device Answer & Pacing Recovery
+    // Directly falls back to the database-hydrated `realSession.user_answers` and `realSession.time_spent_map`
+    const userAnswers = (rawUserAnswers && Object.keys(rawUserAnswers).length > 0)
+      ? rawUserAnswers
+      : (realSession.user_answers || {});
+
+    const timeSpentMap = (rawTimeSpentMap && Object.keys(rawTimeSpentMap).length > 0)
+      ? rawTimeSpentMap
+      : (realSession.time_spent_map || {});
 
     const totalMaxRaw = Math.max(1, questions.length);
 
@@ -200,38 +207,18 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
       return { name: shortName, score: safeScore, rawName: sub };
     });
 
-    // 🚀 NEW: Pacing Persistence Engine (Fixes 6s jumping to 51s on reload)
+    // 🚀 FIXED: Pure Database Pacing Calculation (Zero LocalStorage)
     let realPacingSeconds = 0;
     const recordedTimes = Object.values(timeSpentMap).filter((t) => typeof t === "number" && t > 0);
 
     if (recordedTimes.length > 0) {
       const totalRecordedSecs = recordedTimes.reduce((acc, curr) => acc + curr, 0);
       realPacingSeconds = Math.round(totalRecordedSecs / recordedTimes.length);
-      // Cache verified pacing directly to browser storage for this session
-      if (realSession?.id && typeof window !== "undefined") {
-        try {
-          localStorage.setItem(`jemer_brain_pacing_${realSession.id}`, String(realPacingSeconds));
-        } catch (e) {}
-      }
-    } else if (realSession?.id && typeof window !== "undefined") {
-      // Re-hydrate saved pacing on refresh or historical review
-      try {
-        const cachedPacing = localStorage.getItem(`jemer_brain_pacing_${realSession.id}`);
-        if (cachedPacing) {
-          const parsed = parseInt(cachedPacing, 10);
-          if (parsed > 0 && isFinite(parsed)) realPacingSeconds = parsed;
-        }
-      } catch (e) {}
-    }
-
-    // Secondary fallback to session elapsed time
-    if (!realPacingSeconds || realPacingSeconds <= 0 || !isFinite(realPacingSeconds)) {
-      if (sessionData?.remainingSeconds !== undefined && realSession?.durationMinutes) {
-        const totalSessionSecs = realSession.durationMinutes * 60 - sessionData.remainingSeconds;
-        const answeredCount = Object.keys(userAnswers).length;
-        if (answeredCount > 0 && totalSessionSecs > 0) {
-          realPacingSeconds = Math.round(totalSessionSecs / answeredCount);
-        }
+    } else if (sessionData?.remainingSeconds !== undefined && realSession?.durationMinutes) {
+      const totalSessionSecs = realSession.durationMinutes * 60 - sessionData.remainingSeconds;
+      const answeredCount = Object.keys(userAnswers).length;
+      if (answeredCount > 0 && totalSessionSecs > 0) {
+        realPacingSeconds = Math.round(totalSessionSecs / answeredCount);
       }
     }
 
@@ -299,8 +286,13 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
   }, [sessionData?.realSession?.id]);
 
   const reviewGroups = useMemo(() => {
-    const { userAnswers = {}, realSession = {} } = sessionData || {};
+    const { userAnswers: rawUserAnswers = {}, realSession = {} } = sessionData || {};
     const questions = realSession.questions || [];
+
+    // Fallback to database hydrated answers
+    const userAnswers = (rawUserAnswers && Object.keys(rawUserAnswers).length > 0)
+      ? rawUserAnswers
+      : (realSession.user_answers || {});
 
     const grouped = {};
     questions.forEach((q, i) => {
@@ -358,7 +350,6 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
     },
   ];
 
-  // 🚀 FIXED: Dynamic Plotly Layout (Fills container cleanly on phones without shifting left)
   const barChartLayout = {
     autosize: true,
     margin: { t: 20, b: Math.max(50, Math.min(95, safeSubPhases.length * 8)), l: 25, r: 10 },
@@ -573,7 +564,7 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
         </div>
       </div>
 
-      {/* 🚀 FIXED: AI Insight Card with "See More" (50% Collapsible View) */}
+      {/* AI Insight Card with 50% Collapsible View */}
       <div className="p-5 sm:p-7 rounded-3xl bg-gradient-to-r shadow-xs relative overflow-hidden flex flex-col md:flex-row items-start gap-5 border from-blue-50 via-indigo-50/60 to-blue-50 dark:from-blue-950/40 dark:via-indigo-900/20 dark:to-blue-950/40 border-blue-200/80 dark:border-blue-800/50">
         <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br text-white flex items-center justify-center shadow-md shrink-0 relative z-10 from-blue-600 to-indigo-600 shadow-blue-500/20">
           <svg className="w-6 h-6 sm:w-7 sm:h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -672,7 +663,7 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
           <div className="flex items-center gap-3.5 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-100 dark:border-emerald-800 shrink-0">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 3h14a2 2 0 012 2v2a2 2 0 01-2 2h-1.118l-1.34 8.04A3 3 0 0113.58 20h-3.16a3 3 0 01-2.962-2.506L6.118 9H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 3h14a2 2 0 012 2v2a2 2 0 01-2 2h-1.118l-1.34 8.04A3 3 0 0113.58 20h-3.16a3 3 0 01-2.962-2.506L6.118 9H5a2 2 0 01-2-2V5a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
               </svg>
             </div>
             <div className="min-w-0">
@@ -702,7 +693,7 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
 
       {/* ── PLOTLY VISUALIZATIONS ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-start">
-        {/* ROW 1: Sub-Topic Accuracy Matrix (Fills Container Cleanly on Mobile) */}
+        {/* ROW 1: Sub-Topic Accuracy Matrix */}
         <div className="lg:col-span-12 p-4 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col h-[320px] sm:h-[360px] w-full min-w-0 overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -779,7 +770,7 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
         </div>
       </div>
 
-      {/* ── 🚀 SECTION 5: MOBILE-POLISHED EXAM LOG & CORRECTIONS ── */}
+      {/* ── SECTION 5: MOBILE-POLISHED EXAM LOG & CORRECTIONS ── */}
       <div className="space-y-4 pt-4">
         <button
           onClick={() => setShowReview(!showReview)}
@@ -848,7 +839,7 @@ export default function BrainTrainingResults({ sessionData, onRestart }) {
                               })}
                             </div>
 
-                            {/* Badges and Diagnostic Toggle: Stacks neatly on phones */}
+                            {/* Badges and Diagnostic Toggle */}
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs font-mono font-bold mt-2">
                               <div className="flex flex-wrap items-center gap-2">
                                 <div

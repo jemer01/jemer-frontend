@@ -2,21 +2,15 @@
 
 /**
  * ================================================================================================
- * 🧠 JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING CBT SESSION (v4.5.0)
+ * 🧠 JEMER ACADEMY DESIGN SYSTEM — BRAIN TRAINING CBT SESSION (v4.6.0)
  * ================================================================================================
- * [NEW UPGRADE — v4.5.0]
+ * [NEW UPGRADE — v4.6.0]
+ * SUMMARY: Graceful Draft Hydration for Retakes & Fresh Exams
+ * 1. 200 OK DRAFT PARSING: Upgraded the draft hydration `useEffect` to expect the new `{ has_draft: boolean, draft: object }` payload structure from the backend.
+ * 2. CLEAN SLATE RETAKES: If the backend reports `has_draft: false`, the UI gracefully skips hydration. This leaves the component in its default state (empty answers, full countdown clock), allowing the student to start fresh. Because it's a normal active session, "Save & Exit" functions perfectly to pause a retake!
+ * ================================================================================================
+ * [PREVIOUS UPGRADE — v4.5.0]
  * SUMMARY: KaTeX Math Hardening, Database Draft Synchronization & Real Pacing Engine
- * 1. KATEX / SCIENCE FORMULA HARDENING: Enhanced `cleanTextForLaTeX` to sanitize math delimiters 
- *    specifically for `markdown-renderer.jsx`. Trims internal spaces inside `$ ... $` and converts 
- *    `\[ \]` and `\( \)` into standard KaTeX blocks so math and chemistry equations render perfectly.
- * 2. REAL PACING ENGINE: Tracks exact seconds spent on each question via `questionStartTimeRef` 
- *    and passes the cumulative `timeSpentMap` up to the submit handler, ensuring real pacing numbers.
- * 3. DATABASE DRAFT SYNC: Auto-syncs answers, timer, and current question index to the Neon DB 
- *    `braintraining_drafts` table, completely replacing local storage.
- * 4. QUESTION FLAGGING MODAL: Ported the AI Tutor feedback modal system to allow students to report 
- *    anomalies (wrong keys, broken math) straight to `braintraining_question_feedback`.
- * 5. BLUE/INDIGO RE-THEME: Standardized all buttons, badges, options, and countdowns to Jemer Blue.
- * 6. EXPANDED MOBILE VIEWPORT: Relaxed side paddings so questions span edge-to-edge on phones.
  * ================================================================================================
  */
 
@@ -36,7 +30,6 @@ const getBackendUrl = () => {
   );
 };
 
-// 🚀 FIXED: Robust LaTeX Preprocessor tuned strictly for markdown-renderer.jsx
 const cleanTextForLaTeX = (text) => {
   if (typeof text !== "string") return text;
   
@@ -45,13 +38,8 @@ const cleanTextForLaTeX = (text) => {
     .replace(/\u202F/g, " ")
     .replace(/\u00A0/g, " ");
 
-  // Convert block math \[ ... \] to standard $$ ... $$
   clean = clean.replace(/\\\[([\s\S]*?)\\\]/g, (match, eq) => `\n\n$$${eq.trim()}$$\n\n`);
-
-  // Convert inline math \( ... \) to standard $ ... $
   clean = clean.replace(/\\\((.*?)\\\)/g, (match, eq) => `$${eq.trim()}$`);
-
-  // Trim accidental leading/trailing spaces inside $ ... $ so markdown-renderer regex matches
   clean = clean.replace(/\$\s+([^$\n]+?)\s+\$/g, "$$$1$$");
 
   return clean;
@@ -106,17 +94,14 @@ export default function BrainTrainingSession({ config, onExit, onLeave }) {
   const [flaggedQuestions, setFlaggedQuestions] = useState([]);
   const [remainingSeconds, setRemainingSeconds] = useState(() => (config?.durationMinutes || 45) * 60);
 
-  // 🚀 NEW: Accurate Question Pacing Tracker (Seconds per Question)
   const [timeSpentMap, setTimeSpentMap] = useState({});
   const questionStartTimeRef = useRef(Date.now());
 
-  // Modal States
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
   const [autoSubmitCountdown, setAutoSubmitCountdown] = useState(null);
   const [isSubTopicMenuOpen, setIsSubTopicMenuOpen] = useState(false);
 
-  // Question Flagging States
   const [isFlagModalOpen, setIsFlagModalOpen] = useState(false);
   const [selectedIssueType, setSelectedIssueType] = useState("Incorrect Answer Key");
   const [flagComments, setFlagComments] = useState("");
@@ -127,7 +112,6 @@ export default function BrainTrainingSession({ config, onExit, onLeave }) {
   const currentQuestion = currentSubjectQuestions[activeQuestionIndex];
   const currentQuestionKey = currentQuestion ? currentQuestion.id : null;
 
-  // 🚀 Track real seconds spent on each question as the student moves
   useEffect(() => {
     questionStartTimeRef.current = Date.now();
 
@@ -144,7 +128,7 @@ export default function BrainTrainingSession({ config, onExit, onLeave }) {
     };
   }, [activeQuestionIndex, activeSubjectId, currentQuestionKey]);
 
-  // 🚀 Hydrate In-Progress Draft from Neon DB (Cross-Device Resume)
+  // 🚀 NEW: Gracefully handle draft payload { has_draft: boolean, draft: object }
   useEffect(() => {
     if (!config?.id) return;
 
@@ -155,17 +139,23 @@ export default function BrainTrainingSession({ config, onExit, onLeave }) {
             `${getBackendUrl()}/api/v1/brain-training/draft/${config.id}`
           );
           if (res.ok) {
-            const draft = await res.json();
-            if (draft.user_answers) setUserAnswers(draft.user_answers);
-            if (draft.flagged_questions) setFlaggedQuestions(draft.flagged_questions);
-            if (draft.active_subject_id && questionsRepo[draft.active_subject_id]) {
-              setActiveSubjectId(draft.active_subject_id);
-            }
-            if (draft.active_question_index !== undefined) {
-              setActiveQuestionIndex(draft.active_question_index);
-            }
-            if (draft.remaining_seconds && draft.remaining_seconds > 0) {
-              setRemainingSeconds(draft.remaining_seconds);
+            const data = await res.json();
+            
+            // If the backend confirms a draft exists, hydrate it.
+            // If has_draft is false (fresh test or wiped retake), do nothing! The defaults stay active.
+            if (data.has_draft && data.draft) {
+              const draft = data.draft;
+              if (draft.user_answers) setUserAnswers(draft.user_answers);
+              if (draft.flagged_questions) setFlaggedQuestions(draft.flagged_questions);
+              if (draft.active_subject_id && questionsRepo[draft.active_subject_id]) {
+                setActiveSubjectId(draft.active_subject_id);
+              }
+              if (draft.active_question_index !== undefined) {
+                setActiveQuestionIndex(draft.active_question_index);
+              }
+              if (draft.remaining_seconds && draft.remaining_seconds > 0) {
+                setRemainingSeconds(draft.remaining_seconds);
+              }
             }
           }
         }
@@ -179,7 +169,6 @@ export default function BrainTrainingSession({ config, onExit, onLeave }) {
     fetchServerDraft();
   }, [config?.id, questionsRepo]);
 
-  // 🚀 Real-time Database Draft Sync
   const syncDraftToDatabase = useCallback(async () => {
     if (!config?.id || !isHydrated) return;
     try {
@@ -209,7 +198,6 @@ export default function BrainTrainingSession({ config, onExit, onLeave }) {
     return () => clearTimeout(debounceTimer);
   }, [userAnswers, flaggedQuestions, activeQuestionIndex, activeSubjectId, syncDraftToDatabase]);
 
-  // 🚀 Final Submission Handler
   const handleFinalSubmit = useCallback(() => {
     let finalizedTimeMap = { ...timeSpentMap };
     if (currentQuestionKey) {
@@ -227,7 +215,6 @@ export default function BrainTrainingSession({ config, onExit, onLeave }) {
     }
   }, [onExit, userAnswers, remainingSeconds, questionsRepo, timeSpentMap, currentQuestionKey]);
 
-  // Countdown Timer Hook
   useEffect(() => {
     if (!isHydrated || remainingSeconds <= 0) return;
     const timer = setInterval(() => {
@@ -349,7 +336,6 @@ export default function BrainTrainingSession({ config, onExit, onLeave }) {
   const currentSubjectName = activeSubjects.find((s) => s.id === activeSubjectId)?.name || "Training Session";
 
   return (
-    // 🚀 FIXED: Mobile edge-to-edge layout padding (No more thin/cramped viewports)
     <div className="w-full max-w-7xl mx-auto space-y-4 sm:space-y-6 animate-fade-in pb-8 lg:pb-12 px-1 sm:px-4 lg:px-6 select-none">
       <style
         dangerouslySetInnerHTML={{
@@ -364,7 +350,7 @@ export default function BrainTrainingSession({ config, onExit, onLeave }) {
       />
 
       {/* ────────────────────────────────────────────────────────────────────────────────────────
-          TOP NAVIGATION BAR (BLUE STANDARDIZED)
+          TOP NAVIGATION BAR
          ──────────────────────────────────────────────────────────────────────────────────────── */}
       <div className="sticky top-2 sm:top-4 z-30 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-3 sm:p-4 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
         <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -489,7 +475,6 @@ export default function BrainTrainingSession({ config, onExit, onLeave }) {
                 </button>
               </div>
 
-              {/* 🚀 FIXED: LaTeX Math Rendering on Question Text */}
               <div className="text-sm sm:text-base font-bold text-slate-900 dark:text-white leading-relaxed overflow-x-auto brain-session-scroll max-w-full break-words">
                 <MarkdownRenderer text={cleanTextForLaTeX(currentQuestion.questionText)} />
               </div>
@@ -520,7 +505,6 @@ export default function BrainTrainingSession({ config, onExit, onLeave }) {
                       >
                         {option.letter}
                       </div>
-                      {/* 🚀 FIXED: LaTeX Math Rendering on Options */}
                       <div className="text-xs sm:text-sm font-medium pt-1 markdown-inline-fix w-full overflow-x-auto brain-session-scroll break-words">
                         <MarkdownRenderer text={cleanTextForLaTeX(option.text)} />
                       </div>

@@ -1,15 +1,15 @@
 /**
  * [NEW UPGRADE]
- * SUMMARY: Executed v2.1 First-Time Onboarding Integration.
- * 1. Modal Injection: Safely imported and mounted `<ToolsOnboardingModal />` without converting `page.js` into a client component, thereby preserving your SEO `metadata` config flawlessly.
+ * SUMMARY: Executed v2.2 Unified Onboarding Integration.
+ * 1. Unified Modal Injection: Swapped the standalone `ToolsOnboardingModal` for the new dynamic `OnboardingModal` and passed the `moduleType="tools"` prop.
  * ================================================================================================
- * 🧠 JEMER ACADEMY ECOSYSTEM — LEARNING TOOLS PAGE ROUTER (v2.1)
+ * 🧠 JEMER ACADEMY ECOSYSTEM — LEARNING TOOLS PAGE ROUTER (v2.2)
  * ================================================================================================
  */
 
 import React from "react"; // Standard React import
 import ToolsWidgets from "@/jemer-components/ui/tools-widgets.jsx"; // Imports our custom interactive grid interface
-import ToolsOnboardingModal from "@/jemer-components/ui/tools-onboarding-modal.jsx"; // Imports the new onboarding flow
+import OnboardingModal from "@/jemer-components/ui/onboarding.jsx"; // Imports the unified onboarding flow
 
 export const metadata = {
   title: "Learning Tools | Jemer Academy",
@@ -21,8 +21,8 @@ export default function LearningToolsPage() {
     // Outer boundary wrapper ensuring smooth fade-in animations on route load
     <div className="w-full max-w-7xl mx-auto flex flex-col gap-6 lg:gap-10 animate-fade-in relative">
       
-      {/* 🚀 ONBOARDING MODAL OVERLAY INJECTION */}
-      <ToolsOnboardingModal />
+      {/* 🚀 UNIFIED ONBOARDING MODAL OVERLAY INJECTION */}
+      <OnboardingModal moduleType="tools" />
 
       {/* ── HIGH-FIDELITY HEADER REGION ── */}
       <header className="flex flex-col gap-3 lg:gap-4 relative z-10 mb-2">

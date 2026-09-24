@@ -3,18 +3,16 @@
 
 /**
  * ================================================================================================
- * 🆕 NEW UPGRADES SUMMARY (v1.0 - QUESTIONS HUNTER LAYOUT)
- * ================================================================================================
- * 1. MASTER WRAPPER: Dedicated layout for `/questions` mirroring the proven platform architecture.
- * 2. TURQUOISE THEME INJECTION: Custom `.exam-premium-scroll` WebKit scrollbar tinted to a sleek 
- *    Teal/Turquoise (`rgba(20, 184, 166, 0.3)`) to distinguish the infinite questions hunter.
- * 3. CORE UI PRESERVED: Retains fixed Sidebar, Navbar, and responsive mobile translucent backdrop.
+ * [NEW UPGRADE]
+ * SUMMARY: Questions Hunter Route Lockdown (v1.1)
+ * 1. DEVELOPMENT LOCK MOUNT: Injected `<ExamLockModal forceShow={true} />` into `/questions` layout.
  * ================================================================================================
  */
 
 import React, { useState } from "react"; 
 import Sidebar from "@/jemer-components/layout/Sidebar"; 
 import Navbar from "@/jemer-components/layout/Navbar"; 
+import ExamLockModal from "@/jemer-components/ui/exam-lock-modal"; // 🚀 NEW: Import Lock Modal
 
 export default function QuestionsHunterLayout({ children }) {
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
@@ -22,6 +20,9 @@ export default function QuestionsHunterLayout({ children }) {
   return (
     <div className="h-screen w-full overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex relative transition-colors duration-200 font-sans">
       
+      {/* 🚀 NEW: Universal Development Lock Overlay */}
+      <ExamLockModal forceShow={true} />
+
       {/* Turquoise/Teal themed custom scrollbars */}
       <style dangerouslySetInnerHTML={{__html: `
         .exam-premium-scroll::-webkit-scrollbar { width: 6px; height: 6px; }

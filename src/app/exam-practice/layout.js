@@ -3,17 +3,16 @@
 
 /**
  * ================================================================================================
- * 🆕 NEW UPGRADES SUMMARY (v1.0 - EXAM PRACTICE LAYOUT)
- * ================================================================================================
- * 1. MASTER WRAPPER: Dedicated layout for `/exam-practice` mirroring JAMB/WAEC architecture.
- * 2. ORANGE THEME INJECTION: Custom `.exam-premium-scroll` WebKit scrollbar tinted to orange.
- * 3. CORE UI PRESERVED: Retains fixed Sidebar, Navbar, and mobile translucent backdrop.
+ * [NEW UPGRADE]
+ * SUMMARY: Exam Practice Layout Lockdown (v1.1)
+ * 1. DEVELOPMENT LOCK MOUNT: Injected `<ExamLockModal forceShow={true} />` into the `/exam-practice` layout.
  * ================================================================================================
  */
 
 import React, { useState } from "react"; 
 import Sidebar from "@/jemer-components/layout/Sidebar"; 
 import Navbar from "@/jemer-components/layout/Navbar"; 
+import ExamLockModal from "@/jemer-components/ui/exam-lock-modal"; // 🚀 NEW: Import Lock Modal
 
 export default function ExamPracticeLayout({ children }) {
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
@@ -21,6 +20,9 @@ export default function ExamPracticeLayout({ children }) {
   return (
     <div className="h-screen w-full overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex relative transition-colors duration-200 font-sans">
       
+      {/* 🚀 NEW: Universal Development Lock Overlay */}
+      <ExamLockModal forceShow={true} />
+
       {/* Orange themed custom scrollbars */}
       <style dangerouslySetInnerHTML={{__html: `
         .exam-premium-scroll::-webkit-scrollbar { width: 6px; height: 6px; }

@@ -1,18 +1,18 @@
 /**
  * ================================================================================================
- * 🚀 JEMER ACADEMY ECOSYSTEM — BOOKSHELF PAGE ROUTER (v2.0)
+ * [NEW UPGRADE]
+ * SUMMARY: Bookshelf Page Router Lockdown Integration (v2.1)
+ * 1. Double Guard Barrier: Mounted `<BookshelfLockModal />` at the root view layer alongside the existing components.
+ * 2. Zero Code Destruction: Preserved SEO metadata, `<BookshelfOnboarding />`, and `<BooksWidget />` completely untouched.
  * ================================================================================================
- * new: Transformed color palette to the unified Blue/White/Slate system, stripping out all 
- * legacy emerald/teal gradients to comply with the Manifesto's solid-color contrast rules.
- * new: Refined copy to explicitly position the library as a "Coming Soon" preview feature.
- * SUMMARY: Assembles the Bookshelf view.
- * 1. Injects `<BookshelfOnboarding />` as a silent overlay layer.
- * 2. Mounts `<BooksWidget />` cleanly underneath the ecosystem header.
+ * 🚀 JEMER ACADEMY ECOSYSTEM — BOOKSHELF PAGE ROUTER (v2.1)
+ * ================================================================================================
  */
 
 import React from "react";
 import BooksWidget from "@/jemer-components/bookshelf/books-widget.jsx";
 import BookshelfOnboarding from "@/jemer-components/bookshelf/bookshelf-onboarding.jsx";
+import BookshelfLockModal from "@/jemer-components/ui/bookshelf-lock-modal.jsx"; // 🚀 NEW: Import Lock Modal
 
 export const metadata = {
   title: "Digital Library (Preview) | Jemer Academy",
@@ -23,6 +23,9 @@ export default function BookshelfPage() {
   return (
     <div className="w-full max-w-7xl mx-auto flex flex-col gap-6 lg:gap-10 animate-fade-in relative h-full">
       
+      {/* 🚀 NEW: DEVELOPMENT LOCK OVERLAY (Delete this line to launch the feature when ready) */}
+      <BookshelfLockModal />
+
       {/* ONBOARDING MODAL OVERLAY INJECTION */}
       <BookshelfOnboarding />
 

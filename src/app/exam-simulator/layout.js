@@ -1,32 +1,45 @@
-"use client"; // Enforces client-side execution to enable React state hooks for interactive mobile layout toggles[cite: 5]
-
-// Import core React state hook to track sidebar toggle state[cite: 5]
-import React, { useState } from "react"; 
-
-// Import global cached sidebar component without extension to avoid path parsing bugs[cite: 5]
-import Sidebar from "@/jemer-components/layout/Sidebar"; 
-
-// Import top header command navbar component without extension[cite: 5]
-import Navbar from "@/jemer-components/layout/Navbar"; 
+"use client"; // Enforces client-side execution to enable React state hooks for interactive mobile layout toggles
 
 /**
  * ================================================================================================
- * 🚀 JEMER ACADEMY ECOSYSTEM — EXAM SIMULATOR MASTER LAYOUT (v2.1)[cite: 5]
+ * [NEW UPGRADE]
+ * SUMMARY: Master Exam Layout Lockdown Integration (v2.2)
+ * 1. UNIVERSAL ROUTE LOCKDOWN: Mounted `<ExamLockModal forceShow={true} />` directly into this master layout. 
+ *    Because this layout wraps all `/exam/*` sub-routes (JAMB, WAEC, Hunter, Practice, Study Room), 
+ *    entering any sub-URL directly will now instantly trigger the non-dismissible development lock.
  * ================================================================================================
- * Master route layout handler for `/exam`.[cite: 5]
- * Controls full viewport lockdown, dynamic sidebar margin shifts, and top navbar state.[cite: 5]
+ * 🚀 JEMER ACADEMY ECOSYSTEM — EXAM SIMULATOR MASTER LAYOUT (v2.2)
+ * ================================================================================================
+ * Master route layout handler for `/exam`.
+ * Controls full viewport lockdown, dynamic sidebar margin shifts, top navbar state, and dev lock barrier.
  */
+
+// Import core React state hook to track sidebar toggle state
+import React, { useState } from "react"; 
+
+// Import global cached sidebar component without extension to avoid path parsing bugs
+import Sidebar from "@/jemer-components/layout/Sidebar"; 
+
+// Import top header command navbar component without extension
+import Navbar from "@/jemer-components/layout/Navbar"; 
+
+// 🚀 NEW: Import the Exam Lock Modal barrier
+import ExamLockModal from "@/jemer-components/ui/exam-lock-modal";
+
 export default function ExamLayout({ children }) {
   // ── LAYER 1: NAVIGATION SIDEBAR VISIBILITY STATE ────────────────────────────────────────────
-  // Set to 'true' by default so it stays open when navigating and preserves the seamless SPA feel[cite: 5]
+  // Set to 'true' by default so it stays open when navigating and preserves the seamless SPA feel
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
 
   return (
     // 🏛️ MASTER VIEWPORT LOCKDOWN CONTAINER
-    // Locks total viewport height, hides root scrollbars, and sets background themes[cite: 5]
+    // Locks total viewport height, hides root scrollbars, and sets background themes
     <div className="h-screen w-full overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex relative transition-colors duration-200 font-sans">
       
-      {/* Custom styled scrollbars for WebKit browsers[cite: 5] */}
+      {/* 🚀 NEW: UNIVERSAL LOCK OVERLAY FOR ALL SUB-ROUTES */}
+      <ExamLockModal forceShow={true} />
+
+      {/* Custom styled scrollbars for WebKit browsers */}
       <style dangerouslySetInnerHTML={{__html: `
         .exam-premium-scroll::-webkit-scrollbar { width: 6px; }
         .exam-premium-scroll::-webkit-scrollbar-track { background: transparent; }
@@ -35,27 +48,27 @@ export default function ExamLayout({ children }) {
       `}} />
 
       {/* 📡 MOBILE TRANSLUCENT BACKDROP OVERLAY */}
-      {/* Displays translucent backdrop when sidebar is open on small screens[cite: 5] */}
+      {/* Displays translucent backdrop when sidebar is open on small screens */}
       {isSidebarVisible && (
         <div
-          // Dismisses mobile sidebar when user clicks anywhere on the backdrop overlay[cite: 5]
+          // Dismisses mobile sidebar when user clicks anywhere on the backdrop overlay
           onClick={() => setIsSidebarVisible(false)}
-          // Visual styling for mobile backdrop overlay layer[cite: 5]
+          // Visual styling for mobile backdrop overlay layer
           className="fixed inset-0 bg-slate-900/40 dark:bg-black/60 backdrop-blur-xs z-30 lg:hidden transition-all duration-300 animate-fade-in cursor-pointer"
         />
       )}
 
       {/* 🖥️ VIEWPORT-LOCKED FIXED COMMAND SIDE NAVIGATION BAR */}
-      {/* Renders global sidebar component and binds visibility state props[cite: 5] */}
+      {/* Renders global sidebar component and binds visibility state props */}
       <Sidebar 
-        // Pass open state flag boolean[cite: 5]
+        // Pass open state flag boolean
         isOpen={isSidebarVisible} 
-        // Pass sidebar close handler callback function[cite: 5]
+        // Pass sidebar close handler callback function
         onClose={() => setIsSidebarVisible(false)} 
       />
 
       {/* 🚀 PRIMARY WORKSPACE CONTENT AREA COLUMN LAYER */}
-      {/* Shifts main content left margin by 256px (lg:ml-64) when sidebar is open to fix layout overlap[cite: 5] */}
+      {/* Shifts main content left margin by 256px (lg:ml-64) when sidebar is open to fix layout overlap */}
       <div 
         className={`h-full flex-1 flex flex-col min-w-0 overflow-hidden transition-all duration-300 ease-in-out ${
           isSidebarVisible ? "lg:ml-64" : "ml-0"
@@ -63,18 +76,18 @@ export default function ExamLayout({ children }) {
       >
         
         {/* TOP COMMAND RAIL NAVBAR */}
-        {/* Renders top navigation bar and connects hamburger button to sidebar toggle[cite: 5] */}
+        {/* Renders top navigation bar and connects hamburger button to sidebar toggle */}
         <Navbar 
-          // Toggle sidebar state on hamburger menu click[cite: 5]
+          // Toggle sidebar state on hamburger menu click
           onMenuToggle={() => setIsSidebarVisible(!isSidebarVisible)} 
         />
 
         {/* 📥 SELF-CONTAINED MAIN COMPONENT WORKSPACE CELL */}
-        {/* Scrollable container for exam sub-routes[cite: 5] */}
+        {/* Scrollable container for exam sub-routes */}
         <main className="flex-1 overflow-y-auto exam-premium-scroll focus:outline-none bg-slate-50/40 dark:bg-slate-950/40 relative">
-          {/* Inner content wrapper with responsive padding[cite: 5] */}
+          {/* Inner content wrapper with responsive padding */}
           <div className="w-full h-full p-4 sm:p-6 lg:p-8 pb-24 lg:pb-12">
-            {/* Render child sub-pages dynamically[cite: 5] */}
+            {/* Render child sub-pages dynamically */}
             {children}
           </div>
         </main>
